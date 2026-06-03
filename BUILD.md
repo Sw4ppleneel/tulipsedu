@@ -75,6 +75,33 @@ None
 
 # Completed
 
+## 2026-06-03 — Student Management
+
+### Work Completed
+
+Full Student Management vertical slice:
+- Migrations 004 (academic_years), 005 (classes, sections), 006 (students)
+- roll_number column with CONSTRAINT unique_tenant_section_roll
+- CONSTRAINT unique_tenant_admission_no
+- ClassSwipe composite index on (tenant_id, academic_year_id, class_id, section_id, is_active)
+- 10 API endpoints: academic years, classes, sections, students (CRUD + soft-delete)
+- Events: STUDENT_CREATED, STUDENT_UPDATED
+- JWT now carries tenant_slug claim
+- Frontend: VirtualList (zero deps), StudentsView, StudentForm, AppShell
+
+### APIs Added
+- POST/GET /api/v1/academic-years
+- PATCH /api/v1/academic-years/:id/set-current
+- POST/GET /api/v1/classes
+- POST /api/v1/classes/:id/sections
+- POST/GET/GET/:id/PUT/:id/DELETE/:id /api/v1/students
+
+### Events Added
+- STUDENT_CREATED
+- STUDENT_UPDATED
+
+---
+
 ## 2026-06-03 — Sprint Foundation
 
 ### Work Completed
@@ -213,7 +240,7 @@ None
 
 # Next Recommended Task
 
-Sprint Foundation verification:
+Staff Management vertical slice (Priority #3 per CLAUDE.md).
 
 1. `cd backend && pip install -r requirements.txt`
 2. `docker compose up postgres -d`
