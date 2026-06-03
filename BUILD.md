@@ -3,65 +3,140 @@
 # Project Status
 
 Project: Tulips.edu
-
-Phase:
-Phase 1 MVP
-
-Current Sprint:
-Production Readiness
-
-Status:
-MVP Feature Complete — Awaiting Domain + VPS + R2 Credentials for Deployment
-
-Last Updated:
-2026-06-03
+Phase: Phase 1 MVP — Post-Launch Iteration
+Current Sprint: Sprint 2 — RBAC, UX Fixes, Payment, Exam Structure
+Last Updated: 2026-06-04
 
 ---
 
-# Current Objectives
+# PROJECT STATE
 
-## Sprint Goal
+Current Phase: Phase 1 MVP (deployed to production)
+Current Sprint: Sprint 2 — Role-Based Access, UX Overhaul, Exam Restructure, Fee Excel Import, Payment QR
 
-Deploy to production when domain / VPS / R2 credentials are provided.
+Completed:
+- Auth + Tenant Isolation
+- Student Management
+- Staff Management
+- ClassSwipe Attendance
+- Finance (fee heads, ledger, payments)
+- Homework & Classroom Feed
+- Timetable Engine
+- Examination Management
+- Parent Portal (OTP, student summary)
+- CMS (pages + announcements)
+- Dashboard
+- Production deployment (*.tulipsedu.in, 4 schools seeded)
+- R2 upload endpoint (501 until credentials added)
 
----
+In Progress: Sprint 2 planning (this document)
 
-# Current TODO
+Blocked:
+- R2 credentials not yet added to production .env
+- SMS provider (OTP in dev mode only)
 
-## High Priority (Deployment Blockers)
-
-* [ ] Receive domain name from user → update `BASE_DOMAIN`, `APP_BASE_URL` in `backend/.env`
-* [ ] Receive VPS credentials → provision with `docker-compose.prod.yml`
-* [ ] Receive Cloudflare R2 credentials → add to `backend/.env` (R2_ACCOUNT_ID, etc.)
-* [ ] Run certbot for wildcard SSL: `certbot certonly --dns-cloudflare -d *.tulipsedu.in`
-* [ ] Seed production tenant: `python scripts/seed_platform.py` → `python scripts/seed_tenant.py`
-
-## Medium Priority (Post-Launch)
-
-* [ ] SMS provider integration (Twilio / MSG91) for parent OTP delivery
-* [ ] Push notifications for parents (homework/fee reminders)
-* [ ] Razorpay webhook verification hardening
-* [ ] Admin-driven parent ↔ student manual linking UI
-
-## Low Priority
-
-* [ ] CI/CD pipeline (GitHub Actions → Docker build → VPS deploy)
-* [ ] Monitoring (Prometheus + Grafana or Sentry)
-* [ ] Automated DB backups (pg_dump → R2)
+Next Task: RBAC implementation (user roles: principal, teacher, accountant) + UI app split
 
 ---
 
-# In Progress
+# Sprint 2 — Backlog
 
-None
+## BUG: Roll Number Not Unique Per Class
+**Problem:** Two students can share a roll number in the same class/section.
+**Fix:** Migration — add unique constraint `(tenant_id, academic_year_id, class_id, section_id, roll_number)`.
+**Status:** Needs migration + backend validation.
+
+## BUG: Timetable Missing Teacher Field
+**Problem:** Slot entry form has no field for teacher name/assignment.
+**Fix:** Add `staff_id` FK to `timetable_slots`. Update API + frontend slot form with teacher dropdown.
+**Status:** Needs migration + backend + frontend.
+
+## BUG: Attendance Cannot Be Updated After Submit
+**Problem:** Once attendance session is marked submitted=TRUE, no edit possible.
+**Fix:** Allow PATCH/PUT on individual attendance records even after session is submitted. Remove the submit-lock on edits (keep audit trail).
+**Status:** Backend service + frontend UI change.
+
+## FEAT: Fee System — Excel Import Only
+**Problem:** Manual fee entry UI is too complex and broken (doesn't load on add).
+**Decision:** Remove all manual fee entry. Fee structures must be imported via Excel/CSV only.
+**New flow:**
+1. Admin uploads Excel: columns = student_roll, fee_head, amount, due_date, installment
+2. Backend parses, validates, inserts into fee_ledger in bulk
+3. View-only table in UI for fee ledger
+4. Collection still via receipt entry (cash/UPI/cheque)
+**Status:** Needs new upload endpoint + parser + simplified UI.
+
+## FEAT: Exam Mark Categories Per Term
+**Problem:** Current exam system has flat marks per subject. CBSE requires breakdown.
+**New model:**
+- Each exam term has `mark_components`: e.g., Unit Test (10), Oral (10), Theory (80) → total 100
+- Teachers enter marks per component
+- System sums and computes grade
+**CBSE standard:** 80 theory + 20 internal (periodic tests 10 + notebook 5 + enrichment 5)
+**Status:** Needs migration for exam_components table + API rewrite + frontend marks entry grid.
+
+## FEAT: RBAC — Role-Based Access Control
+**Roles required (Phase 1):**
+- `superadmin` — platform-level, already exists
+- `principal` — full school access (current admin role, rename)
+- `teacher` — own assigned classes only: attendance + homework
+- `class_teacher` — same as teacher + can view class student list
+- `accountant` — fees module only
+- `parent` — already implemented (parent portal)
+
+**App split:**
+- `[subdomain].tulipsedu.in` (no path) — public school website (CMS, already routes correctly)
+- `[subdomain].tulipsedu.in/app` — staff app (principal/teacher/accountant login)
+- `[subdomain].tulipsedu.in/parent` — parent app (OTP login, student summary, fee QR)
+
+**Staff login flow:**
+- Single login page with dropdown: Principal / Teacher / Accountant
+- Backend: existing staff user records get a `role` field
+- Frontend: show only permitted nav tabs based on role
+  - Principal: dashboard, students, staff, attendance, fees, homework, timetable, exams, cms
+  - Teacher: attendance (own classes), homework (own classes)
+  - Accountant: fees only
+
+**Status:** Needs DB migration (add role column to users), middleware role propagation, frontend nav gating.
+
+## FEAT: Parent Fee Payment — UPI QR Code
+**Flow:**
+1. Parent taps a fee installment in the portal
+2. Modal shows: amount due, school's UPI ID, dynamic QR code
+3. Parent pays via any UPI app (Google Pay, PhonePe, Paytm, BHIM)
+4. Manual reconciliation by accountant (mark as paid in fees module)
+5. Future: Razorpay webhook auto-reconciliation
+
+**Implementation:**
+- Store `upi_id` on tenant record (migration)
+- Frontend: generate QR using `qrcode` library (small, ~5 kB) with UPI deep link format:
+  `upi://pay?pa=SCHOOL_UPI_ID&pn=SCHOOL_NAME&am=AMOUNT&cu=INR&tn=Fee%20Payment`
+- No payment gateway needed for Phase 1 (manual reconciliation)
+
+**Status:** Needs migration (upi_id on tenants) + frontend QR modal.
+
+## FEAT: Teacher Class Assignment
+**Model:** Each teacher (staff record) is assigned to one or more sections as class teacher.
+**New table:** `class_teacher_assignments (tenant_id, staff_id, class_id, section_id, academic_year_id)`
+**Status:** Needs migration + API + frontend admin assignment screen.
+
+---
+
+# Prioritized Implementation Order
+
+1. **RBAC roles + nav gating** (unblocks teacher/accountant login)
+2. **Attendance edit-after-submit** (immediate teacher pain point)
+3. **Roll number uniqueness** (data integrity)
+4. **Timetable teacher field** (UX gap)
+5. **Fee Excel import** (replace broken UI)
+6. **Parent UPI QR** (parent-facing value)
+7. **Exam mark categories** (exam restructure, most complex)
 
 ---
 
 # Completed
 
 ## 2026-06-03 — Parent Portal + CMS + Production Infrastructure
-
-### Work Completed
 
 Parent Portal vertical slice:
 - Migration 016: parents + parent_students tables (auto-link by parent_phone)
@@ -80,84 +155,25 @@ CMS vertical slice:
 - Frontend: CmsAdminView with Pages tab (HTML editor, slug, published toggle) and Announcements tab
 
 Production infrastructure:
-- backend/.env.example — all env vars documented
-- backend/Dockerfile.prod — gunicorn + uvicorn workers, runs migrations at startup
-- scripts/entrypoint.sh — migrations → gunicorn with configurable workers/timeout
-- docker-compose.prod.yml — postgres + backend + nginx + frontend_build profile, separate networks
-- nginx.prod.conf — SSL, HTTP→HTTPS redirect, auth rate limiting (10r/m burst 5), API rate limiting (120r/m), security headers (HSTS, X-Frame-Options, nosniff), gzip, certbot ACME support
+- backend/.env.example, backend/Dockerfile.prod, scripts/entrypoint.sh
+- docker-compose.prod.yml, nginx.prod.conf (SSL, rate limiting, security headers)
+- Dynamic CORS config (regex for wildcard subdomains)
 
-Backend improvements:
-- config.py: CORS_ORIGIN_REGEX support for wildcard subdomain matching in production
-- main.py: dynamic CORS config (regex or explicit origins)
-- middleware/tenant.py: parent auth + /public/ paths exempted from JWT validation
-- api/v1/uploads.py: R2 presigned URL endpoint (returns 501 until R2 credentials set)
-- All 85+ routes registered and verified
+## 2026-06-03 — Homework, Timetable, Examination Backend + Frontend
 
-### APIs Added
-- POST /api/v1/parent/auth/request-otp
-- POST /api/v1/parent/auth/verify-otp
-- GET /api/v1/parent/students
-- GET /api/v1/parent/students/:id/summary
-- POST/GET /api/v1/cms/pages
-- PUT/DELETE /api/v1/cms/pages/:id
-- POST/GET /api/v1/cms/announcements
-- PUT/DELETE /api/v1/cms/announcements/:id
-- GET /api/v1/public/school-info
-- GET /api/v1/public/pages
-- GET /api/v1/public/pages/:slug
-- GET /api/v1/public/announcements
-- POST /api/v1/uploads/url
-
-### Events Added
-- PARENT_LOGIN
-
-### Bugs Fixed
-- services/parent.py: attendance query used `submitted_at` (does not exist), fixed to `submitted = TRUE`
-- services/parent.py: class sort column was `display_order` (does not exist), fixed to `numeric_order`
-- services/parent.py: fee query rewrote to use actual schema (fee_ledger, fee_payments) instead of assumed student_fees/payments tables
-
----
-
-## 2026-06-03 — Homework, Timetable, Examination Frontend
-
-### Work Completed
-
-Full frontend for three modules already completed in previous session:
-- HomeworkView: post list, create form, type/class filters, soft-delete (204 fix)
-- TimetableView: week grid per class-section, add/delete slots
-- ExamView: marks entry per term/subject, result sheet with CBSE grades
-
-### Bugs Fixed
-- client.ts: 204 No Content responses caused JSON parse error — added early return
-- vite.config.ts: zimmerframe CJS/ESM conflict patched, HMR overlay disabled
-- services/exam.py: f-string SyntaxError in consolidated results query
-- services/timetable.py: asyncpg TIME column requires datetime.time objects
-
----
-
-## 2026-06-03 — Homework, Timetable, Examination Backend
-
-Full backend: migrations 012–015, models, services, API routes (20 endpoints)
-
----
+Full backend and frontend for three modules: HomeworkView, TimetableView, ExamView
 
 ## 2026-06-03 — Finance Module
 
 Full Finance vertical slice: fee structures, payments, receipts, superadmin panel
 
----
-
 ## 2026-06-03 — Staff Management + ClassSwipe Attendance
 
 Full Staff Management and ClassSwipe Attendance vertical slices
 
----
-
 ## 2026-06-03 — Student Management
 
 Full Student Management vertical slice with VirtualList frontend
-
----
 
 ## 2026-06-03 — Sprint Foundation
 
@@ -167,50 +183,38 @@ Project scaffold, Docker, migration framework, auth, tenant isolation, Preact fr
 
 # Architectural Decisions
 
-## ADR-001 — Single multi-tenant monolith
-Reason: Operational simplicity and cost efficiency. Status: Approved
-
-## ADR-002 — Offline-first attendance
-Reason: Target environments have unstable network conditions. Status: Approved
-
-## ADR-003 — Cloudflare R2 for file storage
-Reason: Avoid application-server media handling. Status: Approved
-
-## ADR-004 — X-Tenant-Slug header for local dev
-Reason: localhost has no subdomain. Status: Approved
-
-## ADR-005 — OTP parent auth (no password)
-Reason: Parents are non-technical users; password recovery via phone is simpler and more secure. Status: Approved
-
-## ADR-006 — Parent-student auto-link by phone
-Reason: Reduces admin overhead; students already have parent_phone field in the database. Manual override available. Status: Approved
+## ADR-001 — Single multi-tenant monolith (Approved)
+## ADR-002 — Offline-first attendance (Approved)
+## ADR-003 — Cloudflare R2 for file storage (Approved)
+## ADR-004 — X-Tenant-Slug header for local dev (Approved)
+## ADR-005 — OTP parent auth (no password) (Approved)
+## ADR-006 — Parent-student auto-link by phone (Approved)
+## ADR-007 — Fee structure via Excel import only (Proposed — Sprint 2)
+**Reason:** Manual UI too complex for field use; Excel already the school's existing format.
+## ADR-008 — UPI QR code for parent payments, no gateway in Phase 1 (Proposed — Sprint 2)
+**Reason:** Zero MDR on UPI; manual reconciliation acceptable for pilot schools; Razorpay in Phase 2.
+## ADR-009 — RBAC via role column on users table (Proposed — Sprint 2)
+**Reason:** Simple column-level role with middleware propagation; no need for full permission table at MVP scale.
 
 ---
 
 # Known Issues
 
-None
+- Fee add form broken (doesn't load) — will be replaced by Excel import
+- Roll numbers not unique within class — pending migration
+- Attendance locked after submit — pending fix
+- Timetable has no teacher assignment — pending migration + UI
 
 ---
 
 # Blockers
 
-Waiting for:
-- Domain name (for nginx.prod.conf server_name and BASE_DOMAIN env var)
-- VPS SSH credentials (for provisioning)
-- Cloudflare R2 bucket + credentials (for file uploads)
-- SMS provider credentials (for production OTP delivery; dev mode works without it)
+- R2 credentials for production file uploads
+- SMS provider for production OTP delivery
 
 ---
 
-# Deployment Runbook (once credentials arrive)
+# Pending Post-Launch
 
-1. SSH into VPS
-2. Clone repo: `git clone ... && cd Tulips.edu`
-3. Copy env: `cp backend/.env.example backend/.env` → fill in all values
-4. Set POSTGRES_PASSWORD in shell: `export POSTGRES_PASSWORD=strong_password`
-5. Build frontend: `docker compose -f docker-compose.prod.yml --profile build run --rm frontend_build`
-6. Start stack: `docker compose -f docker-compose.prod.yml up -d`
-7. SSL: install certbot, run `certbot certonly --dns-cloudflare -d "*.tulipsedu.in"`
-8. Seed first institution: `docker compose exec backend python scripts/seed_platform.py`
-9. Verify: `curl https://demo.tulipsedu.in/health`
+- SSL auto-renew cron: `certbot renew --quiet && docker compose -f ~/tulips/docker-compose.prod.yml exec nginx nginx -s reload`
+- R2 env vars: R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME, R2_PUBLIC_URL

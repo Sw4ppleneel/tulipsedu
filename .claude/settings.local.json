@@ -46,7 +46,8 @@
       "Bash(echo \"serve PID: $!\")",
       "Bash(node test_tulips.mjs)",
       "Bash(node *)",
-      "Bash(echo \"PID: $!\")"
+      "Bash(echo \"PID: $!\")",
+      "WebSearch"
     ]
   }
 }
