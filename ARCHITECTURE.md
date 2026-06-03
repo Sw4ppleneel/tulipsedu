@@ -17,12 +17,8 @@ Implemented:
 - Timetable Engine: timetable_slots (full backend)
 - Examination Management: exam_subjects, exam_terms, exam_marks_config, mark_entries (full backend)
 
-Partially Implemented:
-- Frontend: login + students + staff views built; Homework/Timetable/Exam frontend pending
-
-Planned:
-- Parent Portal
-- CMS
+MVP Feature Complete:
+All Phase 1 modules implemented and verified. Awaiting domain/VPS/R2 credentials for production deployment.
 
 ---
 
@@ -308,6 +304,42 @@ Constraints: UNIQUE (tenant_id, academic_year_id, name)
 
 ---
 
+## parents
+
+Fields: id, tenant_id, phone_number, name, otp_hash, otp_expires_at, last_login_at, is_active, created_at
+
+Indexes: UNIQUE (tenant_id, phone_number); (tenant_id, is_active)
+
+Note: OTP is bcrypt-hashed, TTL 10 minutes. Auto-linked to students where students.parent_phone matches.
+
+---
+
+## parent_students
+
+Fields: parent_id (FK → parents), student_id (FK → students), relationship (default 'parent')
+
+Primary Key: (parent_id, student_id)
+
+---
+
+## cms_pages
+
+Fields: id, tenant_id, slug, title, content_html, meta_description, is_published, sort_order, updated_at, created_at
+
+Constraints: UNIQUE (tenant_id, slug)
+
+Indexes: (tenant_id, is_published, sort_order)
+
+---
+
+## cms_announcements
+
+Fields: id, tenant_id, title, body, is_published, published_at, expires_at, created_at
+
+Indexes: (tenant_id, is_published, published_at DESC)
+
+---
+
 ## exam_marks_config
 
 Fields: id, tenant_id, exam_term_id, exam_subject_id, max_marks, passing_marks (default 33), weightage (default 100), created_at
@@ -359,6 +391,10 @@ Payload: tenant_id, post_id, class_id, section_id, post_type
 ## MARKS_ENTERED
 Producer: services/exam.py
 Payload: tenant_id, exam_term_id, count
+
+## PARENT_LOGIN
+Producer: services/parent.py
+Payload: tenant_id, parent_id
 
 ---
 
@@ -440,6 +476,35 @@ Payload: tenant_id, exam_term_id, count
 ### GET /api/v1/exams/marks — Implemented (by term + subject + class-section)
 ### GET /api/v1/exams/results/term — Implemented (term result sheet with grades)
 ### GET /api/v1/exams/results/consolidated — Implemented (weighted across published terms)
+
+## Parent Portal
+
+### POST /api/v1/parent/auth/request-otp — Implemented (public, no JWT)
+### POST /api/v1/parent/auth/verify-otp — Implemented (public, no JWT; returns JWT with role=parent)
+### GET /api/v1/parent/students — Implemented (lists students auto-linked by parent_phone)
+### GET /api/v1/parent/students/:id/summary — Implemented (attendance %, fee balance, recent homework)
+
+## CMS Admin
+
+### POST /api/v1/cms/pages — Implemented
+### GET /api/v1/cms/pages — Implemented (all pages including drafts)
+### PUT /api/v1/cms/pages/:id — Implemented
+### DELETE /api/v1/cms/pages/:id — Implemented
+### POST /api/v1/cms/announcements — Implemented
+### GET /api/v1/cms/announcements — Implemented (all including drafts)
+### PUT /api/v1/cms/announcements/:id — Implemented
+### DELETE /api/v1/cms/announcements/:id — Implemented
+
+## Public CMS (no JWT required)
+
+### GET /api/v1/public/school-info — Implemented
+### GET /api/v1/public/pages — Implemented (published only)
+### GET /api/v1/public/pages/:slug — Implemented (published only)
+### GET /api/v1/public/announcements — Implemented (active + not expired)
+
+## File Uploads
+
+### POST /api/v1/uploads/url — Implemented (R2 presigned PUT URL; returns 501 until R2 configured)
 
 ---
 
