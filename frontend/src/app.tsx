@@ -6,6 +6,9 @@ import { StaffView } from './views/Staff'
 import { AttendanceView } from './views/Attendance'
 import { FeesAdminView } from './views/FeesAdmin'
 import { SuperadminView } from './views/Superadmin'
+import { HomeworkView } from './views/Homework'
+import { TimetableView } from './views/Timetable'
+import { ExamView } from './views/Exam'
 import type { TokenResponse } from './types/auth'
 
 // Auto-detect tenant from subdomain; returns empty string on localhost
@@ -14,7 +17,7 @@ function getSubdomain(): string {
   return parts.length > 2 ? parts[0] : ''
 }
 
-type View = 'students' | 'staff' | 'attendance' | 'fees' | 'superadmin'
+type View = 'students' | 'staff' | 'attendance' | 'fees' | 'homework' | 'timetable' | 'exams' | 'superadmin'
 
 // ── App Shell (authenticated) ────────────────────────────────────────────────
 
@@ -42,6 +45,9 @@ function AppShell({ onLogout, role }: { onLogout: () => void; role: string }) {
             <button onClick={() => setView('staff')}      style={NAV_BTN(view === 'staff')}>Staff</button>
             <button onClick={() => setView('attendance')} style={NAV_BTN(view === 'attendance')}>Attendance</button>
             <button onClick={() => setView('fees')}       style={NAV_BTN(view === 'fees')}>Fees</button>
+            <button onClick={() => setView('homework')}   style={NAV_BTN(view === 'homework')}>Homework</button>
+            <button onClick={() => setView('timetable')}  style={NAV_BTN(view === 'timetable')}>Timetable</button>
+            <button onClick={() => setView('exams')}      style={NAV_BTN(view === 'exams')}>Exams</button>
             {role === 'superadmin' && (
               <button onClick={() => setView('superadmin')} style={{ ...NAV_BTN(view === 'superadmin'), background: view === 'superadmin' ? '#7c3aed' : 'transparent' }}>
                 Superadmin
@@ -61,6 +67,9 @@ function AppShell({ onLogout, role }: { onLogout: () => void; role: string }) {
         {view === 'staff'      && <StaffView />}
         {view === 'attendance' && <AttendanceView />}
         {view === 'fees'       && <FeesAdminView />}
+        {view === 'homework'   && <HomeworkView />}
+        {view === 'timetable'  && <TimetableView />}
+        {view === 'exams'      && <ExamView />}
         {view === 'superadmin' && <SuperadminView />}
       </main>
     </div>
