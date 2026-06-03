@@ -36,7 +36,8 @@
       "Bash(DATABASE_URL=postgresql://tulips:tulips@localhost:5432/tulipsedu backend/.venv/bin/python3.14 *)",
       "Bash(docker compose *)",
       "Bash(PGPASSWORD=tulips psql *)",
-      "Bash(curl *)"
+      "Bash(curl *)",
+      "Bash(echo \"frontend PID: $!\")"
     ]
   }
 }
