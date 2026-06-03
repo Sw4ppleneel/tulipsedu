@@ -2,6 +2,8 @@ import { useState } from 'preact/hooks'
 import { login } from './api/client'
 import { clearAuthState, decodeJWT, setAuthState } from './api/auth_state'
 import { StudentsView } from './views/Students'
+import { StaffView } from './views/Staff'
+import { AttendanceView } from './views/Attendance'
 import type { TokenResponse } from './types/auth'
 
 // Auto-detect tenant from subdomain; returns empty string on localhost
@@ -10,7 +12,7 @@ function getSubdomain(): string {
   return parts.length > 2 ? parts[0] : ''
 }
 
-type View = 'students'
+type View = 'students' | 'staff' | 'attendance'
 
 // ── App Shell (authenticated) ────────────────────────────────────────────────
 
@@ -34,7 +36,9 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
           <span style={{ fontWeight: 700, fontSize: '1rem', letterSpacing: '-0.02em' }}>Tulips.edu</span>
           <nav style={{ display: 'flex', gap: '0.25rem' }}>
-            <button onClick={() => setView('students')} style={NAV_BTN(view === 'students')}>Students</button>
+            <button onClick={() => setView('students')}   style={NAV_BTN(view === 'students')}>Students</button>
+            <button onClick={() => setView('staff')}      style={NAV_BTN(view === 'staff')}>Staff</button>
+            <button onClick={() => setView('attendance')} style={NAV_BTN(view === 'attendance')}>Attendance</button>
           </nav>
         </div>
         <button
@@ -45,7 +49,9 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
         </button>
       </header>
       <main>
-        {view === 'students' && <StudentsView />}
+        {view === 'students'   && <StudentsView />}
+        {view === 'staff'      && <StaffView />}
+        {view === 'attendance' && <AttendanceView />}
       </main>
     </div>
   )

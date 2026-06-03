@@ -8,7 +8,30 @@
       "Bash(docker info *)",
       "Bash(gh repo *)",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(docker compose up *)",
+      "Bash(psql postgres *)",
+      "Bash(.venv/bin/pip install *)",
+      "Bash(git push *)",
+      "Bash(DATABASE_URL=postgresql://tulips:tulips@localhost:5432/tulipsedu /Users/swapneelpremchand/Tulips.edu/backend/.venv/bin/python3 scripts/apply_migrations.py)",
+      "Bash(DATABASE_URL=postgresql://tulips:tulips@localhost:5432/tulipsedu /Users/swapneelpremchand/Tulips.edu/backend/.venv/bin/python3 *)",
+      "Bash(.venv/bin/pip uninstall *)",
+      "Bash(DATABASE_URL=postgresql://tulips:tulips@localhost:5432/tulipsedu .venv/bin/python3)",
+      "Bash(DATABASE_URL=postgresql://tulips:tulips@localhost:5432/tulipsedu backend/.venv/bin/python3 scripts/seed_tenant.py)",
+      "Bash(DATABASE_URL=postgresql://tulips:tulips@localhost:5432/tulipsedu SECRET_KEY=dev-secret-key-change-in-prod DEBUG=true .venv/bin/uvicorn main:app --port 8000)",
+      "Bash(curl -s http://localhost:8000/health)",
+      "Bash(psql postgresql://tulips:tulips@localhost:5432/tulipsedu -c \"SELECT event_type, payload, created_at FROM audit_events ORDER BY created_at DESC LIMIT 3;\")",
+      "Bash(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:8000/api/v1/auth/login -H 'Content-Type: application/json' -H 'X-Tenant-Slug: demo' -d '{\"phone_number\": \"9999999999\", \"password\": \"wrongpassword\"}')",
+      "Bash(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:8000/api/v1/auth/login -H 'Content-Type: application/json' -d '{\"phone_number\": \"9999999999\", \"password\": \"admin1234\"}')",
+      "Bash(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:8000/api/v1/auth/login -H 'Content-Type: application/json' -H 'X-Tenant-Slug: notexist' -d '{\"phone_number\": \"9999999999\", \"password\": \"admin1234\"}')",
+      "Skill(schedule)",
+      "Bash(chmod +x *)",
+      "Bash(launchctl load *)",
+      "Bash(launchctl list *)",
+      "Bash(DATABASE_URL=postgresql://tulips:tulips@localhost:5432/tulipsedu backend/.venv/bin/python3 *)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(git commit -m 'docs: update BUILD.md for Student Management completion *)"
     ]
   }
 }

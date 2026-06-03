@@ -3,6 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
+from core.csv_export import csv_response, require_export_role
 from models.student import StudentCreate, StudentListResponse, StudentResponse, StudentUpdate
 from services.student import (
     StudentError,
@@ -46,6 +47,42 @@ async def get_students(
             limit=limit,
             offset=offset,
         )
+
+
+# Export must be declared BEFORE /{student_id} to prevent UUID matching /export.csv
+@router.get("/export.csv")
+async def export_students_csv(
+    request: Request,
+    academic_year_id: Optional[UUID] = Query(None),
+    class_id: Optional[UUID] = Query(None),
+    section_id: Optional[UUID] = Query(None),
+):
+    require_export_role(request)
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        result = await list_students(
+            conn, request.state.tenant_id,
+            academic_year_id=academic_year_id,
+            class_id=class_id, section_id=section_id,
+            limit=50_000, offset=0,
+        )
+    headers = [
+        "Roll No", "Admission No", "First Name", "Last Name",
+        "Class", "Section", "Academic Year", "Gender", "Date of Birth",
+        "Parent Phone", "Hosteler", "Active", "Enrolled On",
+    ]
+    rows = [
+        [
+            s.roll_number, s.admission_no, s.first_name, s.last_name,
+            s.class_name or "", s.section_name or "", s.academic_year_name or "",
+            s.gender, str(s.date_of_birth), s.parent_phone,
+            "Yes" if s.is_hosteler else "No",
+            "Yes" if s.is_active else "No",
+            str(s.created_at.date()),
+        ]
+        for s in result.items
+    ]
+    return csv_response(headers, rows, "students.csv")
 
 
 @router.get("/{student_id}", response_model=StudentResponse)
