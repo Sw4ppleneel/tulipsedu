@@ -31,14 +31,17 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+_cors_kwargs: dict = dict(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+if settings.cors_origin_regex:
+    _cors_kwargs["allow_origin_regex"] = settings.cors_origin_regex
+else:
+    _cors_kwargs["allow_origins"] = settings.cors_origins_list
 
+app.add_middleware(CORSMiddleware, **_cors_kwargs)
 app.add_middleware(TenantMiddleware)
 
 app.include_router(router, prefix="/api/v1")

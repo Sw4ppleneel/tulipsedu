@@ -10,12 +10,17 @@ from core.security import decode_token
 
 logger = logging.getLogger(__name__)
 
-# Paths that require tenant context but no JWT (auth handshake endpoints)
+# Paths that require tenant context but no JWT
 _JWT_EXEMPT = frozenset({
     "/api/v1/auth/login",
     "/api/v1/auth/refresh",
     "/api/v1/auth/logout",
+    "/api/v1/parent/auth/request-otp",
+    "/api/v1/parent/auth/verify-otp",
 })
+
+# Path prefixes that are JWT-exempt (public CMS endpoints)
+_JWT_EXEMPT_PREFIXES = ("/api/v1/public/",)
 
 # Paths that bypass tenant lookup entirely
 _TENANT_EXEMPT = frozenset({"/health"})
@@ -52,7 +57,8 @@ class TenantMiddleware(BaseHTTPMiddleware):
         request.state.tenant_slug = tenant["slug"]
         request.state.feature_flags = tenant["feature_flags"] or {}
 
-        if path not in _JWT_EXEMPT:
+        jwt_exempt = path in _JWT_EXEMPT or any(path.startswith(p) for p in _JWT_EXEMPT_PREFIXES)
+        if not jwt_exempt:
             auth_header = request.headers.get("authorization", "")
             if not auth_header.startswith("Bearer "):
                 return JSONResponse(status_code=401, content={"detail": "Missing authorization"})
