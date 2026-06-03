@@ -1,5 +1,6 @@
 import { render } from 'preact'
 import { App } from './app'
+import './globals.css'
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {

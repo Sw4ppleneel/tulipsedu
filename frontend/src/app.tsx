@@ -1,7 +1,8 @@
-import { useState } from 'preact/hooks'
+import { useEffect, useState } from 'preact/hooks'
 import { login } from './api/client'
 import { clearAuthState, decodeJWT, setAuthState } from './api/auth_state'
 import { requestOtp, verifyOtp } from './api/parent'
+import { DashboardView } from './views/Dashboard'
 import { StudentsView } from './views/Students'
 import { StaffView } from './views/Staff'
 import { AttendanceView } from './views/Attendance'
@@ -19,53 +20,102 @@ function getSubdomain(): string {
   return parts.length > 2 ? parts[0] : ''
 }
 
-type View = 'students' | 'staff' | 'attendance' | 'fees' | 'homework' | 'timetable' | 'exams' | 'cms' | 'superadmin'
+type View = 'dashboard' | 'students' | 'staff' | 'attendance' | 'fees' | 'homework' | 'timetable' | 'exams' | 'cms' | 'superadmin'
 
-// ── Staff App Shell ──────────────────────────────────────────────────────────
+// ── Nav icon helper (small SVG) ───────────────────────────────────────────────
+const ICONS: Record<string, string> = {
+  dashboard:  '⊞',
+  students:   '🎓',
+  staff:      '👥',
+  attendance: '✓',
+  fees:       '₹',
+  homework:   '📚',
+  timetable:  '🗓',
+  exams:      '📝',
+  cms:        '🌐',
+  superadmin: '⚙',
+}
 
-function AppShell({ onLogout, role }: { onLogout: () => void; role: string }) {
-  const [view, setView] = useState<View>(role === 'superadmin' ? 'superadmin' : 'students')
+// ── Staff App Shell ───────────────────────────────────────────────────────────
 
-  const NAV = (active: boolean, accent?: string): preact.JSX.CSSProperties => ({
-    padding: '0.375rem 0.875rem',
-    background: active ? (accent ?? '#1e40af') : 'transparent',
-    color: '#fff',
-    border: 'none',
-    borderRadius: 4,
-    cursor: 'pointer',
-    fontSize: '0.875rem',
-    fontWeight: active ? 600 : 400,
-  })
+function AppShell({ onLogout, role, schoolName }: { onLogout: () => void; role: string; schoolName: string }) {
+  const [view, setView] = useState<View>(role === 'superadmin' ? 'superadmin' : 'dashboard')
+  const [menuOpen, setMenuOpen] = useState(false)
+
+  const NAV_ITEMS: { key: View; label: string }[] = [
+    { key: 'dashboard',  label: 'Home' },
+    { key: 'students',   label: 'Students' },
+    { key: 'staff',      label: 'Staff' },
+    { key: 'attendance', label: 'Attendance' },
+    { key: 'fees',       label: 'Fees' },
+    { key: 'homework',   label: 'Homework' },
+    { key: 'timetable',  label: 'Timetable' },
+    { key: 'exams',      label: 'Exams' },
+    { key: 'cms',        label: 'CMS' },
+    ...(role === 'superadmin' ? [{ key: 'superadmin' as View, label: 'Superadmin' }] : []),
+  ]
+
+  function navBtn(item: { key: View; label: string }) {
+    const active = view === item.key
+    return (
+      <button
+        key={item.key}
+        onClick={() => { setView(item.key); setMenuOpen(false) }}
+        style={{
+          display: 'flex', alignItems: 'center', gap: '.375rem',
+          padding: '.35rem .7rem',
+          background: active ? 'rgba(255,255,255,.18)' : 'transparent',
+          color: active ? '#fff' : 'rgba(255,255,255,.75)',
+          border: active ? '1px solid rgba(255,255,255,.25)' : '1px solid transparent',
+          borderRadius: 5,
+          cursor: 'pointer',
+          fontSize: '.8125rem',
+          fontWeight: active ? 600 : 400,
+          fontFamily: 'inherit',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        <span style={{ fontSize: '.875rem', lineHeight: 1 }}>{ICONS[item.key]}</span>
+        {item.label}
+      </button>
+    )
+  }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: 'system-ui, sans-serif' }}>
-      <header style={{ background: '#1a56db', color: '#fff', padding: '0 1.5rem', height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-          <span style={{ fontWeight: 700, fontSize: '1rem', letterSpacing: '-0.02em' }}>Tulips.edu</span>
-          <nav style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
-            <button onClick={() => setView('students')}   style={NAV(view === 'students')}>Students</button>
-            <button onClick={() => setView('staff')}      style={NAV(view === 'staff')}>Staff</button>
-            <button onClick={() => setView('attendance')} style={NAV(view === 'attendance')}>Attendance</button>
-            <button onClick={() => setView('fees')}       style={NAV(view === 'fees')}>Fees</button>
-            <button onClick={() => setView('homework')}   style={NAV(view === 'homework')}>Homework</button>
-            <button onClick={() => setView('timetable')}  style={NAV(view === 'timetable')}>Timetable</button>
-            <button onClick={() => setView('exams')}      style={NAV(view === 'exams')}>Exams</button>
-            <button onClick={() => setView('cms')}        style={NAV(view === 'cms')}>CMS</button>
-            {role === 'superadmin' && (
-              <button onClick={() => setView('superadmin')} style={NAV(view === 'superadmin', '#7c3aed')}>
-                Superadmin
-              </button>
-            )}
+    <div style={{ minHeight: '100vh', background: 'var(--gray-50)', fontFamily: 'var(--font)' }}>
+      <header style={{
+        background: 'linear-gradient(135deg, #1a56db 0%, #1e40af 100%)',
+        color: '#fff',
+        padding: '0 1.25rem',
+        height: 54,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        boxShadow: '0 2px 8px rgba(26,86,219,.3)',
+        position: 'sticky', top: 0, zIndex: 100,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', minWidth: 0 }}>
+          {/* Logo mark */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', flexShrink: 0 }}>
+            <div style={{ width: 30, height: 30, background: 'rgba(255,255,255,.2)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '1rem' }}>T</div>
+            <div style={{ lineHeight: 1.15 }}>
+              <div style={{ fontWeight: 800, fontSize: '.9rem', letterSpacing: '-.01em' }}>Tulips.edu</div>
+              {schoolName && <div style={{ fontSize: '.65rem', opacity: .75, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>{schoolName}</div>}
+            </div>
+          </div>
+          {/* Nav */}
+          <nav style={{ display: 'flex', gap: '.2rem', flexWrap: 'nowrap', overflow: 'hidden' }}>
+            {NAV_ITEMS.map(navBtn)}
           </nav>
         </div>
         <button
           onClick={onLogout}
-          style={{ background: 'transparent', color: 'rgba(255,255,255,0.8)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 4, padding: '0.25rem 0.75rem', cursor: 'pointer', fontSize: '0.8rem' }}
+          style={{ background: 'rgba(255,255,255,.12)', color: 'rgba(255,255,255,.9)', border: '1px solid rgba(255,255,255,.2)', borderRadius: 5, padding: '.3rem .75rem', cursor: 'pointer', fontSize: '.75rem', fontFamily: 'inherit', flexShrink: 0 }}
         >
           Sign out
         </button>
       </header>
+
       <main>
+        {view === 'dashboard'  && <DashboardView schoolName={schoolName} />}
         {view === 'students'   && <StudentsView />}
         {view === 'staff'      && <StaffView />}
         {view === 'attendance' && <AttendanceView />}
@@ -80,12 +130,12 @@ function AppShell({ onLogout, role }: { onLogout: () => void; role: string }) {
   )
 }
 
-// ── OTP Login (Parent) ───────────────────────────────────────────────────────
+// ── OTP Login (Parent) ────────────────────────────────────────────────────────
 
 function ParentLogin({
   onSuccess, onBack,
 }: {
-  onSuccess: (tokens: { access_token: string; refresh_token: string }, slug: string) => void
+  onSuccess: (tokens: { access_token: string }, slug: string) => void
   onBack: () => void
 }) {
   const [slug, setSlug] = useState(getSubdomain)
@@ -96,86 +146,76 @@ function ParentLogin({
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState('')
 
-  async function handleRequestOtp(e: Event) {
+  async function handleRequest(e: Event) {
     e.preventDefault()
-    if (!slug || !phone) { setErr('School ID and phone are required'); return }
     setLoading(true); setErr('')
     try {
       const res = await requestOtp(slug, phone)
       if (res.dev_otp) setDevOtp(res.dev_otp)
       setStep('otp')
-    } catch (ex) {
-      setErr(ex instanceof Error ? ex.message : 'Error')
-    } finally { setLoading(false) }
+    } catch (ex) { setErr(ex instanceof Error ? ex.message : 'Error') }
+    finally { setLoading(false) }
   }
 
-  async function handleVerifyOtp(e: Event) {
+  async function handleVerify(e: Event) {
     e.preventDefault()
-    if (!otp) { setErr('Enter the OTP'); return }
     setLoading(true); setErr('')
-    try {
-      const tokens = await verifyOtp(slug, phone, otp)
-      onSuccess(tokens, slug)
-    } catch (ex) {
-      setErr(ex instanceof Error ? ex.message : 'Verification failed')
-    } finally { setLoading(false) }
+    try { onSuccess(await verifyOtp(slug, phone, otp), slug) }
+    catch (ex) { setErr(ex instanceof Error ? ex.message : 'Verification failed') }
+    finally { setLoading(false) }
   }
 
   return (
-    <div style={S.page}>
-      <div style={S.card}>
-        <h1 style={{ margin: '0 0 0.25rem', fontSize: '1.5rem', fontWeight: 700, color: '#1a56db' }}>Tulips.edu</h1>
-        <p style={{ margin: '0 0 1.5rem', fontSize: '0.8rem', color: '#6b7280' }}>Parent Portal</p>
-        {err && <p style={{ color: 'red', marginBottom: '1rem', fontSize: '0.875rem' }}>{err}</p>}
+    <div style={LOGIN_PAGE}>
+      <div style={LOGIN_CARD}>
+        <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+          <div style={LOGO_MARK}>T</div>
+          <div style={{ fontWeight: 800, fontSize: '1.25rem', color: 'var(--gray-900)', marginTop: '.75rem' }}>Parent Login</div>
+          <div class="text-muted text-sm" style={{ marginTop: '.25rem' }}>Enter your registered phone number</div>
+        </div>
+
+        {err && <div class="err" style={{ marginBottom: '1rem', padding: '.5rem .75rem', background: 'var(--c-danger-lt)', borderRadius: 'var(--r)' }}>{err}</div>}
 
         {step === 'phone' ? (
-          <form onSubmit={handleRequestOtp}>
+          <form onSubmit={handleRequest} style={{ display: 'flex', flexDirection: 'column', gap: '.875rem' }}>
             {!getSubdomain() && (
-              <div style={S.field}>
-                <label style={S.label}>School ID</label>
-                <input value={slug} onInput={e => setSlug((e.target as HTMLInputElement).value)} style={S.input} placeholder="demo" required />
+              <div>
+                <label class="lbl">School ID</label>
+                <input class="input" value={slug} onInput={e => setSlug((e.target as HTMLInputElement).value)} placeholder="demo" required />
               </div>
             )}
-            <div style={S.field}>
-              <label style={S.label}>Phone number (registered with school)</label>
-              <input type="tel" value={phone} onInput={e => setPhone((e.target as HTMLInputElement).value)} style={S.input} placeholder="9876543210" required />
+            <div>
+              <label class="lbl">Phone number</label>
+              <input class="input" type="tel" value={phone} onInput={e => setPhone((e.target as HTMLInputElement).value)} placeholder="9876543210" required />
             </div>
-            <button type="submit" disabled={loading} style={S.btn}>{loading ? 'Sending OTP…' : 'Send OTP'}</button>
+            <button class="btn btn-primary btn-lg" type="submit" disabled={loading} style={{ width: '100%', marginTop: '.25rem' }}>
+              {loading ? 'Sending…' : 'Send OTP'}
+            </button>
           </form>
         ) : (
-          <form onSubmit={handleVerifyOtp}>
-            <p style={{ fontSize: '0.875rem', color: '#374151', marginBottom: '1rem' }}>
-              OTP sent to <strong>{phone}</strong>
-            </p>
+          <form onSubmit={handleVerify} style={{ display: 'flex', flexDirection: 'column', gap: '.875rem' }}>
+            <p class="text-sm" style={{ color: 'var(--gray-700)', marginBottom: '.25rem' }}>OTP sent to <strong>{phone}</strong></p>
             {devOtp && (
-              <div style={{ background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 4, padding: '0.5rem 0.75rem', marginBottom: '1rem', fontSize: '0.8rem', color: '#92400e' }}>
-                Dev mode — OTP: <strong style={{ fontSize: '1rem', letterSpacing: '0.1em' }}>{devOtp}</strong>
+              <div style={{ background: 'var(--c-warn-lt)', border: '1px solid #fcd34d', borderRadius: 'var(--r)', padding: '.5rem .75rem', fontSize: '.8rem', color: '#92400e' }}>
+                Dev mode · OTP: <strong style={{ fontSize: '1.1rem', letterSpacing: '.15em' }}>{devOtp}</strong>
               </div>
             )}
-            <div style={S.field}>
-              <label style={S.label}>Enter OTP</label>
-              <input
-                value={otp}
-                onInput={e => setOtp((e.target as HTMLInputElement).value)}
-                style={{ ...S.input, letterSpacing: '0.2em', fontSize: '1.25rem', textAlign: 'center' }}
-                placeholder="000000"
-                maxLength={6}
-                inputMode="numeric"
-                required
-              />
+            <div>
+              <label class="lbl">Enter OTP</label>
+              <input class="input" value={otp} onInput={e => setOtp((e.target as HTMLInputElement).value)}
+                style={{ letterSpacing: '.2em', fontSize: '1.25rem', textAlign: 'center' }}
+                placeholder="000000" maxLength={6} inputMode="numeric" required />
             </div>
-            <button type="submit" disabled={loading} style={S.btn}>{loading ? 'Verifying…' : 'Verify OTP'}</button>
-            <button
-              type="button"
-              onClick={() => { setStep('phone'); setOtp(''); setDevOtp(''); setErr('') }}
-              style={{ width: '100%', marginTop: '0.5rem', padding: '0.5rem', background: 'none', border: '1px solid #d1d5db', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem', color: '#374151' }}
-            >
-              Change phone number
+            <button class="btn btn-primary btn-lg" type="submit" disabled={loading} style={{ width: '100%' }}>
+              {loading ? 'Verifying…' : 'Verify OTP'}
+            </button>
+            <button type="button" class="btn btn-ghost" style={{ width: '100%' }}
+              onClick={() => { setStep('phone'); setOtp(''); setDevOtp(''); setErr('') }}>
+              ← Change number
             </button>
           </form>
         )}
-
-        <button onClick={onBack} style={{ width: '100%', marginTop: '1rem', padding: '0.5rem', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8rem', color: '#6b7280' }}>
+        <button onClick={onBack} style={{ width: '100%', marginTop: '1rem', background: 'none', border: 'none', cursor: 'pointer', fontSize: '.8rem', color: 'var(--gray-500)', fontFamily: 'inherit' }}>
           ← Staff login
         </button>
       </div>
@@ -183,15 +223,22 @@ function ParentLogin({
   )
 }
 
-// ── Login form ───────────────────────────────────────────────────────────────
+// ── Login page ────────────────────────────────────────────────────────────────
 
-const S = {
-  page: { display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', fontFamily: 'system-ui, sans-serif', background: '#f5f5f5' } as const,
-  card: { width: '100%', maxWidth: '360px', background: '#fff', borderRadius: 8, padding: '2rem', boxShadow: '0 1px 4px rgba(0,0,0,0.1)' } as const,
-  field: { marginBottom: '1rem' } as const,
-  label: { display: 'block', marginBottom: '0.25rem', fontSize: '0.875rem', color: '#444' } as const,
-  input: { width: '100%', padding: '0.625rem', border: '1px solid #ccc', borderRadius: 4, fontSize: '1rem', boxSizing: 'border-box' } as const,
-  btn: { width: '100%', padding: '0.75rem', background: '#1a56db', color: '#fff', border: 'none', borderRadius: 4, fontSize: '1rem', cursor: 'pointer' } as const,
+const LOGIN_PAGE: preact.JSX.CSSProperties = {
+  display: 'flex', justifyContent: 'center', alignItems: 'center',
+  minHeight: '100vh', fontFamily: 'var(--font)',
+  background: 'linear-gradient(145deg, #eff6ff 0%, #f0fdf4 50%, #fafafa 100%)',
+}
+const LOGIN_CARD: preact.JSX.CSSProperties = {
+  width: '100%', maxWidth: 380, background: '#fff', borderRadius: 14,
+  padding: '2rem 2rem 1.75rem', boxShadow: '0 8px 32px rgba(26,86,219,.1), 0 2px 8px rgba(0,0,0,.06)',
+  border: '1px solid rgba(26,86,219,.08)',
+}
+const LOGO_MARK: preact.JSX.CSSProperties = {
+  width: 52, height: 52, background: 'linear-gradient(135deg,#1a56db,#1e40af)',
+  borderRadius: 14, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+  color: '#fff', fontWeight: 900, fontSize: '1.4rem', boxShadow: '0 4px 12px rgba(26,86,219,.3)',
 }
 
 type AppMode = 'login' | 'parent-login' | 'staff-app' | 'parent-app'
@@ -200,17 +247,30 @@ export function App() {
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
   const [tenantSlug, setTenantSlug] = useState(getSubdomain)
+  const [schoolName, setSchoolName] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [mode, setMode] = useState<AppMode>('login')
   const [userRole, setUserRole] = useState('')
 
+  // Fetch school name from public API once slug is known
+  useEffect(() => {
+    if (!tenantSlug) return
+    fetch(`/api/v1/public/school-info`, {
+      headers: { 'X-Tenant-Slug': tenantSlug },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.name) setSchoolName(d.name) })
+      .catch(() => {})
+  }, [tenantSlug])
+
   async function handleStaffLogin(e: Event) {
     e.preventDefault()
-    setError('')
-    setLoading(true)
+    setError(''); setLoading(true)
     try {
-      const tokens: TokenResponse = await login({ phone_number: phone, password }, tenantSlug)
+      const tokens: TokenResponse = await import('./api/client').then(m =>
+        m.login({ phone_number: phone, password }, tenantSlug)
+      )
       const claims = decodeJWT(tokens.access_token)
       const role = claims.role as string
       setAuthState({
@@ -220,15 +280,13 @@ export function App() {
         role,
       })
       setUserRole(role)
-      setMode(role === 'parent' ? 'parent-app' : 'staff-app')
+      setMode('staff-app')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed')
-    } finally {
-      setLoading(false)
-    }
+    } finally { setLoading(false) }
   }
 
-  function handleParentSuccess(tokens: { access_token: string; refresh_token: string }, slug: string) {
+  function handleParentSuccess(tokens: { access_token: string }, slug: string) {
     const claims = decodeJWT(tokens.access_token)
     setAuthState({
       accessToken: tokens.access_token,
@@ -241,76 +299,79 @@ export function App() {
   }
 
   function handleLogout() {
-    clearAuthState()
-    setMode('login')
-    setPassword('')
-    setUserRole('')
+    clearAuthState(); setMode('login'); setPassword(''); setUserRole('')
   }
 
-  if (mode === 'staff-app') {
-    return <AppShell onLogout={handleLogout} role={userRole} />
-  }
+  if (mode === 'staff-app') return <AppShell onLogout={handleLogout} role={userRole} schoolName={schoolName} />
+  if (mode === 'parent-app') return <ParentPortalView onLogout={handleLogout} />
+  if (mode === 'parent-login') return <ParentLogin onSuccess={handleParentSuccess} onBack={() => setMode('login')} />
 
-  if (mode === 'parent-app') {
-    return <ParentPortalView onLogout={handleLogout} />
-  }
-
-  if (mode === 'parent-login') {
-    return <ParentLogin onSuccess={handleParentSuccess} onBack={() => setMode('login')} />
-  }
-
+  // Staff login page
   return (
-    <div style={S.page}>
-      <form onSubmit={handleStaffLogin} style={S.card}>
-        <h1 style={{ margin: '0 0 0.25rem', fontSize: '1.5rem', fontWeight: 700, color: '#1a56db' }}>Tulips.edu</h1>
-        <p style={{ margin: '0 0 1.5rem', fontSize: '0.8rem', color: '#6b7280' }}>Staff Portal</p>
-        {error && <p style={{ color: 'red', marginBottom: '1rem', fontSize: '0.875rem' }}>{error}</p>}
-
-        {!getSubdomain() && (
-          <div style={S.field}>
-            <label style={S.label}>School ID</label>
-            <input
-              value={tenantSlug}
-              onInput={(e) => setTenantSlug((e.target as HTMLInputElement).value)}
-              style={S.input}
-              placeholder="demo"
-              required
-            />
+    <div style={LOGIN_PAGE}>
+      <div style={LOGIN_CARD}>
+        {/* Header */}
+        <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
+          <div style={LOGO_MARK}>T</div>
+          <div style={{ fontWeight: 800, fontSize: '1.35rem', color: 'var(--gray-900)', marginTop: '.875rem', lineHeight: 1.2 }}>
+            {schoolName || 'Tulips.edu'}
           </div>
+          {schoolName && (
+            <div class="text-muted text-xs" style={{ marginTop: '.2rem' }}>School Management Portal</div>
+          )}
+          {!schoolName && (
+            <div class="text-muted text-sm" style={{ marginTop: '.2rem' }}>School Management Platform</div>
+          )}
+        </div>
+
+        {error && (
+          <div class="err" style={{ marginBottom: '1rem', padding: '.5rem .75rem', background: 'var(--c-danger-lt)', borderRadius: 'var(--r)' }}>{error}</div>
         )}
 
-        <div style={S.field}>
-          <label style={S.label}>Phone number</label>
-          <input
-            type="tel"
-            value={phone}
-            onInput={(e) => setPhone((e.target as HTMLInputElement).value)}
-            style={S.input}
-            placeholder="9999999999"
-            required
-          />
+        <form onSubmit={handleStaffLogin} style={{ display: 'flex', flexDirection: 'column', gap: '.875rem' }}>
+          {!getSubdomain() && (
+            <div>
+              <label class="lbl">School ID</label>
+              <input
+                class="input"
+                value={tenantSlug}
+                onInput={e => setTenantSlug((e.target as HTMLInputElement).value)}
+                placeholder="demo"
+                required
+              />
+            </div>
+          )}
+          <div>
+            <label class="lbl">Phone number</label>
+            <input class="input" type="tel" value={phone}
+              onInput={e => setPhone((e.target as HTMLInputElement).value)}
+              placeholder="9999999999" required />
+          </div>
+          <div>
+            <label class="lbl">Password</label>
+            <input class="input" type="password" value={password}
+              onInput={e => setPassword((e.target as HTMLInputElement).value)}
+              required />
+          </div>
+          <button class="btn btn-primary btn-lg" type="submit" disabled={loading} style={{ width: '100%', marginTop: '.375rem' }}>
+            {loading ? 'Signing in…' : 'Sign in'}
+          </button>
+        </form>
+
+        <div style={{ marginTop: '.875rem' }}>
+          <button
+            class="btn btn-ghost"
+            style={{ width: '100%' }}
+            onClick={() => setMode('parent-login')}
+          >
+            Parent Login (OTP)
+          </button>
         </div>
-        <div style={{ ...S.field, marginBottom: '1.5rem' }}>
-          <label style={S.label}>Password</label>
-          <input
-            type="password"
-            value={password}
-            onInput={(e) => setPassword((e.target as HTMLInputElement).value)}
-            style={S.input}
-            required
-          />
-        </div>
-        <button type="submit" disabled={loading} style={S.btn}>
-          {loading ? 'Signing in…' : 'Sign in'}
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode('parent-login')}
-          style={{ width: '100%', marginTop: '0.75rem', padding: '0.625rem', background: 'none', border: '1px solid #d1d5db', borderRadius: 4, fontSize: '0.875rem', cursor: 'pointer', color: '#374151' }}
-        >
-          Parent Login (OTP)
-        </button>
-      </form>
+
+        <p class="text-muted text-xs" style={{ textAlign: 'center', marginTop: '1.25rem' }}>
+          Powered by Tulips.edu · School ERP
+        </p>
+      </div>
     </div>
   )
 }
