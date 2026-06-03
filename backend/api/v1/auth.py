@@ -14,10 +14,11 @@ async def auth_login(req: LoginRequest, request: Request):
     if tenant_id is None:
         raise HTTPException(status_code=400, detail="Missing tenant context")
 
+    tenant_slug = getattr(request.state, "tenant_slug", "")
     pool = request.app.state.pool
     async with pool.acquire() as conn:
         try:
-            return await login(conn, tenant_id, req)
+            return await login(conn, tenant_id, tenant_slug, req)
         except AuthError as e:
             raise HTTPException(status_code=401, detail=str(e))
 
@@ -42,6 +43,7 @@ async def auth_refresh(req: RefreshRequest, request: Request):
     token_data = {
         "sub": claims["sub"],
         "tenant_id": claims["tenant_id"],
+        "tenant_slug": claims.get("tenant_slug", ""),
         "role": claims["role"],
     }
 

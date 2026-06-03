@@ -11,7 +11,9 @@ class AuthError(Exception):
     pass
 
 
-async def login(conn: asyncpg.Connection, tenant_id: uuid.UUID, req: LoginRequest) -> TokenResponse:
+async def login(
+    conn: asyncpg.Connection, tenant_id: uuid.UUID, tenant_slug: str, req: LoginRequest
+) -> TokenResponse:
     row = await conn.fetchrow(
         """
         SELECT id, password_hash, role, is_active
@@ -31,6 +33,7 @@ async def login(conn: asyncpg.Connection, tenant_id: uuid.UUID, req: LoginReques
     token_data = {
         "sub": str(row["id"]),
         "tenant_id": str(tenant_id),
+        "tenant_slug": tenant_slug,
         "role": row["role"],
     }
 
