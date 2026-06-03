@@ -11,10 +11,9 @@ import asyncio
 import os
 import sys
 
-import asyncpg
-from passlib.context import CryptContext
+import bcrypt as _bcrypt
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+import asyncpg
 
 
 async def main() -> None:
@@ -40,7 +39,7 @@ async def main() -> None:
     tenant_id = tenant["id"]
     print(f"Tenant : {name} ({slug}) → {tenant_id}")
 
-    pw_hash = pwd_context.hash(password)
+    pw_hash = _bcrypt.hashpw(password.encode(), _bcrypt.gensalt()).decode()
     user = await conn.fetchrow(
         """
         INSERT INTO users (tenant_id, phone_number, password_hash, role)
