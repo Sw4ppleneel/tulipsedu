@@ -6,21 +6,21 @@ Implemented:
 - Multi-tenant database schema (tenants, users, audit_events)
 - JWT authentication with tenant isolation middleware
 - Auth API: login / refresh / logout
-- Event audit framework (STAFF_AUTHENTICATED)
+- Event audit framework
 - Migration runner
 - Preact + Vite frontend shell with IndexedDB abstraction and service worker
+- Student Management: academic_years, classes, sections, students
+- Staff Management: staff CRUD
+- ClassSwipe Attendance: sessions, attendance_records (offline-first)
+- Finance: fee_structures, fee_items, student_fees, payments, receipts, superadmin panel
+- Homework & Feed: homework_posts (full backend)
+- Timetable Engine: timetable_slots (full backend)
+- Examination Management: exam_subjects, exam_terms, exam_marks_config, mark_entries (full backend)
 
 Partially Implemented:
-- Frontend: login form built, dashboard not yet built
+- Frontend: login + students + staff views built; Homework/Timetable/Exam frontend pending
 
 Planned:
-- Student Management
-- Staff Management
-- Attendance (offline-first)
-- Finance
-- Homework & Feed
-- Timetable
-- Examinations
 - Parent Portal
 - CMS
 
@@ -77,12 +77,15 @@ SSL: Let's Encrypt
 ```
 Tulips.edu/
 ├── backend/
-│   ├── api/v1/          Route handlers
-│   ├── core/            security.py, events.py
+│   ├── api/v1/          Route handlers (auth, academic_years, classes, students,
+│   │                    staff, attendance, fees, payments, superadmin,
+│   │                    homework, timetable, exam)
+│   ├── core/            security.py, events.py, csv_export.py
 │   ├── db/              asyncpg pool
-│   ├── middleware/       tenant.py
-│   ├── models/          Pydantic models
-│   ├── services/         Business logic
+│   ├── middleware/      tenant.py
+│   ├── models/          Pydantic models (auth, student, staff, finance, homework, timetable, exam)
+│   ├── services/        Business logic (auth, student, staff, attendance, finance,
+│   │                    payment, receipt, homework, timetable, exam)
 │   ├── main.py
 │   └── config.py
 ├── frontend/
@@ -91,7 +94,7 @@ Tulips.edu/
 │       ├── api/         HTTP client
 │       ├── db/          IndexedDB abstraction
 │       └── types/       TypeScript interfaces
-├── migrations/          Versioned SQL files (001_, 002_, …)
+├── migrations/          001_tenants … 015_exam_terms_marks (versioned SQL)
 ├── scripts/             apply_migrations.py, seed_tenant.py
 ├── tests/
 ├── docs/
@@ -148,9 +151,6 @@ Fields:
 * feature_flags (JSONB)
 * created_at
 
-Indexes:
-* UNIQUE (slug)
-
 ---
 
 ## users
@@ -184,99 +184,181 @@ Fields:
 * payload (JSONB)
 * created_at
 
-Indexes:
-* (tenant_id, created_at)
-* (tenant_id, event_type)
+---
+
+## academic_years
+
+Fields: id, tenant_id, name, start_date, end_date, is_current
+
+Indexes: UNIQUE (tenant_id, name); (tenant_id, is_current)
 
 ---
 
-# Planned Modules
+## classes
 
-## Student Management
+Fields: id, tenant_id, academic_year_id, name, display_order
 
-Status: Next
-Schema: students (tenant_id, admission_no, name, class_id, section_id, is_hosteler, …)
+---
 
-## Staff Management
+## sections
 
-Status: Planned
+Fields: id, tenant_id, class_id, name
 
-## Attendance
+---
 
-Status: Planned
-Notes: Offline-first. Queue in IndexedDB, sync in background.
+## students
 
-## Finance
+Fields: id, tenant_id, academic_year_id, class_id, section_id, admission_no, first_name, last_name, roll_number, date_of_birth, gender, phone_number, parent_phone, address, is_hosteler, is_active, created_at
 
-Status: Planned
+Constraints:
+* UNIQUE (tenant_id, admission_no)
+* UNIQUE (tenant_id, section_id, roll_number)
 
-## Homework & Feed
+Indexes:
+* (tenant_id, academic_year_id, class_id, section_id, is_active) — ClassSwipe
 
-Status: Planned
+---
 
-## Timetable
+## staff
 
-Status: Planned
+Fields: id, tenant_id, employee_id, first_name, last_name, phone_number, role, subject_specialization, is_active, created_at
 
-## Examinations
+Constraints: UNIQUE (tenant_id, employee_id)
 
-Status: Planned
+---
 
-## Parent Portal
+## attendance_sessions
 
-Status: Planned
+Fields: id, tenant_id, class_id, section_id, academic_year_id, date, period, opened_by, submitted_at, created_at
 
-## CMS
+---
 
-Status: Planned
+## attendance_records
+
+Fields: id, tenant_id, session_id, student_id, status (present/absent/late), marked_by, created_at
+
+---
+
+## fee_structures
+
+Fields: id, tenant_id, academic_year_id, name, is_active
+
+---
+
+## fee_items
+
+Fields: id, tenant_id, fee_structure_id, name, amount, due_date, is_optional
+
+---
+
+## student_fees
+
+Fields: id, tenant_id, student_id, fee_structure_id, total_amount, paid_amount, balance, status
+
+---
+
+## payments
+
+Fields: id, tenant_id, student_id, fee_structure_id, amount, payment_method, reference_no, collected_by, created_at
+
+---
+
+## receipts
+
+Fields: id, tenant_id, payment_id, receipt_number, issued_at
+
+---
+
+## homework_posts
+
+Fields: id, tenant_id, academic_year_id, class_id, section_id, staff_id, subject, post_type (homework/announcement/resource), title, description, due_date, attachment_urls (JSONB), is_active, created_at
+
+Indexes:
+* (tenant_id, class_id, section_id, created_at DESC)
+* (tenant_id, staff_id, created_at DESC)
+* (tenant_id, academic_year_id, created_at DESC)
+
+---
+
+## timetable_slots
+
+Fields: id, tenant_id, academic_year_id, class_id, section_id, day_of_week (1–6), period_number (1–12), start_time, end_time, subject, staff_id, room, created_at
+
+Constraints: UNIQUE (tenant_id, academic_year_id, class_id, section_id, day_of_week, period_number)
+
+Indexes:
+* (tenant_id, academic_year_id, class_id, section_id)
+* (tenant_id, staff_id)
+
+---
+
+## exam_subjects
+
+Fields: id, tenant_id, academic_year_id, class_id, name, subject_code, sort_order, is_active, created_at
+
+Constraints: UNIQUE (tenant_id, academic_year_id, class_id, name)
+
+---
+
+## exam_terms
+
+Fields: id, tenant_id, academic_year_id, name, term_type (unit_test/half_yearly/annual/practical/project/internal), start_date, end_date, is_published, sort_order, created_at
+
+Constraints: UNIQUE (tenant_id, academic_year_id, name)
+
+---
+
+## exam_marks_config
+
+Fields: id, tenant_id, exam_term_id, exam_subject_id, max_marks, passing_marks (default 33), weightage (default 100), created_at
+
+Constraints: UNIQUE (tenant_id, exam_term_id, exam_subject_id)
+
+---
+
+## mark_entries
+
+Fields: id, tenant_id, student_id, exam_term_id, exam_subject_id, marks_obtained, is_absent, remarks, entered_by, created_at, updated_at
+
+Constraints: UNIQUE (tenant_id, student_id, exam_term_id, exam_subject_id)
+
+Grade scale (CBSE): A1≥91, A2≥81, B1≥71, B2≥61, C1≥51, C2≥41, D≥33, E<33
 
 ---
 
 # Event Catalog
 
 ## STAFF_AUTHENTICATED
+Producer: services/auth.py
+Payload: tenant_id, user_id
 
-Producer: Authentication Service (services/auth.py)
-Consumers: Audit Engine
-Payload:
-* tenant_id
-* user_id
-* timestamp (auto-set by created_at)
+## STUDENT_CREATED
+Producer: services/student.py
+Payload: tenant_id, student_id
 
----
+## STUDENT_UPDATED
+Producer: services/student.py
+Payload: tenant_id, student_id
 
-## STUDENT_CREATED (planned)
+## ATTENDANCE_MARKED
+Producer: services/attendance.py
+Payload: tenant_id, session_id, count
 
-Producer: Student Service
-Consumers: Audit Engine
-Payload:
-* tenant_id
-* student_id
-* timestamp
+## ATTENDANCE_SESSION_SUBMITTED
+Producer: services/attendance.py
+Payload: tenant_id, session_id
 
----
+## FEE_COLLECTED
+Producer: services/finance.py
+Payload: tenant_id, student_id, amount, payment_id
 
-## ATTENDANCE_MARKED (planned)
+## HOMEWORK_ASSIGNED
+Producer: services/homework.py
+Payload: tenant_id, post_id, class_id, section_id, post_type
 
-Producer: Attendance Service
-Consumers: Audit Engine, Analytics Engine
-Payload:
-* tenant_id
-* student_id
-* status
-* timestamp
-
----
-
-## FEE_COLLECTED (planned)
-
-Producer: Finance Service
-Consumers: Audit Engine, Reporting Engine
-Payload:
-* tenant_id
-* student_id
-* amount
-* timestamp
+## MARKS_ENTERED
+Producer: services/exam.py
+Payload: tenant_id, exam_term_id, count
 
 ---
 
@@ -284,46 +366,96 @@ Payload:
 
 ## Authentication
 
-### POST /api/v1/auth/login
-Status: Implemented
-Auth: none (JWT-exempt)
-Body: `{ phone_number, password }`
-Response: `{ access_token, refresh_token, token_type }`
-Events: STAFF_AUTHENTICATED
+### POST /api/v1/auth/login — Implemented
+### POST /api/v1/auth/refresh — Implemented
+### POST /api/v1/auth/logout — Implemented
 
-### POST /api/v1/auth/refresh
-Status: Implemented
-Auth: none (JWT-exempt)
-Body: `{ refresh_token }`
-Response: `{ access_token, refresh_token, token_type }`
+## Academic Structure
 
-### POST /api/v1/auth/logout
-Status: Implemented
-Auth: none (JWT-exempt)
-Response: `{ detail: "Logged out" }`
-Notes: Stateless — client discards tokens. Future: refresh token blocklist.
+### POST /api/v1/academic-years — Implemented
+### GET /api/v1/academic-years — Implemented
+### PATCH /api/v1/academic-years/:id/set-current — Implemented
+### POST /api/v1/classes — Implemented
+### GET /api/v1/classes — Implemented
+### POST /api/v1/classes/:id/sections — Implemented
+
+## Students
+
+### POST /api/v1/students — Implemented
+### GET /api/v1/students — Implemented
+### GET /api/v1/students/:id — Implemented
+### PUT /api/v1/students/:id — Implemented
+### DELETE /api/v1/students/:id — Implemented (soft-delete)
+
+## Staff
+
+### POST /api/v1/staff — Implemented
+### GET /api/v1/staff — Implemented
+### GET /api/v1/staff/:id — Implemented
+### PUT /api/v1/staff/:id — Implemented
+### DELETE /api/v1/staff/:id — Implemented (soft-delete)
+
+## Attendance
+
+### POST /api/v1/attendance/sessions — Implemented
+### POST /api/v1/attendance/sessions/:id/marks — Implemented
+### POST /api/v1/attendance/sessions/:id/submit — Implemented
+### GET /api/v1/attendance/sessions/:id — Implemented
+### GET /api/v1/attendance/report — Implemented
+### GET /api/v1/attendance/report/csv — Implemented
+
+## Finance
+
+### POST/GET /api/v1/fees/structures — Implemented
+### POST/GET /api/v1/fees/structures/:id/items — Implemented
+### POST/GET /api/v1/fees/students — Implemented
+### POST /api/v1/payments — Implemented
+### GET /api/v1/payments/receipts/:id — Implemented
+### GET /api/v1/superadmin/dashboard — Implemented
+
+## Homework & Feed
+
+### POST /api/v1/homework — Implemented
+### GET /api/v1/homework — Implemented (filters: class_id, section_id, post_type, academic_year_id)
+### PATCH /api/v1/homework/:id — Implemented
+### DELETE /api/v1/homework/:id — Implemented (soft-delete)
+
+## Timetable
+
+### PUT /api/v1/timetable/slots — Implemented (upsert)
+### DELETE /api/v1/timetable/slots — Implemented
+### GET /api/v1/timetable/class — Implemented (weekly grid for class-section)
+### GET /api/v1/timetable/staff/:id — Implemented (staff schedule)
+
+## Examinations
+
+### POST /api/v1/exams/subjects — Implemented
+### GET /api/v1/exams/subjects — Implemented
+### POST /api/v1/exams/terms — Implemented
+### GET /api/v1/exams/terms — Implemented
+### PATCH /api/v1/exams/terms/:id/publish — Implemented
+### PUT /api/v1/exams/marks-config — Implemented (upsert)
+### GET /api/v1/exams/marks-config — Implemented
+### POST /api/v1/exams/marks — Implemented (bulk upsert)
+### GET /api/v1/exams/marks — Implemented (by term + subject + class-section)
+### GET /api/v1/exams/results/term — Implemented (term result sheet with grades)
+### GET /api/v1/exams/results/consolidated — Implemented (weighted across published terms)
 
 ---
 
 # Third-Party Integrations
 
 ## Cloudflare R2
-
 Purpose: Document and media storage
 Status: Planned
-Notes: Never proxy uploads through app server; use presigned URLs.
 
 ## SMS Provider
-
 Purpose: Parent notifications
 Status: Planned
-Provider: TBD
 
-## Payment Gateway
-
+## Payment Gateway (Razorpay)
 Purpose: Online fee collection
 Status: Planned
-Provider: TBD (Razorpay likely)
 
 ---
 

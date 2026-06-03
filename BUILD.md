@@ -8,7 +8,7 @@ Phase:
 Phase 1 MVP
 
 Current Sprint:
-Project Foundation & Multi-Tenant Core
+Homework, Timetable & Examination modules
 
 Status:
 In Progress
@@ -22,17 +22,14 @@ Last Updated:
 
 ## Sprint Goal
 
-Build the foundational platform architecture required for all future ERP modules.
+Complete Homework/Feed, Timetable Engine, and Examination Management vertical slices.
 
 Deliverables:
 
-* Multi-tenant infrastructure
-* Authentication system
-* Tenant isolation middleware
-* Database migration framework
-* Event audit framework
-* Base frontend shell
-* Docker deployment stack
+* Homework & Feed API + migrations ✓
+* Timetable Engine API + migrations ✓
+* Examination Management API + migrations ✓
+* Frontend views for Homework, Timetable, Examinations (pending)
 
 ---
 
@@ -40,24 +37,25 @@ Deliverables:
 
 ## High Priority
 
-* [x] Initialize repository structure
-* [x] Configure Docker environment
-* [x] Configure PostgreSQL
-* [x] Configure migration framework
-* [x] Create tenant schema
-* [x] Create user authentication schema
-* [x] Create event logging framework
-* [x] Create tenant isolation middleware
-* [x] Auth endpoints (login / refresh / logout)
-* [ ] RBAC framework (role-based route guards)
+* [x] migrations/012_homework.sql
+* [x] migrations/013_timetable.sql
+* [x] migrations/014_exam_subjects.sql
+* [x] migrations/015_exam_terms_marks.sql
+* [x] backend/models/homework.py + services/homework.py
+* [x] backend/models/timetable.py + services/timetable.py
+* [x] backend/models/exam.py + services/exam.py
+* [x] backend/api/v1/homework.py — 4 endpoints
+* [x] backend/api/v1/timetable.py — 4 endpoints
+* [x] backend/api/v1/exam.py — 12 endpoints
+* [x] router.py wired with homework, timetable, exam routers
+* [ ] Frontend: HomeworkFeed view (post list + create form)
+* [ ] Frontend: TimetableView (week grid per class-section)
+* [ ] Frontend: ExamView (marks entry + result sheet)
 
 ## Medium Priority
 
-* [x] Setup frontend shell (Preact + Vite)
-* [x] Setup IndexedDB abstraction
-* [x] Setup API client layer
-* [x] Setup service worker framework
-* [ ] Connect frontend login form to live backend
+* [ ] Parent Portal vertical slice
+* [ ] CMS vertical slice
 
 ## Low Priority
 
@@ -69,11 +67,85 @@ Deliverables:
 
 # In Progress
 
-None
+Frontend views for Homework, Timetable, Examinations
 
 ---
 
 # Completed
+
+## 2026-06-03 — Homework, Timetable, Examination Backend
+
+### Work Completed
+
+Full backend for three modules:
+- Migration 012: homework_posts table (JSONB attachment_urls, post_type CHECK)
+- Migration 013: timetable_slots table (UNIQUE per tenant/year/class/section/day/period)
+- Migration 014: exam_subjects table (per class per academic year)
+- Migration 015: exam_terms, exam_marks_config, mark_entries tables
+- services/homework.py: create, list (filtered), update, soft-delete
+- services/timetable.py: upsert slot (ON CONFLICT), delete slot, weekly timetable, staff timetable
+- services/exam.py: subjects CRUD, terms CRUD + publish toggle, marks config upsert, bulk mark entry upsert, term result computation, consolidated weighted result
+- api/v1/homework.py: POST/GET/PATCH/DELETE /api/v1/homework
+- api/v1/timetable.py: PUT/DELETE /api/v1/timetable/slots, GET /timetable/class, GET /timetable/staff/{id}
+- api/v1/exam.py: 12 endpoints across subjects/terms/marks-config/marks/results
+- router.py updated to include all three routers
+
+### Events Added
+- HOMEWORK_ASSIGNED
+- MARKS_ENTERED
+
+---
+
+## 2026-06-03 — Finance Module
+
+### Work Completed
+
+Full Finance vertical slice:
+- Fee structures, fee items, student fee assignments
+- Payment collection with receipt generation
+- Superadmin panel for cross-tenant financial reporting
+- Migrations: fee_structures, fee_items, student_fees, payments, receipts
+- APIs: fee structures CRUD, student fee management, payment collection, receipt retrieval
+- Superadmin dashboard endpoint
+
+### APIs Added
+- POST/GET /api/v1/fees/structures
+- POST/GET /api/v1/fees/structures/:id/items
+- POST/GET /api/v1/fees/students
+- POST /api/v1/payments
+- GET /api/v1/payments/receipts/:id
+- GET /api/v1/superadmin/dashboard
+
+### Events Added
+- FEE_COLLECTED
+
+---
+
+## 2026-06-03 — Staff Management + ClassSwipe Attendance
+
+### Work Completed
+
+Full Staff Management and ClassSwipe Attendance vertical slices:
+- Staff CRUD with soft-delete
+- ClassSwipe attendance: open session, mark attendance (bulk upsert), submit session
+- CSV exports for attendance reports
+- Migrations: staff, attendance_sessions, attendance_records
+- JWT now carries user_id (sub claim) for attendance audit
+
+### APIs Added
+- POST/GET/GET/:id/PUT/:id/DELETE/:id /api/v1/staff
+- POST /api/v1/attendance/sessions
+- POST /api/v1/attendance/sessions/:id/marks
+- POST /api/v1/attendance/sessions/:id/submit
+- GET /api/v1/attendance/sessions/:id
+- GET /api/v1/attendance/report
+- GET /api/v1/attendance/report/csv
+
+### Events Added
+- ATTENDANCE_MARKED
+- ATTENDANCE_SESSION_SUBMITTED
+
+---
 
 ## 2026-06-03 — Student Management
 
@@ -106,69 +178,22 @@ Full Student Management vertical slice:
 
 ### Work Completed
 
-Full project scaffold built from zero:
-
+Full project scaffold:
 - Repository structure, Docker, migration framework
-- PostgreSQL schemas: `tenants`, `users`, `audit_events`
+- PostgreSQL schemas: tenants, users, audit_events
 - Backend: FastAPI app, asyncpg pool, pydantic-settings config
-- Tenant isolation middleware: subdomain extraction + JWT tenant claim validation; `X-Tenant-Slug` header for local dev
-- Auth endpoints: POST /api/v1/auth/login, /refresh, /logout
-- Event audit: `emit()` helper, STAFF_AUTHENTICATED fires on successful login
-- Frontend: Preact + Vite + TypeScript shell, login form, API client, IndexedDB queue abstraction, service worker stub
-
-### Files Added
-
-```
-docker-compose.yml
-nginx.conf
-migrations/001_tenants.sql
-migrations/002_users.sql
-migrations/003_audit_events.sql
-scripts/apply_migrations.py
-scripts/seed_tenant.py
-backend/requirements.txt
-backend/pyproject.toml
-backend/Dockerfile
-backend/.env.example
-backend/main.py
-backend/config.py
-backend/db/pool.py
-backend/core/security.py
-backend/core/events.py
-backend/middleware/tenant.py
-backend/models/auth.py
-backend/services/auth.py
-backend/api/v1/router.py
-backend/api/v1/auth.py
-frontend/package.json
-frontend/tsconfig.json
-frontend/vite.config.ts
-frontend/index.html
-frontend/public/sw.js
-frontend/public/manifest.json
-frontend/src/main.tsx
-frontend/src/app.tsx
-frontend/src/api/client.ts
-frontend/src/types/auth.ts
-frontend/src/db/idb.ts
-tests/__init__.py
-```
-
-### Decisions Made
-
-- `X-Tenant-Slug` request header supported as local dev override for subdomain-based tenant resolution
-- logout endpoint is JWT-exempt (stateless, client discards token)
-- scripts require backend venv; asyncpg used directly (no ORM in scripts)
+- Tenant isolation middleware: subdomain extraction + JWT tenant claim validation
+- Auth endpoints: login, refresh, logout
+- Event audit framework (STAFF_AUTHENTICATED)
+- Frontend: Preact + Vite + TypeScript shell, login form, API client, IndexedDB queue, service worker stub
 
 ### APIs Added
-
 - POST /api/v1/auth/login
 - POST /api/v1/auth/refresh
 - POST /api/v1/auth/logout
 
 ### Events Added
-
-- STAFF_AUTHENTICATED (emitted on successful login)
+- STAFF_AUTHENTICATED
 
 ---
 
@@ -240,13 +265,6 @@ None
 
 # Next Recommended Task
 
-Staff Management vertical slice (Priority #3 per CLAUDE.md).
+Frontend views for Homework, Timetable, and Examinations.
 
-1. `cd backend && pip install -r requirements.txt`
-2. `docker compose up postgres -d`
-3. `DATABASE_URL=... python scripts/apply_migrations.py`
-4. `DATABASE_URL=... python scripts/seed_tenant.py`
-5. `uvicorn main:app --reload --port 8000`
-6. POST `http://localhost:8000/api/v1/auth/login` with `X-Tenant-Slug: demo`
-
-Then: Student Management vertical slice.
+Then: Parent Portal vertical slice.
