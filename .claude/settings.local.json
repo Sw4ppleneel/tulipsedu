@@ -37,7 +37,16 @@
       "Bash(docker compose *)",
       "Bash(PGPASSWORD=tulips psql *)",
       "Bash(curl *)",
-      "Bash(echo \"frontend PID: $!\")"
+      "Bash(echo \"frontend PID: $!\")",
+      "Bash(npx playwright *)",
+      "Bash(mkdir -p /tmp/pw_test)",
+      "Read(//tmp/**)",
+      "Bash(npm init *)",
+      "Bash(npx serve *)",
+      "Bash(echo \"serve PID: $!\")",
+      "Bash(node test_tulips.mjs)",
+      "Bash(node *)",
+      "Bash(echo \"PID: $!\")"
     ]
   }
 }

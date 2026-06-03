@@ -48,9 +48,9 @@ Deliverables:
 * [x] backend/api/v1/timetable.py — 4 endpoints
 * [x] backend/api/v1/exam.py — 12 endpoints
 * [x] router.py wired with homework, timetable, exam routers
-* [ ] Frontend: HomeworkFeed view (post list + create form)
-* [ ] Frontend: TimetableView (week grid per class-section)
-* [ ] Frontend: ExamView (marks entry + result sheet)
+* [x] Frontend: HomeworkView (post list, create form, type/class filters, soft-delete)
+* [x] Frontend: TimetableView (week grid per class-section, add/delete slots)
+* [x] Frontend: ExamView (marks entry per term/subject, result sheet with grades)
 
 ## Medium Priority
 
@@ -67,7 +67,7 @@ Deliverables:
 
 # In Progress
 
-Frontend views for Homework, Timetable, Examinations
+None
 
 ---
 
@@ -265,6 +265,8 @@ None
 
 # Next Recommended Task
 
-Frontend views for Homework, Timetable, and Examinations.
+Parent Portal vertical slice (Priority #9 per CLAUDE.md).
 
-Then: Parent Portal vertical slice.
+Database: parents table (linked to students), OTP-based login (phone number, no password)
+APIs: parent auth, student summary view, homework feed, attendance summary, fee balance
+Frontend: lightweight parent-facing views (read-only, mobile-first)
