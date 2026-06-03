@@ -18,8 +18,8 @@ type View = 'students' | 'staff' | 'attendance' | 'fees' | 'superadmin'
 
 // ── App Shell (authenticated) ────────────────────────────────────────────────
 
-function AppShell({ onLogout }: { onLogout: () => void }) {
-  const [view, setView] = useState<View>('students')
+function AppShell({ onLogout, role }: { onLogout: () => void; role: string }) {
+  const [view, setView] = useState<View>(role === 'superadmin' ? 'superadmin' : 'students')
 
   const NAV_BTN = (active: boolean): preact.JSX.CSSProperties => ({
     padding: '0.375rem 0.875rem',
@@ -85,6 +85,7 @@ export function App() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [authed, setAuthed] = useState(false)
+  const [userRole, setUserRole] = useState('')
 
   async function handleSubmit(e: Event) {
     e.preventDefault()
@@ -93,12 +94,14 @@ export function App() {
     try {
       const tokens: TokenResponse = await login({ phone_number: phone, password }, tenantSlug)
       const claims = decodeJWT(tokens.access_token)
+      const role = claims.role as string
       setAuthState({
         accessToken: tokens.access_token,
         tenantSlug: (claims.tenant_slug as string) || tenantSlug,
         userId: claims.sub as string,
-        role: claims.role as string,
+        role,
       })
+      setUserRole(role)
       setAuthed(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed')
@@ -114,7 +117,7 @@ export function App() {
   }
 
   if (authed) {
-    return <AppShell onLogout={handleLogout} />
+    return <AppShell onLogout={handleLogout} role={userRole} />
   }
 
   return (
