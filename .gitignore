@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Env
+.env
+*.env.local
+
+# Frontend
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Test / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.ruff_cache/
+
+# Docs source (keep compiled docs, exclude raw word docs)
+*.docx

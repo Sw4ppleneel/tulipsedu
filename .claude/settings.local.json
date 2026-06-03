@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(file *.docx)",
+      "Bash(python3 *)",
+      "Bash(git init *)",
+      "Bash(git checkout *)",
+      "Bash(docker info *)",
+      "Bash(gh repo *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
+    ]
+  }
+}

@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+bower_components/
+env/
+venv/
+.env
+.venv
+bin/
+obj/
+
+# Build outputs
+dist/
+build/
+.vite/
+.parcel-cache/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Version control & IDEs
+.git/
+.github/
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# Media assets
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.pdf
+*.mp4

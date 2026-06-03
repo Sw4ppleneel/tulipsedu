@@ -1,0 +1,9 @@
+{
+  "name": "Tulips.edu",
+  "short_name": "Tulips",
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#1a56db",
+  "background_color": "#ffffff",
+  "icons": []
+}
