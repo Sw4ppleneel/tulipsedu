@@ -4,6 +4,8 @@ import { clearAuthState, decodeJWT, setAuthState } from './api/auth_state'
 import { StudentsView } from './views/Students'
 import { StaffView } from './views/Staff'
 import { AttendanceView } from './views/Attendance'
+import { FeesAdminView } from './views/FeesAdmin'
+import { SuperadminView } from './views/Superadmin'
 import type { TokenResponse } from './types/auth'
 
 // Auto-detect tenant from subdomain; returns empty string on localhost
@@ -12,7 +14,7 @@ function getSubdomain(): string {
   return parts.length > 2 ? parts[0] : ''
 }
 
-type View = 'students' | 'staff' | 'attendance'
+type View = 'students' | 'staff' | 'attendance' | 'fees' | 'superadmin'
 
 // ── App Shell (authenticated) ────────────────────────────────────────────────
 
@@ -39,6 +41,12 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
             <button onClick={() => setView('students')}   style={NAV_BTN(view === 'students')}>Students</button>
             <button onClick={() => setView('staff')}      style={NAV_BTN(view === 'staff')}>Staff</button>
             <button onClick={() => setView('attendance')} style={NAV_BTN(view === 'attendance')}>Attendance</button>
+            <button onClick={() => setView('fees')}       style={NAV_BTN(view === 'fees')}>Fees</button>
+            {role === 'superadmin' && (
+              <button onClick={() => setView('superadmin')} style={{ ...NAV_BTN(view === 'superadmin'), background: view === 'superadmin' ? '#7c3aed' : 'transparent' }}>
+                Superadmin
+              </button>
+            )}
           </nav>
         </div>
         <button
@@ -52,6 +60,8 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
         {view === 'students'   && <StudentsView />}
         {view === 'staff'      && <StaffView />}
         {view === 'attendance' && <AttendanceView />}
+        {view === 'fees'       && <FeesAdminView />}
+        {view === 'superadmin' && <SuperadminView />}
       </main>
     </div>
   )

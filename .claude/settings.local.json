@@ -31,7 +31,9 @@
       "Bash(DATABASE_URL=postgresql://tulips:tulips@localhost:5432/tulipsedu backend/.venv/bin/python3 *)",
       "Bash(npm install *)",
       "Bash(npm run *)",
-      "Bash(git commit -m 'docs: update BUILD.md for Student Management completion *)"
+      "Bash(git commit -m 'docs: update BUILD.md for Student Management completion *)",
+      "Bash(DATABASE_URL=postgresql://tulips:tulips@localhost:5432/tulipsedu backend/.venv/bin/python3.14 scripts/apply_migrations.py)",
+      "Bash(DATABASE_URL=postgresql://tulips:tulips@localhost:5432/tulipsedu backend/.venv/bin/python3.14 *)"
     ]
   }
 }

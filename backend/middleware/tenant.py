@@ -25,6 +25,10 @@ class TenantMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
 
+        # Webhooks carry tenant slug in path; HMAC-verified inside the handler
+        if path.startswith("/api/v1/payments/webhooks/"):
+            return await call_next(request)
+
         if path in _TENANT_EXEMPT or path.startswith("/docs") or path.startswith("/openapi"):
             return await call_next(request)
 

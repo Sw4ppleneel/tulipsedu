@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     refresh_token_expire_days: int = 30
     debug: bool = False
     base_domain: str = "tulipsedu.in"
+    app_base_url: str = "http://localhost:8000"
 
 
 settings = Settings()
