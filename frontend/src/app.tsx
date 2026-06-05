@@ -14,6 +14,7 @@ import { ExamView } from './views/Exam'
 import { ParentPortalView } from './views/ParentPortal'
 import { CmsAdminView } from './views/CmsAdmin'
 import { SettingsView } from './views/Settings'
+import { PublicSite } from './views/PublicSite'
 import type { TokenResponse } from './types/auth'
 
 function getSubdomain(): string {
@@ -236,7 +237,15 @@ const LOGO_MARK: preact.JSX.CSSProperties = {
   color: '#fff', fontWeight: 900, fontSize: '1.4rem', boxShadow: '0 4px 12px rgba(26,86,219,.3)',
 }
 
-type AppMode = 'login' | 'parent-login' | 'staff-app' | 'parent-app'
+type AppMode = 'public' | 'login' | 'parent-login' | 'staff-app' | 'parent-app'
+
+// Path-based routing: / = public website, /app = staff ERP, /parent = parent portal
+function initialMode(): AppMode {
+  const path = window.location.pathname
+  if (path.startsWith('/app')) return 'login'
+  if (path.startsWith('/parent')) return 'parent-login'
+  return 'public'
+}
 
 export function App() {
   const [phone, setPhone] = useState('')
@@ -245,8 +254,30 @@ export function App() {
   const [schoolName, setSchoolName] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [mode, setMode] = useState<AppMode>('login')
+  const [mode, setMode] = useState<AppMode>(initialMode)
   const [userRole, setUserRole] = useState('')
+
+  function goStaffLogin() {
+    history.pushState(null, '', '/app')
+    setError(''); setMode('login')
+  }
+  function goParentLogin() {
+    history.pushState(null, '', '/parent')
+    setError(''); setMode('parent-login')
+  }
+  function goPublic() {
+    history.pushState(null, '', '/')
+    setMode('public')
+  }
+
+  // Browser back/forward → re-derive route, but don't disrupt an active session
+  useEffect(() => {
+    const onPop = () => {
+      setMode(prev => (prev === 'staff-app' || prev === 'parent-app') ? prev : initialMode())
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
 
   // Fetch school name from public API once slug is known
   useEffect(() => {
@@ -294,12 +325,18 @@ export function App() {
   }
 
   function handleLogout() {
-    clearAuthState(); setMode('login'); setPassword(''); setUserRole('')
+    clearAuthState(); setPassword(''); setUserRole('')
+    history.pushState(null, '', '/app'); setMode('login')
+  }
+  function handleParentLogout() {
+    clearAuthState(); setUserRole('')
+    history.pushState(null, '', '/'); setMode('public')
   }
 
+  if (mode === 'public') return <PublicSite onStaffLogin={goStaffLogin} onParentLogin={goParentLogin} />
   if (mode === 'staff-app') return <AppShell onLogout={handleLogout} role={userRole} schoolName={schoolName} />
-  if (mode === 'parent-app') return <ParentPortalView onLogout={handleLogout} />
-  if (mode === 'parent-login') return <ParentLogin onSuccess={handleParentSuccess} onBack={() => setMode('login')} />
+  if (mode === 'parent-app') return <ParentPortalView onLogout={handleParentLogout} />
+  if (mode === 'parent-login') return <ParentLogin onSuccess={handleParentSuccess} onBack={goPublic} />
 
   // Staff login page
   return (
@@ -357,13 +394,17 @@ export function App() {
           <button
             class="btn btn-ghost"
             style={{ width: '100%' }}
-            onClick={() => setMode('parent-login')}
+            onClick={goParentLogin}
           >
             Parent Login
           </button>
         </div>
 
-        <p class="text-muted text-xs" style={{ textAlign: 'center', marginTop: '1.25rem' }}>
+        <button onClick={goPublic} style={{ width: '100%', marginTop: '.75rem', background: 'none', border: 'none', cursor: 'pointer', fontSize: '.78rem', color: 'var(--gray-500)', fontFamily: 'inherit' }}>
+          ← School website
+        </button>
+
+        <p class="text-muted text-xs" style={{ textAlign: 'center', marginTop: '1rem' }}>
           Powered by Tulips.edu · School ERP
         </p>
       </div>

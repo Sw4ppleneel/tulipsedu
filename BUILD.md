@@ -29,8 +29,38 @@ Completed:
 - Production deployment (*.tulipsedu.in, 4 schools seeded)
 - R2 upload endpoint (501 until credentials added)
 
-In Progress: Sprint 2 COMPLETE (Steps 1, 2, 4a, 4b, 5 + parent admission-number auth).
-Ready to deploy. Next: production deploy + test both apps.
+In Progress: Sprint 2 COMPLETE + public school website. Ready to deploy.
+
+---
+
+# Public School Website + Path Routing (COMPLETED 2026-06-05)
+
+Decision: path-based routing (no new subdomains/cert). One-page CMS-driven site.
+- `school.tulipsedu.in/`       → public website (no login)
+- `school.tulipsedu.in/app`    → staff ERP
+- `school.tulipsedu.in/parent` → parent portal
+
+Built:
+- frontend/src/api/cms.ts: cmsPublic (schoolInfo/pages/announcements) — unauthenticated,
+  tenant slug from subdomain or ?school= override (for localhost testing).
+- frontend/src/views/PublicSite.tsx: one-page site — sticky header (school name + nav +
+  login buttons), hero, Notices (announcements), CMS pages as sections (content_html),
+  contact footer. System fonts, lightweight.
+- frontend/src/app.tsx: AppMode gains 'public'; initialMode() routes by pathname;
+  goStaffLogin/goParentLogin/goPublic use history.pushState; popstate listener (doesn't
+  disrupt active sessions); parent logout → public, staff logout → /app login.
+
+No backend change, no migration, no new dependency. nginx SPA fallback already serves
+all paths → /app and /parent load the SPA which self-routes. Zero infra change.
+
+Verified: /public/school-info + /public/pages + /public/announcements return seeded data
+(Daffodils: "About Us" page + welcome announcement). Frontend tsc+build clean (42.21 kB gzip).
+Browser render not driven (no headless browser); data path + routing logic verified.
+
+REMAINING for a fuller site (optional): gallery/photos (needs R2), per-page routing,
+contact fields on tenants (address/phone — currently via a CMS 'contact' page).
+
+---
 
 Blocked:
 - R2 credentials not yet added to production .env (uploads return 501 until then)
