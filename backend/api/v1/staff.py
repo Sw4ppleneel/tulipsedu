@@ -1,9 +1,10 @@
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from core.csv_export import csv_response, require_export_role
+from core.rbac import require_roles
 from models.staff import AssignmentCreate, AssignmentResponse, StaffCreate, StaffResponse, StaffUpdate
 from services.staff import (
     StaffError,
@@ -17,10 +18,19 @@ from services.staff import (
     update_staff,
 )
 
-router = APIRouter(prefix="/staff", tags=["staff"])
+# vice_principal may view staff but not manage contracts; writes are principal-only.
+router = APIRouter(
+    prefix="/staff",
+    tags=["staff"],
+    dependencies=[Depends(require_roles("principal", "vice_principal"))],
+)
+
+_principal_only = Depends(require_roles("principal"))
 
 
-@router.post("", response_model=StaffResponse, status_code=201)
+@router.post(
+    "", response_model=StaffResponse, status_code=201, dependencies=[_principal_only]
+)
 async def add_staff(data: StaffCreate, request: Request):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
@@ -84,7 +94,7 @@ async def get_one(staff_id: UUID, request: Request):
     return member
 
 
-@router.put("/{staff_id}", response_model=StaffResponse)
+@router.put("/{staff_id}", response_model=StaffResponse, dependencies=[_principal_only])
 async def edit_staff(staff_id: UUID, data: StaffUpdate, request: Request):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
@@ -94,7 +104,7 @@ async def edit_staff(staff_id: UUID, data: StaffUpdate, request: Request):
     return member
 
 
-@router.delete("/{staff_id}", status_code=204)
+@router.delete("/{staff_id}", status_code=204, dependencies=[_principal_only])
 async def remove_staff(staff_id: UUID, request: Request):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
@@ -103,7 +113,12 @@ async def remove_staff(staff_id: UUID, request: Request):
         raise HTTPException(status_code=404, detail="Staff member not found or already inactive")
 
 
-@router.post("/{staff_id}/assignments", response_model=AssignmentResponse, status_code=201)
+@router.post(
+    "/{staff_id}/assignments",
+    response_model=AssignmentResponse,
+    status_code=201,
+    dependencies=[_principal_only],
+)
 async def assign_class(staff_id: UUID, data: AssignmentCreate, request: Request):
     pool = request.app.state.pool
     async with pool.acquire() as conn:

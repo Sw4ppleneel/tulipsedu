@@ -4,8 +4,10 @@ import io
 from fastapi import HTTPException, Request
 from fastapi.responses import StreamingResponse
 
-# Roles permitted to download CSV exports
-EXPORT_ROLES = frozenset({"admin", "principal", "superadmin"})
+# Roles permitted to download CSV exports. Module-level router guards further
+# constrain which exports each role can actually reach (e.g. accountant only
+# reaches the fee export router).
+EXPORT_ROLES = frozenset({"principal", "vice_principal", "accountant", "superadmin"})
 
 
 def require_export_role(request: Request) -> None:
@@ -13,7 +15,7 @@ def require_export_role(request: Request) -> None:
     if role not in EXPORT_ROLES:
         raise HTTPException(
             status_code=403,
-            detail="CSV export requires admin, principal, or superadmin role",
+            detail="CSV export not permitted for this role",
         )
 
 

@@ -1,9 +1,10 @@
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
 from config import settings
+from core.rbac import require_roles
 from models.finance import FeePaymentResponse, PaymentOrderCreate, PaymentOrderResponse
 from services.payment import (
     PaymentError,

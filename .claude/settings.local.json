@@ -47,7 +47,14 @@
       "Bash(node test_tulips.mjs)",
       "Bash(node *)",
       "Bash(echo \"PID: $!\")",
-      "WebSearch"
+      "WebSearch",
+      "Bash(command -v pg_isready)",
+      "Bash(pg_isready -h localhost -p 5432)",
+      "Bash(docker exec *)",
+      "Bash(backend/.venv/bin/python scripts/apply_migrations.py)",
+      "Bash(backend/.venv/bin/python -)",
+      "Bash(grep -nA12 \"class SessionCreate\" models/attendance.py)",
+      "Bash(grep -nA12 \"class HomeworkCreate\" models/homework.py)"
     ]
   }
 }

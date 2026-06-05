@@ -1,9 +1,10 @@
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 
 from core.csv_export import csv_response, require_export_role
+from core.rbac import require_roles
 from models.finance import (
     FeeHeadCreate,
     FeeHeadResponse,
@@ -27,10 +28,20 @@ from services.finance import (
     upsert_fee_schedule,
 )
 
-router = APIRouter(prefix="/fees", tags=["fees"])
+# vice_principal may view fee data but not collect or restructure; mutations are
+# limited to principal + accountant.
+router = APIRouter(
+    prefix="/fees",
+    tags=["fees"],
+    dependencies=[Depends(require_roles("principal", "vice_principal", "accountant"))],
+)
+
+_collect = Depends(require_roles("principal", "accountant"))
 
 
-@router.post("/heads", response_model=FeeHeadResponse, status_code=201)
+@router.post(
+    "/heads", response_model=FeeHeadResponse, status_code=201, dependencies=[_collect]
+)
 async def add_head(data: FeeHeadCreate, request: Request):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
@@ -47,7 +58,9 @@ async def get_heads(request: Request):
         return await list_fee_heads(conn, request.state.tenant_id)
 
 
-@router.patch("/heads/{head_id}/toggle", response_model=FeeHeadResponse)
+@router.patch(
+    "/heads/{head_id}/toggle", response_model=FeeHeadResponse, dependencies=[_collect]
+)
 async def toggle_head(head_id: UUID, request: Request):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
@@ -57,7 +70,12 @@ async def toggle_head(head_id: UUID, request: Request):
     return result
 
 
-@router.post("/schedules", response_model=FeeScheduleResponse, status_code=200)
+@router.post(
+    "/schedules",
+    response_model=FeeScheduleResponse,
+    status_code=200,
+    dependencies=[_collect],
+)
 async def set_schedule(data: FeeScheduleCreate, request: Request):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
@@ -74,7 +92,7 @@ async def get_schedules(
         return await list_fee_schedules(conn, request.state.tenant_id, academic_year_id)
 
 
-@router.post("/import-excel")
+@router.post("/import-excel", dependencies=[_collect])
 async def import_excel(
     request: Request,
     academic_year_id: UUID = Query(...),
@@ -93,7 +111,7 @@ async def import_excel(
             raise HTTPException(status_code=422, detail=str(e))
 
 
-@router.post("/generate-ledger")
+@router.post("/generate-ledger", dependencies=[_collect])
 async def gen_ledger(data: GenerateLedgerRequest, request: Request):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
@@ -132,7 +150,7 @@ async def outstanding(
         )
 
 
-@router.post("/reminders")
+@router.post("/reminders", dependencies=[_collect])
 async def send_reminders(student_ids: list[UUID], request: Request):
     # Logs reminder events; SMS integration wired up when provider is configured
     from core.events import emit

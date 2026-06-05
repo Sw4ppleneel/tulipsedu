@@ -1,9 +1,10 @@
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from core.csv_export import csv_response, require_export_role
+from core.rbac import require_roles
 from models.student import StudentCreate, StudentListResponse, StudentResponse, StudentUpdate
 from services.student import (
     StudentError,
@@ -14,7 +15,11 @@ from services.student import (
     update_student,
 )
 
-router = APIRouter(prefix="/students", tags=["students"])
+router = APIRouter(
+    prefix="/students",
+    tags=["students"],
+    dependencies=[Depends(require_roles("principal", "vice_principal"))],
+)
 
 
 @router.post("", response_model=StudentResponse, status_code=201)

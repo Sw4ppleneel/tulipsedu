@@ -43,7 +43,7 @@ async def main() -> None:
     user = await conn.fetchrow(
         """
         INSERT INTO users (tenant_id, phone_number, password_hash, role)
-        VALUES ($1, $2, $3, 'admin')
+        VALUES ($1, $2, $3, 'principal')
         ON CONFLICT (tenant_id, phone_number) DO UPDATE SET password_hash = EXCLUDED.password_hash
         RETURNING id
         """,
