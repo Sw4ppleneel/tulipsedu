@@ -66,7 +66,11 @@ export function AttendanceView() {
   const [online, setOnline]     = useState(navigator.onLine)
   const [queued, setQueued]     = useState(0)
   const [submitted, setSubmitted] = useState(false)
+  const [editing, setEditing]   = useState(false)
   const [error, setError]       = useState('')
+
+  // A submitted session is read-only until the teacher explicitly chooses to correct it.
+  const locked = submitted && !editing
 
   const pendingRef = useRef<Marks>({})
 
@@ -101,6 +105,7 @@ export function AttendanceView() {
     setStudents([])
     setMarks({})
     setSubmitted(false)
+    setEditing(false)
   }
 
   async function handleOpenSession() {
@@ -114,6 +119,7 @@ export function AttendanceView() {
       ])
       setSession(sess)
       setSubmitted(sess.submitted)
+      setEditing(false)
       setStudents(studs.items)
 
       // Load existing marks from the session detail
@@ -189,6 +195,7 @@ export function AttendanceView() {
     try {
       await submitSession(session.id)
       setSubmitted(true)
+      setEditing(false)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Submit failed')
     }
@@ -258,9 +265,9 @@ export function AttendanceView() {
             </div>
           </div>
 
-          {/* Action row */}
-          {!submitted && (
-            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+          {/* Action row — available before submit, and while correcting a submitted session */}
+          {!locked && (
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', alignItems: 'center' }}>
               <button onClick={markAllPresent} style={{ padding: '0.375rem 0.875rem', background: '#dcfce7', color: '#15803d', border: '1px solid #86efac', borderRadius: 4, cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}>
                 Mark All Present
               </button>
@@ -269,14 +276,27 @@ export function AttendanceView() {
                 disabled={marked === 0}
                 style={{ padding: '0.375rem 0.875rem', background: marked > 0 ? '#1a56db' : '#e5e7eb', color: marked > 0 ? '#fff' : '#9ca3af', border: 'none', borderRadius: 4, cursor: marked > 0 ? 'pointer' : 'default', fontSize: '0.8rem', fontWeight: 600 }}
               >
-                Submit
+                {editing ? 'Save corrections' : 'Submit'}
               </button>
+              {editing && (
+                <span style={{ fontSize: '0.75rem', color: '#b45309', fontWeight: 600 }}>
+                  Correcting submitted attendance — changes save as you tap
+                </span>
+              )}
             </div>
           )}
 
-          {submitted && (
-            <div style={{ padding: '0.5rem 0.875rem', background: '#d1fae5', borderRadius: 6, fontSize: '0.8rem', color: '#065f46', marginBottom: '0.75rem', fontWeight: 600 }}>
-              ✓ Session submitted
+          {locked && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginBottom: '0.75rem' }}>
+              <div style={{ padding: '0.5rem 0.875rem', background: '#d1fae5', borderRadius: 6, fontSize: '0.8rem', color: '#065f46', fontWeight: 600 }}>
+                ✓ Session submitted
+              </div>
+              <button
+                onClick={() => setEditing(true)}
+                style={{ padding: '0.375rem 0.875rem', background: '#fff', color: '#1a56db', border: '1px solid #1a56db', borderRadius: 4, cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}
+              >
+                Edit / Correct
+              </button>
             </div>
           )}
 
@@ -294,7 +314,7 @@ export function AttendanceView() {
                   key={s.id}
                   student={s}
                   mark={marks[s.id] ?? null}
-                  onChange={(status) => !submitted && handleMark(s.id, status)}
+                  onChange={(status) => !locked && handleMark(s.id, status)}
                 />
               ))}
             </div>

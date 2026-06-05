@@ -21,7 +21,7 @@ from services.finance import (
     get_outstanding_dues,
     get_payment_logs,
     get_student_ledger,
-    import_fee_structure_excel,
+    import_and_generate,
     list_fee_heads,
     list_fee_schedules,
     toggle_fee_head,
@@ -104,7 +104,7 @@ async def import_excel(
     pool = request.app.state.pool
     async with pool.acquire() as conn:
         try:
-            return await import_fee_structure_excel(
+            return await import_and_generate(
                 conn, request.state.tenant_id, academic_year_id, contents
             )
         except FinanceError as e:

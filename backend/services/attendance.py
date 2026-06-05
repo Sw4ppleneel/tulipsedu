@@ -116,7 +116,7 @@ async def mark_attendance(
     req: MarkRequest,
 ) -> int:
     session = await conn.fetchrow(
-        "SELECT id FROM attendance_sessions WHERE id = $1 AND tenant_id = $2",
+        "SELECT id, submitted FROM attendance_sessions WHERE id = $1 AND tenant_id = $2",
         session_id, tenant_id,
     )
     if not session:
@@ -138,7 +138,9 @@ async def mark_attendance(
         tenant_id, session_id, student_ids, statuses,
     )
 
-    await emit(conn, "ATTENDANCE_MARKED", tenant_id, {
+    # Editing an already-submitted session is a correction — audit it distinctly.
+    event = "ATTENDANCE_CORRECTED" if session["submitted"] else "ATTENDANCE_MARKED"
+    await emit(conn, event, tenant_id, {
         "session_id": str(session_id),
         "count": len(req.marks),
     })
@@ -159,6 +161,9 @@ async def submit_session(
         "UPDATE attendance_sessions SET submitted = TRUE WHERE id = $1 AND tenant_id = $2",
         session_id, tenant_id,
     )
+    await emit(conn, "ATTENDANCE_SESSION_SUBMITTED", tenant_id, {
+        "session_id": str(session_id),
+    })
     updated = dict(row)
     updated["submitted"] = True
     return AttendanceSession(**updated)

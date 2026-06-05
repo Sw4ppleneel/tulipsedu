@@ -123,6 +123,49 @@ Fully exempt paths (no DB lookup):
 
 ---
 
+# Role-Based Access Control (RBAC)
+
+Roles are signed into the JWT at login (`services/auth.py`) and exposed by the
+tenant middleware as `request.state.user_role`. The middleware enforces tenant
+isolation; per-route role enforcement lives in `backend/core/rbac.py`.
+
+Two guard primitives:
+- `require_roles(*allowed)` — coarse gate dependency. 403s unless the caller's
+  role is permitted. `superadmin` is implicitly allowed everywhere. Applied at
+  router level (`APIRouter(..., dependencies=[...])`) or per-route for finer
+  read/write splits.
+- `load_class_scope` + `assert_in_scope(request, class_id, section_id)` — fine
+  gate. For teaching roles, resolves user → staff → `staff_class_assignments`
+  and records the allowed `(class_id, section_id)` set on `request.state`.
+  Admin-tier roles (superadmin/principal/vice_principal) are unrestricted.
+  Handlers call `assert_in_scope` to reject writes outside a teacher's classes.
+
+Role → module access (the boundary; the frontend mirrors this for display only):
+
+| Module | superadmin | principal | vice_principal | class_teacher | teacher | accountant |
+|---|---|---|---|---|---|---|
+| dashboard | ✓ | ✓ | ✓ | — | — | — |
+| students | ✓ | ✓ | ✓ | — | — | — |
+| staff (write) | ✓ | ✓ | view | — | — | — |
+| attendance | ✓ | ✓ | ✓ | own classes | own classes | — |
+| fees (write) | ✓ | ✓ | view | — | — | ✓ |
+| payments | ✓ | ✓ | view | — | — | ✓ |
+| homework | ✓ | ✓ | ✓ | own classes | own classes | — |
+| timetable (write) | ✓ | ✓ | ✓ | read | read | — |
+| exams (setup) | ✓ | ✓ | ✓ | marks only | marks only | — |
+| cms | ✓ | ✓ | — | — | — | — |
+| superadmin | ✓ | — | — | — | — | — |
+
+Defence in depth: the role gate blocks the route; the service query still filters
+by `tenant_id` (and, for teachers, the injected class scope). The webhook routes
+under `/payments/webhooks/` carry no role (JWT-exempt) and are therefore guarded
+per-route, never at the router level.
+
+Parents authenticate via a separate path (admission number, no users row) and
+never reach these staff routes.
+
+---
+
 # Core Database Schema
 
 ## schema_migrations
@@ -158,7 +201,10 @@ Fields:
 * tenant_id (FK → tenants.id CASCADE)
 * phone_number (VARCHAR 15)
 * password_hash (VARCHAR 255)
-* role (VARCHAR 50) — 'admin', 'teacher', 'staff', 'parent'
+* role (VARCHAR 50) — constrained by `users_role_check` (migration 018) to one of:
+  'superadmin', 'principal', 'vice_principal', 'class_teacher', 'teacher', 'accountant'.
+  Legacy 'admin' rows were migrated to 'principal' in 018. Parents are NOT users
+  rows (separate adm_no auth path), so 'parent' is intentionally excluded here.
 * is_active (BOOLEAN)
 * created_at
 
@@ -166,6 +212,9 @@ Indexes:
 * UNIQUE (tenant_id, phone_number)
 * (tenant_id, created_at)
 * (tenant_id, role)
+
+CHECK:
+* users_role_check (migration 018) — locks the role vocabulary above.
 
 ---
 
@@ -375,6 +424,12 @@ Payload: tenant_id, student_id
 ## ATTENDANCE_MARKED
 Producer: services/attendance.py
 Payload: tenant_id, session_id, count
+
+## ATTENDANCE_CORRECTED
+Producer: services/attendance.py
+Payload: tenant_id, session_id, count
+Emitted instead of ATTENDANCE_MARKED when records are edited on a session that
+was already submitted — distinguishes a correction from initial marking for audit.
 
 ## ATTENDANCE_SESSION_SUBMITTED
 Producer: services/attendance.py

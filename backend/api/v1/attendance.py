@@ -2,9 +2,10 @@ from datetime import date
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from core.csv_export import csv_response, require_export_role
+from core.rbac import assert_in_scope, load_class_scope, require_roles
 from models.attendance import (
     AttendanceReport,
     AttendanceSession,
@@ -22,12 +23,22 @@ from services.attendance import (
     submit_session,
 )
 
-router = APIRouter(prefix="/attendance", tags=["attendance"])
+# Teaching roles are restricted to their assigned classes (load_class_scope);
+# admin-tier roles are unrestricted.
+router = APIRouter(
+    prefix="/attendance",
+    tags=["attendance"],
+    dependencies=[
+        Depends(require_roles("principal", "vice_principal", "class_teacher", "teacher")),
+        Depends(load_class_scope),
+    ],
+)
 
 
 @router.post("/sessions", response_model=AttendanceSession, status_code=200)
 async def open_session(data: SessionCreate, request: Request):
     """Get existing session for the date or create a new one."""
+    assert_in_scope(request, data.class_id, data.section_id)
     user_id = UUID(request.state.user_id)
     pool = request.app.state.pool
     async with pool.acquire() as conn:
@@ -99,6 +110,7 @@ async def report(
     from_date: date = Query(...),
     to_date: date = Query(...),
 ):
+    assert_in_scope(request, class_id, section_id)
     pool = request.app.state.pool
     async with pool.acquire() as conn:
         return await get_attendance_report(
@@ -117,6 +129,7 @@ async def export_attendance_csv(
     to_date: date = Query(...),
 ):
     require_export_role(request)
+    assert_in_scope(request, class_id, section_id)
     pool = request.app.state.pool
     async with pool.acquire() as conn:
         report_data = await get_attendance_report(

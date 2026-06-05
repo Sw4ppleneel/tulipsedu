@@ -13,6 +13,7 @@ from models.finance import (
     FeeScheduleResponse,
     GenerateLedgerRequest,
     LedgerEntry,
+    MonthYearPair,
     OutstandingReport,
     OutstandingStudent,
     StudentLedger,
@@ -270,6 +271,59 @@ async def generate_ledger(
     )
     created = after - before
     return {"created": created, "skipped": len(entries) - created, "students": len(students)}
+
+
+async def _derive_month_year_pairs(
+    conn: asyncpg.Connection, tenant_id: uuid.UUID, academic_year_id: uuid.UUID
+) -> list[MonthYearPair]:
+    """Every (month, year) spanned by the academic year's start..end dates."""
+    ay = await conn.fetchrow(
+        "SELECT start_date, end_date FROM academic_years WHERE id = $1 AND tenant_id = $2",
+        academic_year_id, tenant_id,
+    )
+    if not ay:
+        raise FinanceError("Academic year not found")
+
+    pairs: list[MonthYearPair] = []
+    y, m = ay["start_date"].year, ay["start_date"].month
+    end_y, end_m = ay["end_date"].year, ay["end_date"].month
+    while (y, m) <= (end_y, end_m):
+        pairs.append(MonthYearPair(month=m, year=y))
+        m += 1
+        if m > 12:
+            m, y = 1, y + 1
+    return pairs
+
+
+async def import_and_generate(
+    conn: asyncpg.Connection,
+    tenant_id: uuid.UUID,
+    academic_year_id: uuid.UUID,
+    file_bytes: bytes,
+) -> dict:
+    """Single accountant action: import the structure Excel AND apply it to every
+    student for the whole academic year, atomically. This is the only supported
+    way to set up fees — no manual head/schedule entry."""
+    async with conn.transaction():
+        structure = await import_fee_structure_excel(
+            conn, tenant_id, academic_year_id, file_bytes
+        )
+        pairs = await _derive_month_year_pairs(conn, tenant_id, academic_year_id)
+        ledger = await generate_ledger(
+            conn,
+            tenant_id,
+            GenerateLedgerRequest(
+                academic_year_id=academic_year_id,
+                month_year_pairs=pairs,
+                include_annual=True,
+            ),
+        )
+    return {
+        **structure,
+        "ledger_entries_created": ledger["created"],
+        "ledger_entries_existing": ledger["skipped"],
+        "students_affected": ledger["students"],
+    }
 
 
 # ── Ledger Queries ────────────────────────────────────────────────────────────

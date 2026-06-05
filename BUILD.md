@@ -29,13 +29,81 @@ Completed:
 - Production deployment (*.tulipsedu.in, 4 schools seeded)
 - R2 upload endpoint (501 until credentials added)
 
-In Progress: Sprint 2 planning (this document)
+In Progress: Sprint 2 — Steps 1 & 2 DONE; next is Step 4 (fee Excel/ledger + UPI QR)
 
 Blocked:
 - R2 credentials not yet added to production .env
-- SMS provider (OTP in dev mode only)
+- SMS provider (parent auth moving to admission-number, OTP path to be replaced)
 
-Next Task: RBAC implementation (user roles: principal, teacher, accountant) + UI app split
+Next Task: Step 4 — fee Excel import + view-only ledger + parent UPI QR
+(Step 3 absorbed: staff_class_assignments already provides subject-teacher links)
+
+---
+
+# Step 2 — Attendance Edit + Roll Uniqueness (COMPLETED 2026-06-05)
+
+Findings (spec was already partly satisfied, like Step 1):
+- Roll-number uniqueness ALREADY enforced — migration 006 `unique_tenant_section_roll
+  UNIQUE (tenant_id, academic_year_id, class_id, section_id, roll_number)` exists,
+  live DB has zero duplicates, StudentForm already surfaces the 409. User confirmed
+  per-SECTION scope is correct (sections of the same class may reuse roll numbers).
+  → No change needed.
+- Attendance "lock" was NOT in the service layer — `mark_attendance` already upserts
+  (ON CONFLICT DO UPDATE). The lock was purely frontend.
+
+What was built:
+- backend/services/attendance.py: `mark_attendance` now emits ATTENDANCE_CORRECTED
+  (vs ATTENDANCE_MARKED) when the edited session was already submitted — distinct
+  audit signal for post-submit corrections.
+- frontend/src/views/Attendance.tsx: added `editing` state + `locked` (= submitted
+  && !editing). Submitted sessions show an "Edit / Correct" button that re-enables
+  marking; controls and per-row marking gate on `locked` not `submitted`; Submit
+  button reads "Save corrections" while editing.
+
+Verification (live, real uvicorn + HTTP):
+- open → mark P (ATTENDANCE_MARKED) → submit (200) → re-mark A (200) → record flips
+  to A, emits ATTENDANCE_CORRECTED. Events for session: [ATTENDANCE_MARKED,
+  ATTENDANCE_CORRECTED]. Frontend tsc+build clean (30.69 kB gzip). Test data cleaned up.
+
+Note: ATTENDANCE_SESSION_SUBMITTED is in ARCHITECTURE.md's event catalog but
+submit_session does not currently emit it — pre-existing gap, not introduced here.
+
+---
+
+# Step 1 — RBAC + Role Enforcement (COMPLETED 2026-06-05)
+
+Discovered during implementation that the codebase was further along than the
+roadmap assumed:
+- `users.role` column already existed (002) — only needed a CHECK constraint + data migration.
+- `staff_class_assignments` (007) already serves as both class-teacher and
+  subject-teacher registry — the roadmap's proposed `class_teacher_assignments`
+  and `subject_teachers` tables (migrations 018-table / 020) are REDUNDANT and
+  were NOT created.
+- JWT already carried `role`; middleware already set `request.state.user_role`.
+
+What was actually built:
+- Migration 018 (`018_rbac_roles.sql`): migrate legacy `admin` → `principal`,
+  add `users_role_check` constraining role to the 6 staff roles. Reversible.
+- Seed scripts updated `admin` → `principal` (seed_schools.py x2, seed_tenant.py).
+- `backend/core/rbac.py`: `require_roles(*allowed)` coarse gate + `load_class_scope`
+  / `assert_in_scope` fine gate for teacher class-scoping.
+- Router guards wired into: students, staff, dashboard, fees, payments,
+  attendance, homework, exam, timetable, cms_admin. (payments uses per-route
+  guards because its webhook routes are JWT-exempt.)
+- `core/csv_export.py`: EXPORT_ROLES modernized (dropped stale `admin`).
+- Frontend `app.tsx`: `VIEW_ACCESS` map + `canSee()` gate nav tabs, landing
+  view, and render per role. No login dropdown (role read from JWT).
+
+Verification (live, against real uvicorn over socket):
+- principal: students/fees/dashboard/exams all 200
+- accountant: fees 200; students/exams/dashboard 403
+- class_teacher: students/fees 403; timetable-read/exams-read 200
+- class_teacher class scope: attendance own-class 200, other-class 403
+- class_teacher timetable write: 403
+- parent request-otp still 202, public school-info 200, no-token 401
+- Migration: 5 `admin`→`principal`, invalid role rejected by CHECK.
+- Frontend: tsc + vite build clean, 30.55 kB gzip. (Browser drive not performed —
+  no driver available; gating is deterministic and mirrors the verified backend.)
 
 ---
 

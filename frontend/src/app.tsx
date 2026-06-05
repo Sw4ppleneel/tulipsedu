@@ -22,6 +22,41 @@ function getSubdomain(): string {
 
 type View = 'dashboard' | 'students' | 'staff' | 'attendance' | 'fees' | 'homework' | 'timetable' | 'exams' | 'cms' | 'superadmin'
 
+// Display order of nav tabs.
+const ALL_VIEWS: { key: View; label: string }[] = [
+  { key: 'dashboard',  label: 'Home' },
+  { key: 'students',   label: 'Students' },
+  { key: 'staff',      label: 'Staff' },
+  { key: 'attendance', label: 'Attendance' },
+  { key: 'fees',       label: 'Fees' },
+  { key: 'homework',   label: 'Homework' },
+  { key: 'timetable',  label: 'Timetable' },
+  { key: 'exams',      label: 'Exams' },
+  { key: 'cms',        label: 'CMS' },
+  { key: 'superadmin', label: 'Superadmin' },
+]
+
+// Which roles may see each view. Mirrors the backend route guards in
+// backend/core/rbac.py — the backend is the real boundary; this only
+// controls what the staff app renders. superadmin is handled separately.
+const VIEW_ACCESS: Record<View, string[]> = {
+  dashboard:  ['principal', 'vice_principal'],
+  students:   ['principal', 'vice_principal'],
+  staff:      ['principal', 'vice_principal'],
+  attendance: ['principal', 'vice_principal', 'class_teacher', 'teacher'],
+  fees:       ['principal', 'vice_principal', 'accountant'],
+  homework:   ['principal', 'vice_principal', 'class_teacher', 'teacher'],
+  timetable:  ['principal', 'vice_principal', 'class_teacher', 'teacher'],
+  exams:      ['principal', 'vice_principal', 'class_teacher', 'teacher'],
+  cms:        ['principal'],
+  superadmin: ['superadmin'],
+}
+
+function canSee(role: string, v: View): boolean {
+  if (role === 'superadmin') return v === 'superadmin'
+  return VIEW_ACCESS[v].includes(role)
+}
+
 // ── Nav icon helper (small SVG) ───────────────────────────────────────────────
 const ICONS: Record<string, string> = {
   dashboard:  '⊞',
@@ -39,21 +74,10 @@ const ICONS: Record<string, string> = {
 // ── Staff App Shell ───────────────────────────────────────────────────────────
 
 function AppShell({ onLogout, role, schoolName }: { onLogout: () => void; role: string; schoolName: string }) {
-  const [view, setView] = useState<View>(role === 'superadmin' ? 'superadmin' : 'dashboard')
+  const NAV_ITEMS = ALL_VIEWS.filter((item) => canSee(role, item.key))
+  const landing: View = NAV_ITEMS[0]?.key ?? 'dashboard'
+  const [view, setView] = useState<View>(landing)
   const [menuOpen, setMenuOpen] = useState(false)
-
-  const NAV_ITEMS: { key: View; label: string }[] = [
-    { key: 'dashboard',  label: 'Home' },
-    { key: 'students',   label: 'Students' },
-    { key: 'staff',      label: 'Staff' },
-    { key: 'attendance', label: 'Attendance' },
-    { key: 'fees',       label: 'Fees' },
-    { key: 'homework',   label: 'Homework' },
-    { key: 'timetable',  label: 'Timetable' },
-    { key: 'exams',      label: 'Exams' },
-    { key: 'cms',        label: 'CMS' },
-    ...(role === 'superadmin' ? [{ key: 'superadmin' as View, label: 'Superadmin' }] : []),
-  ]
 
   function navBtn(item: { key: View; label: string }) {
     const active = view === item.key
@@ -115,16 +139,16 @@ function AppShell({ onLogout, role, schoolName }: { onLogout: () => void; role: 
       </header>
 
       <main>
-        {view === 'dashboard'  && <DashboardView schoolName={schoolName} />}
-        {view === 'students'   && <StudentsView />}
-        {view === 'staff'      && <StaffView />}
-        {view === 'attendance' && <AttendanceView />}
-        {view === 'fees'       && <FeesAdminView />}
-        {view === 'homework'   && <HomeworkView />}
-        {view === 'timetable'  && <TimetableView />}
-        {view === 'exams'      && <ExamView />}
-        {view === 'cms'        && <CmsAdminView />}
-        {view === 'superadmin' && <SuperadminView />}
+        {view === 'dashboard'  && canSee(role, 'dashboard')  && <DashboardView schoolName={schoolName} />}
+        {view === 'students'   && canSee(role, 'students')   && <StudentsView />}
+        {view === 'staff'      && canSee(role, 'staff')      && <StaffView />}
+        {view === 'attendance' && canSee(role, 'attendance') && <AttendanceView />}
+        {view === 'fees'       && canSee(role, 'fees')       && <FeesAdminView />}
+        {view === 'homework'   && canSee(role, 'homework')   && <HomeworkView />}
+        {view === 'timetable'  && canSee(role, 'timetable')  && <TimetableView />}
+        {view === 'exams'      && canSee(role, 'exams')      && <ExamView />}
+        {view === 'cms'        && canSee(role, 'cms')        && <CmsAdminView />}
+        {view === 'superadmin' && canSee(role, 'superadmin') && <SuperadminView />}
       </main>
     </div>
   )

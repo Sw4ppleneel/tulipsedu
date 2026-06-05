@@ -16,10 +16,20 @@ from services.payment import (
     mock_complete_payment,
 )
 
+# No router-level gate: the webhook routes below are JWT-exempt (no user_role on
+# request.state). Each authenticated route declares its own guard instead.
 router = APIRouter(prefix="/payments", tags=["payments"])
 
+_collect = Depends(require_roles("principal", "accountant"))
+_fee_view = Depends(require_roles("principal", "vice_principal", "accountant"))
 
-@router.post("/create-order", response_model=PaymentOrderResponse, status_code=201)
+
+@router.post(
+    "/create-order",
+    response_model=PaymentOrderResponse,
+    status_code=201,
+    dependencies=[_collect],
+)
 async def create_order(data: PaymentOrderCreate, request: Request):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
@@ -37,7 +47,7 @@ async def create_order(data: PaymentOrderCreate, request: Request):
             raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/{payment_id}", response_model=FeePaymentResponse)
+@router.get("/{payment_id}", response_model=FeePaymentResponse, dependencies=[_fee_view])
 async def get_status(payment_id: UUID, request: Request):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
@@ -47,7 +57,9 @@ async def get_status(payment_id: UUID, request: Request):
     return payment
 
 
-@router.get("/{payment_id}/receipt", response_class=HTMLResponse)
+@router.get(
+    "/{payment_id}/receipt", response_class=HTMLResponse, dependencies=[_fee_view]
+)
 async def get_receipt(payment_id: UUID, request: Request):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
@@ -59,7 +71,11 @@ async def get_receipt(payment_id: UUID, request: Request):
 
 # ── Dev-only mock complete ────────────────────────────────────────────────────
 
-@router.post("/{payment_id}/mock-complete", response_model=FeePaymentResponse)
+@router.post(
+    "/{payment_id}/mock-complete",
+    response_model=FeePaymentResponse,
+    dependencies=[_collect],
+)
 async def mock_complete(payment_id: UUID, request: Request):
     if not settings.debug:
         raise HTTPException(status_code=404)

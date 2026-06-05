@@ -54,7 +54,16 @@
       "Bash(backend/.venv/bin/python scripts/apply_migrations.py)",
       "Bash(backend/.venv/bin/python -)",
       "Bash(grep -nA12 \"class SessionCreate\" models/attendance.py)",
-      "Bash(grep -nA12 \"class HomeworkCreate\" models/homework.py)"
+      "Bash(grep -nA12 \"class HomeworkCreate\" models/homework.py)",
+      "Bash(cd *)",
+      "Bash(.venv/bin/python -c ' *)",
+      "Bash(.venv/bin/python -)",
+      "Bash(command -v chromium chromium-browser 'google-chrome')",
+      "Bash(grep -nE \"^#{1,3} \" ARCHITECTURE.md)",
+      "Bash(grep -nA40 \"async def create_student\" services/student.py)",
+      "Bash(grep -nA12 \"class GenerateLedgerRequest\\\\|class MonthYear\" models/finance.py)",
+      "Read(//Users/swapneelpremchand/frontend/src/api/**)",
+      "Bash(.venv/bin/python -c \"import main; print\\('backend import OK'\\)\")"
     ]
   }
 }

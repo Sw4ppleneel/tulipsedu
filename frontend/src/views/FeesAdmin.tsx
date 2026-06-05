@@ -1,17 +1,15 @@
 import { useEffect, useState } from 'preact/hooks'
 import {
-  createFeeHead, createOrder, generateLedger, getOutstanding,
-  getPaymentLogs, getStudentLedger, listFeeHeads, listSchedules,
-  mockComplete, pollPayment, sendReminders, toggleFeeHead, upsertSchedule,
+  createOrder, getOutstanding, getPaymentLogs, getStudentLedger,
+  listFeeHeads, listSchedules, mockComplete, pollPayment, sendReminders,
 } from '../api/finance'
 import { listAcademicYears, listClasses } from '../api/students'
 import type { AcademicYear, Class } from '../types/student'
-import type { FeeHead, FeePayment, FeeSchedule, LedgerEntry, OutstandingStudent } from '../types/finance'
+import type { FeeHead, FeeSchedule, OutstandingStudent } from '../types/finance'
 
-type Tab = 'structure' | 'generate' | 'outstanding' | 'logs' | 'collect'
+type Tab = 'structure' | 'outstanding' | 'logs' | 'collect'
 
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-const MONTHS_IN_YEAR = [6,7,8,9,10,11,12,1,2,3]  // default academic year months
 
 function fmt(amount: string | number) {
   return `₹${Number(amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
@@ -22,126 +20,99 @@ function periodLabel(month: number | null, year: number) {
   return `${MONTH_NAMES[month - 1]} ${year}`
 }
 
-// ── Fee Structure Tab ─────────────────────────────────────────────────────────
-function StructureTab({ years, classes }: { years: AcademicYear[]; classes: Class[] }) {
+// ── Fee Structure Tab (Excel-only setup + read-only view) ─────────────────────
+function StructureTab({ years }: { years: AcademicYear[] }) {
   const [heads, setHeads] = useState<FeeHead[]>([])
   const [schedules, setSchedules] = useState<FeeSchedule[]>([])
-  const [yearId, setYearId] = useState('')
-  const [newHead, setNewHead] = useState({ name: '', fee_type: 'monthly', sort_order: 0 })
-  const [newSched, setNewSched] = useState({ fee_head_id: '', class_id: '', amount: '', due_day_of_month: 10 })
+  const [yearId, setYearId] = useState(years.find((y) => y.is_current)?.id ?? '')
   const [error, setError] = useState('')
   const [xlsxFile, setXlsxFile] = useState<File | null>(null)
-  const [xlsxResult, setXlsxResult] = useState('')
+  const [result, setResult] = useState('')
+  const [busy, setBusy] = useState(false)
 
   useEffect(() => { listFeeHeads().then(setHeads).catch(() => {}) }, [])
   useEffect(() => {
     if (yearId) listSchedules(yearId).then(setSchedules).catch(() => {})
+    else setSchedules([])
   }, [yearId])
 
-  async function addHead(e: Event) {
-    e.preventDefault()
-    setError('')
-    try {
-      const h = await createFeeHead(newHead)
-      setHeads((p) => [...p, h])
-      setNewHead({ name: '', fee_type: 'monthly', sort_order: 0 })
-    } catch (err) { setError(err instanceof Error ? err.message : 'Error') }
-  }
-
-  async function addSchedule(e: Event) {
-    e.preventDefault()
-    setError('')
-    try {
-      const s = await upsertSchedule({
-        fee_head_id: newSched.fee_head_id,
-        academic_year_id: yearId,
-        class_id: newSched.class_id || undefined,
-        amount: Number(newSched.amount),
-        due_day_of_month: newSched.due_day_of_month,
-      })
-      setSchedules((p) => {
-        const idx = p.findIndex((x) => x.id === s.id)
-        return idx >= 0 ? p.map((x, i) => (i === idx ? s : x)) : [...p, s]
-      })
-    } catch (err) { setError(err instanceof Error ? err.message : 'Error') }
-  }
-
-  async function importXlsx() {
+  async function upload() {
     if (!xlsxFile || !yearId) return
-    const fd = new FormData()
-    fd.append('file', xlsxFile)
-    const { getAuthState } = await import('../api/auth_state')
-    const auth = getAuthState()
-    const res = await fetch(`/api/v1/fees/import-excel?academic_year_id=${yearId}`, {
-      method: 'POST',
-      headers: auth ? { Authorization: `Bearer ${auth.accessToken}`, 'X-Tenant-Slug': auth.tenantSlug } : {},
-      body: fd,
-    })
-    const data = await res.json()
-    if (!res.ok) setError(data.detail)
-    else { setXlsxResult(JSON.stringify(data)); listSchedules(yearId).then(setSchedules) }
+    setBusy(true); setError(''); setResult('')
+    try {
+      const fd = new FormData()
+      fd.append('file', xlsxFile)
+      const { getAuthState } = await import('../api/auth_state')
+      const auth = getAuthState()
+      const res = await fetch(`/api/v1/fees/import-excel?academic_year_id=${yearId}`, {
+        method: 'POST',
+        headers: auth ? { Authorization: `Bearer ${auth.accessToken}`, 'X-Tenant-Slug': auth.tenantSlug } : {},
+        body: fd,
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.detail || 'Import failed'); return }
+      setResult(
+        `✓ ${data.fee_heads_created} fee head(s) + ${data.schedules_created} schedule(s) saved · ` +
+        `${data.ledger_entries_created} fee entries applied to ${data.students_affected} student(s)`
+      )
+      setXlsxFile(null)
+      listFeeHeads().then(setHeads)
+      listSchedules(yearId).then(setSchedules)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Import failed')
+    } finally {
+      setBusy(false)
+    }
   }
 
   const INP: preact.JSX.CSSProperties = { padding: '0.375rem 0.625rem', border: '1px solid #d1d5db', borderRadius: 4, fontSize: '0.8rem' }
-  const BTN = (color = '#1a56db'): preact.JSX.CSSProperties => ({ padding: '0.375rem 0.875rem', background: color, color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.8rem' })
 
   return (
     <div>
       {error && <p style={{ color: '#c00', fontSize: '0.8rem', marginBottom: '0.75rem' }}>{error}</p>}
 
-      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem', alignItems: 'center' }}>
-        <select value={yearId} onChange={(e) => setYearId((e.target as HTMLSelectElement).value)} style={INP}>
-          <option value="">Select academic year</option>
-          {years.map((y) => <option key={y.id} value={y.id}>{y.name}{y.is_current ? ' ★' : ''}</option>)}
-        </select>
-        <input type="file" accept=".xlsx" onChange={(e) => setXlsxFile((e.target as HTMLInputElement).files?.[0] ?? null)} style={{ fontSize: '0.8rem' }} />
-        <button onClick={importXlsx} disabled={!xlsxFile || !yearId} style={BTN('#059669')}>Import Excel</button>
-        {xlsxResult && <span style={{ fontSize: '0.75rem', color: '#059669' }}>{xlsxResult}</span>}
+      {/* Upload panel — the only way to set up fees */}
+      <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8, padding: '1rem', marginBottom: '1.25rem' }}>
+        <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.9rem' }}>Upload Fee Structure</h4>
+        <p style={{ margin: '0 0 0.75rem', fontSize: '0.78rem', color: '#6b7280' }}>
+          Excel columns: <b>Fee Head</b> · <b>Fee Type</b> (monthly / annual / one_time) · <b>Class</b> (name or <b>ALL</b>) · <b>Amount</b>.
+          Uploading sets up the fee structure <b>and applies it to every student</b> for the selected year.
+        </p>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <select value={yearId} onChange={(e) => setYearId((e.target as HTMLSelectElement).value)} style={INP}>
+            <option value="">Select academic year</option>
+            {years.map((y) => <option key={y.id} value={y.id}>{y.name}{y.is_current ? ' ★' : ''}</option>)}
+          </select>
+          <input type="file" accept=".xlsx" onChange={(e) => setXlsxFile((e.target as HTMLInputElement).files?.[0] ?? null)} style={{ fontSize: '0.8rem' }} />
+          <button
+            onClick={upload}
+            disabled={!xlsxFile || !yearId || busy}
+            style={{ padding: '0.375rem 0.875rem', background: (!xlsxFile || !yearId || busy) ? '#9ca3af' : '#059669', color: '#fff', border: 'none', borderRadius: 4, cursor: (!xlsxFile || !yearId || busy) ? 'default' : 'pointer', fontSize: '0.8rem', fontWeight: 600 }}
+          >
+            {busy ? 'Applying…' : 'Upload & Apply'}
+          </button>
+        </div>
+        {result && <p style={{ margin: '0.75rem 0 0', fontSize: '0.78rem', color: '#059669', fontWeight: 600 }}>{result}</p>}
       </div>
 
+      {/* Read-only view of what is configured */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
         <div>
           <h4 style={{ margin: '0 0 0.625rem', fontSize: '0.9rem' }}>Fee Heads</h4>
-          <form onSubmit={addHead} style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-            <input value={newHead.name} onInput={(e) => setNewHead((p) => ({ ...p, name: (e.target as HTMLInputElement).value }))} placeholder="e.g. Tuition Fee" style={{ ...INP, flex: 1, minWidth: 120 }} required />
-            <select value={newHead.fee_type} onChange={(e) => setNewHead((p) => ({ ...p, fee_type: (e.target as HTMLSelectElement).value }))} style={INP}>
-              <option value="monthly">Monthly</option>
-              <option value="annual">Annual</option>
-              <option value="one_time">One Time</option>
-            </select>
-            <button type="submit" style={BTN()}>Add</button>
-          </form>
           <div style={{ border: '1px solid #e5e7eb', borderRadius: 6, overflow: 'hidden' }}>
-            {heads.length === 0 && <p style={{ padding: '0.875rem', fontSize: '0.8rem', color: '#9ca3af' }}>No fee heads yet.</p>}
+            {heads.length === 0 && <p style={{ padding: '0.875rem', fontSize: '0.8rem', color: '#9ca3af' }}>No fee heads yet — upload a structure sheet.</p>}
             {heads.map((h) => (
               <div key={h.id} style={{ display: 'flex', alignItems: 'center', padding: '0.5rem 0.875rem', borderBottom: '1px solid #f3f4f6', gap: '0.5rem', fontSize: '0.8rem' }}>
-                <span style={{ flex: 1 }}>{h.name}</span>
+                <span style={{ flex: 1, opacity: h.is_active ? 1 : 0.5 }}>{h.name}</span>
                 <span style={{ color: '#6b7280', width: 70 }}>{h.fee_type}</span>
-                <button onClick={() => toggleFeeHead(h.id).then((u) => setHeads((p) => p.map((x) => x.id === u.id ? u : x)))}
-                  style={{ ...BTN(h.is_active ? '#dc2626' : '#059669'), padding: '2px 8px', fontSize: '0.7rem' }}>
-                  {h.is_active ? 'Disable' : 'Enable'}
-                </button>
+                {!h.is_active && <span style={{ fontSize: '0.7rem', color: '#9ca3af' }}>inactive</span>}
               </div>
             ))}
           </div>
         </div>
 
         <div>
-          <h4 style={{ margin: '0 0 0.625rem', fontSize: '0.9rem' }}>Fee Schedules {yearId ? '' : '(select year above)'}</h4>
-          {yearId && (
-            <form onSubmit={addSchedule} style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-              <select value={newSched.fee_head_id} onChange={(e) => setNewSched((p) => ({ ...p, fee_head_id: (e.target as HTMLSelectElement).value }))} style={INP} required>
-                <option value="">Fee Head</option>
-                {heads.filter((h) => h.is_active).map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
-              </select>
-              <select value={newSched.class_id} onChange={(e) => setNewSched((p) => ({ ...p, class_id: (e.target as HTMLSelectElement).value }))} style={INP}>
-                <option value="">All Classes</option>
-                {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-              <input type="number" value={newSched.amount} onInput={(e) => setNewSched((p) => ({ ...p, amount: (e.target as HTMLInputElement).value }))} placeholder="Amount ₹" style={{ ...INP, width: 90 }} required />
-              <button type="submit" style={BTN()}>Set</button>
-            </form>
-          )}
+          <h4 style={{ margin: '0 0 0.625rem', fontSize: '0.9rem' }}>Fee Schedules {yearId ? '' : '(select year)'}</h4>
           <div style={{ border: '1px solid #e5e7eb', borderRadius: 6, overflow: 'hidden' }}>
             {schedules.length === 0 && <p style={{ padding: '0.875rem', fontSize: '0.8rem', color: '#9ca3af' }}>No schedules for this year.</p>}
             {schedules.map((s) => (
@@ -154,61 +125,6 @@ function StructureTab({ years, classes }: { years: AcademicYear[]; classes: Clas
           </div>
         </div>
       </div>
-    </div>
-  )
-}
-
-// ── Generate Ledger Tab ───────────────────────────────────────────────────────
-function GenerateTab({ years }: { years: AcademicYear[] }) {
-  const [yearId, setYearId] = useState(years.find((y) => y.is_current)?.id ?? '')
-  const [months, setMonths] = useState<number[]>(MONTHS_IN_YEAR)
-  const [calYear, setCalYear] = useState(new Date().getFullYear())
-  const [result, setResult] = useState<Record<string, number> | null>(null)
-  const [loading, setLoading] = useState(false)
-
-  async function generate() {
-    if (!yearId) return
-    setLoading(true)
-    try {
-      const pairs = months.map((m) => ({ month: m, year: m >= 6 ? calYear : calYear + 1 }))
-      const r = await generateLedger({ academic_year_id: yearId, month_year_pairs: pairs, include_annual: true })
-      setResult(r)
-    } catch (e) { alert(e instanceof Error ? e.message : 'Error') }
-    finally { setLoading(false) }
-  }
-
-  const INP: preact.JSX.CSSProperties = { padding: '0.375rem 0.625rem', border: '1px solid #d1d5db', borderRadius: 4, fontSize: '0.8rem' }
-
-  return (
-    <div style={{ maxWidth: 520 }}>
-      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem' }}>
-        <select value={yearId} onChange={(e) => setYearId((e.target as HTMLSelectElement).value)} style={INP}>
-          <option value="">Academic Year</option>
-          {years.map((y) => <option key={y.id} value={y.id}>{y.name}{y.is_current ? ' ★' : ''}</option>)}
-        </select>
-        <input type="number" value={calYear} onChange={(e) => setCalYear(Number((e.target as HTMLInputElement).value))} style={{ ...INP, width: 90 }} />
-      </div>
-      <p style={{ fontSize: '0.8rem', color: '#6b7280', marginBottom: '0.75rem' }}>
-        Months to generate (Jun–May default for Indian academic year):
-      </p>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.25rem' }}>
-        {[1,2,3,4,5,6,7,8,9,10,11,12].map((m) => (
-          <label key={m} style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.8rem', cursor: 'pointer' }}>
-            <input type="checkbox" checked={months.includes(m)} onChange={(e) =>
-              setMonths((p) => (e.target as HTMLInputElement).checked ? [...p, m] : p.filter((x) => x !== m))
-            } />
-            {MONTH_NAMES[m - 1]}
-          </label>
-        ))}
-      </div>
-      <button onClick={generate} disabled={!yearId || loading} style={{ padding: '0.5rem 1.25rem', background: '#1a56db', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem' }}>
-        {loading ? 'Generating…' : 'Generate Ledger'}
-      </button>
-      {result && (
-        <div style={{ marginTop: '1rem', padding: '0.875rem', background: '#d1fae5', borderRadius: 6, fontSize: '0.85rem', color: '#065f46' }}>
-          ✓ Created {result.created} entries, skipped {result.skipped} (already existed). Students: {result.students}.
-        </div>
-      )}
     </div>
   )
 }
@@ -306,7 +222,6 @@ function CollectTab() {
     e.preventDefault()
     setLoading(true); setLedger(null); setOrder(null); setSelected(new Set()); setReceiptUrl('')
     try {
-      // find student by admission no
       const { listStudents } = await import('../api/students')
       const res = await listStudents({ limit: 500 })
       const student = res.items.find((s) => s.admission_no === admNo)
@@ -324,7 +239,6 @@ function CollectTab() {
       const o = await createOrder({ student_id: ledger.student_id, ledger_ids: Array.from(selected), gateway })
       setOrder(o)
       if (gateway === 'mock') {
-        // Dev: complete immediately
         const paid = await mockComplete(o.payment_id)
         setStatus(paid.status)
         setReceiptUrl(`/api/v1/payments/${o.payment_id}/receipt`)
@@ -333,7 +247,6 @@ function CollectTab() {
           setLedger(updated)
         }
       } else {
-        // Poll for status
         const id = setInterval(async () => {
           const p = await pollPayment(o.payment_id)
           setStatus(p.status)
@@ -470,7 +383,6 @@ export function FeesAdminView() {
     { id: 'collect', label: 'Collect Fee' },
     { id: 'logs', label: 'Payment Logs' },
     { id: 'structure', label: 'Fee Structure' },
-    { id: 'generate', label: 'Generate Ledger' },
   ]
 
   const TAB_BTN = (active: boolean): preact.JSX.CSSProperties => ({
@@ -484,8 +396,7 @@ export function FeesAdminView() {
       <div style={{ display: 'flex', gap: '0.25rem', borderBottom: '1px solid #e5e7eb', marginBottom: '1.25rem' }}>
         {tabs.map((t) => <button key={t.id} onClick={() => setTab(t.id)} style={TAB_BTN(tab === t.id)}>{t.label}</button>)}
       </div>
-      {tab === 'structure'   && <StructureTab years={years} classes={classes} />}
-      {tab === 'generate'    && <GenerateTab years={years} />}
+      {tab === 'structure'   && <StructureTab years={years} />}
       {tab === 'outstanding' && <OutstandingTab years={years} classes={classes} />}
       {tab === 'collect'     && <CollectTab />}
       {tab === 'logs'        && <LogsTab />}
