@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'preact/hooks'
 import { login } from './api/client'
 import { clearAuthState, decodeJWT, setAuthState } from './api/auth_state'
-import { requestOtp, verifyOtp } from './api/parent'
+import { loginByAdmissionNo } from './api/parent'
 import { DashboardView } from './views/Dashboard'
 import { StudentsView } from './views/Students'
 import { StaffView } from './views/Staff'
@@ -159,7 +159,7 @@ function AppShell({ onLogout, role, schoolName }: { onLogout: () => void; role: 
   )
 }
 
-// ── OTP Login (Parent) ────────────────────────────────────────────────────────
+// ── Parent Login (admission number) ──────────────────────────────────────────
 
 function ParentLogin({
   onSuccess, onBack,
@@ -168,29 +168,15 @@ function ParentLogin({
   onBack: () => void
 }) {
   const [slug, setSlug] = useState(getSubdomain)
-  const [phone, setPhone] = useState('')
-  const [otp, setOtp] = useState('')
-  const [devOtp, setDevOtp] = useState('')
-  const [step, setStep] = useState<'phone' | 'otp'>('phone')
+  const [admNo, setAdmNo] = useState('')
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState('')
 
-  async function handleRequest(e: Event) {
+  async function handleLogin(e: Event) {
     e.preventDefault()
     setLoading(true); setErr('')
-    try {
-      const res = await requestOtp(slug, phone)
-      if (res.dev_otp) setDevOtp(res.dev_otp)
-      setStep('otp')
-    } catch (ex) { setErr(ex instanceof Error ? ex.message : 'Error') }
-    finally { setLoading(false) }
-  }
-
-  async function handleVerify(e: Event) {
-    e.preventDefault()
-    setLoading(true); setErr('')
-    try { onSuccess(await verifyOtp(slug, phone, otp), slug) }
-    catch (ex) { setErr(ex instanceof Error ? ex.message : 'Verification failed') }
+    try { onSuccess(await loginByAdmissionNo(slug, admNo.trim()), slug) }
+    catch (ex) { setErr(ex instanceof Error ? ex.message : 'Login failed') }
     finally { setLoading(false) }
   }
 
@@ -200,51 +186,31 @@ function ParentLogin({
         <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
           <div style={LOGO_MARK}>T</div>
           <div style={{ fontWeight: 800, fontSize: '1.25rem', color: 'var(--gray-900)', marginTop: '.75rem' }}>Parent Login</div>
-          <div class="text-muted text-sm" style={{ marginTop: '.25rem' }}>Enter your registered phone number</div>
+          <div class="text-muted text-sm" style={{ marginTop: '.25rem' }}>Enter your child's admission number</div>
         </div>
 
         {err && <div class="err" style={{ marginBottom: '1rem', padding: '.5rem .75rem', background: 'var(--c-danger-lt)', borderRadius: 'var(--r)' }}>{err}</div>}
 
-        {step === 'phone' ? (
-          <form onSubmit={handleRequest} style={{ display: 'flex', flexDirection: 'column', gap: '.875rem' }}>
-            {!getSubdomain() && (
-              <div>
-                <label class="lbl">School ID</label>
-                <input class="input" value={slug} onInput={e => setSlug((e.target as HTMLInputElement).value)} placeholder="demo" required />
-              </div>
-            )}
+        <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '.875rem' }}>
+          {!getSubdomain() && (
             <div>
-              <label class="lbl">Phone number</label>
-              <input class="input" type="tel" value={phone} onInput={e => setPhone((e.target as HTMLInputElement).value)} placeholder="9876543210" required />
+              <label class="lbl">School ID</label>
+              <input class="input" value={slug} onInput={e => setSlug((e.target as HTMLInputElement).value)} placeholder="demo" required />
             </div>
-            <button class="btn btn-primary btn-lg" type="submit" disabled={loading} style={{ width: '100%', marginTop: '.25rem' }}>
-              {loading ? 'Sending…' : 'Send OTP'}
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={handleVerify} style={{ display: 'flex', flexDirection: 'column', gap: '.875rem' }}>
-            <p class="text-sm" style={{ color: 'var(--gray-700)', marginBottom: '.25rem' }}>OTP sent to <strong>{phone}</strong></p>
-            {devOtp && (
-              <div style={{ background: 'var(--c-warn-lt)', border: '1px solid #fcd34d', borderRadius: 'var(--r)', padding: '.5rem .75rem', fontSize: '.8rem', color: '#92400e' }}>
-                Dev mode · OTP: <strong style={{ fontSize: '1.1rem', letterSpacing: '.15em' }}>{devOtp}</strong>
-              </div>
-            )}
-            <div>
-              <label class="lbl">Enter OTP</label>
-              <input class="input" value={otp} onInput={e => setOtp((e.target as HTMLInputElement).value)}
-                style={{ letterSpacing: '.2em', fontSize: '1.25rem', textAlign: 'center' }}
-                placeholder="000000" maxLength={6} inputMode="numeric" required />
-            </div>
-            <button class="btn btn-primary btn-lg" type="submit" disabled={loading} style={{ width: '100%' }}>
-              {loading ? 'Verifying…' : 'Verify OTP'}
-            </button>
-            <button type="button" class="btn btn-ghost" style={{ width: '100%' }}
-              onClick={() => { setStep('phone'); setOtp(''); setDevOtp(''); setErr('') }}>
-              ← Change number
-            </button>
-          </form>
-        )}
-        <button onClick={onBack} style={{ width: '100%', marginTop: '1rem', background: 'none', border: 'none', cursor: 'pointer', fontSize: '.8rem', color: 'var(--gray-500)', fontFamily: 'inherit' }}>
+          )}
+          <div>
+            <label class="lbl">Admission number</label>
+            <input class="input" value={admNo} onInput={e => setAdmNo((e.target as HTMLInputElement).value)}
+              placeholder="e.g. 2024001" required autocomplete="off" />
+          </div>
+          <button class="btn btn-primary btn-lg" type="submit" disabled={loading} style={{ width: '100%', marginTop: '.25rem' }}>
+            {loading ? 'Signing in…' : 'View my child'}
+          </button>
+        </form>
+        <p class="text-muted" style={{ fontSize: '.72rem', marginTop: '.75rem', textAlign: 'center' }}>
+          The admission number is printed on your child's ID card and fee receipts.
+        </p>
+        <button onClick={onBack} style={{ width: '100%', marginTop: '.75rem', background: 'none', border: 'none', cursor: 'pointer', fontSize: '.8rem', color: 'var(--gray-500)', fontFamily: 'inherit' }}>
           ← Staff login
         </button>
       </div>
@@ -393,7 +359,7 @@ export function App() {
             style={{ width: '100%' }}
             onClick={() => setMode('parent-login')}
           >
-            Parent Login (OTP)
+            Parent Login
           </button>
         </div>
 

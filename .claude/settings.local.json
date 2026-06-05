@@ -70,7 +70,8 @@
       "Bash(npm view *)",
       "Bash(grep -nA20 \"interface StudentSummary\\\\|interface FeeSummary\\\\|interface FeeAssignment\\\\|type StudentSummary\" src/api/parent.ts)",
       "Bash(grep -nA6 \"export function request\\\\|export async function request\" src/api/client.ts)",
-      "Bash(kill 1717)"
+      "Bash(kill 1717)",
+      "Bash(kill 9731)"
     ]
   }
 }

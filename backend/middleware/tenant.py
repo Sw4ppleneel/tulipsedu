@@ -17,6 +17,7 @@ _JWT_EXEMPT = frozenset({
     "/api/v1/auth/logout",
     "/api/v1/parent/auth/request-otp",
     "/api/v1/parent/auth/verify-otp",
+    "/api/v1/parent/auth/login",
 })
 
 # Path prefixes that are JWT-exempt (public CMS endpoints)

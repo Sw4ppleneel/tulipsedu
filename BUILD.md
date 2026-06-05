@@ -29,15 +29,93 @@ Completed:
 - Production deployment (*.tulipsedu.in, 4 schools seeded)
 - R2 upload endpoint (501 until credentials added)
 
-In Progress: Sprint 2 — Steps 1, 2, 4a DONE; next is Step 4b (migration 021 + parent UPI QR)
+In Progress: Sprint 2 COMPLETE (Steps 1, 2, 4a, 4b, 5 + parent admission-number auth).
+Ready to deploy. Next: production deploy + test both apps.
 
 Blocked:
-- R2 credentials not yet added to production .env
-- SMS provider (parent auth moving to admission-number, OTP path to be replaced)
+- R2 credentials not yet added to production .env (uploads return 501 until then)
 
-Next Task: Step 4b — migration 021 (tenants.upi_id, fee_ledger.discount_amount)
-+ parent-facing UPI QR (needs a small qrcode JS dependency — pending approval)
-(Step 3 absorbed: staff_class_assignments already provides subject-teacher links)
+Next Task: Deploy migrations 018–022 + frontend (qrcode-generator dep) to prod;
+test staff app (role logins) + parent app (admission-number login). Then optional:
+public school website rendering at subdomain root (CMS backend exists, no frontend yet).
+
+---
+
+# Step 5 — Exam Mark Components (COMPLETED 2026-06-05)
+
+Existing exam engine = one mark per (term, subject) via exam_marks_config + mark_entries.
+Added a components layer that rolls up into mark_entries so the results/grade engine
+is untouched.
+
+- Migration 022: exam_components (per term-subject: name, max_marks, sort_order) +
+  exam_component_marks (per student per component). Applied.
+- services/exam.py: configure_components (defines components, mirrors total into
+  exam_marks_config), save_component_marks (upserts component marks + rolls the SUM
+  into mark_entries in one transaction), get_component_marks_grid, list_components.
+- api/v1/exam.py: PUT /exams/components (setup: principal/vp), GET /exams/components,
+  GET+POST /exams/component-marks (teachers).
+- frontend Exam.tsx: marks entry now loads components per term+subject; component
+  config editor (Unit Test 10 + Oral 10 + Theory 80 = 100) + multi-column grid with
+  auto Total. Falls back to flat single-mark entry when no components defined.
+
+Verified live: configure UT10/Oral10/Theory80 → save 8/9/70 → grid total 87/100 →
+term result Math 87/100 grade A2 (rollup into results engine works). Test term cleaned up.
+
+---
+
+# Parent Admission-Number Auth (COMPLETED 2026-06-05)
+
+Replaces OTP for Phase 1 (OTP needs SMS, untestable). Parent logs in with the
+student's permanent admission_no; JWT is scoped to that one student (sub=student_id).
+
+- services/parent.py: login_by_admission_no (lookup student by adm_no → mint parent
+  JWT), get_student_basic, get_student_summary_by_id (no parent_students link).
+- api/v1/parent_auth.py: POST /parent/auth/login {admission_no}. (OTP endpoints left
+  in place but unused by the frontend.)
+- api/v1/parent.py: _require_parent returns student_id; /parent/students returns the
+  one student; summary verifies the path id matches the session (403 otherwise).
+- middleware/tenant.py: /parent/auth/login added to JWT-exempt.
+- frontend: ParentLogin is now a single admission-number field; app.tsx + api/parent.ts
+  updated. "Parent Login" button (was "Parent Login (OTP)").
+
+Verified live: login DAFF001 → "Kabir Singh" + scoped token; own summary 200, other
+student 403, invalid adm-no 401, staff route 403.
+
+NOTE: parents + parent_students tables (migration 016) are now unused by the Phase 1
+flow. Left in place; can be dropped in a later migration.
+
+---
+
+# Step 4b — Parent UPI QR + School Settings (COMPLETED 2026-06-05)
+
+Decisions (user): QR + tappable upi:// link; migration 021 = upi_id only (discount deferred).
+
+What was built:
+- Migration 021 (`021_tenant_upi.sql`): `tenants.upi_id VARCHAR(100)` nullable. Applied.
+- backend/api/v1/settings.py (NEW): GET /settings (principal/vp/accountant),
+  PATCH /settings/upi (principal only) with VPA format validation (name@bank).
+  Registered in router.py.
+- backend/models/parent.py + services/parent.py: StudentSummary now includes
+  `school_name` + `school_upi_id` (read from tenants on summary fetch).
+- frontend dependency added: `qrcode-generator` (~5 kB min) + `@types/qrcode-generator` (dev).
+- frontend/src/views/ParentPortal.tsx: PayModal renders a UPI QR (qrcode-generator
+  createDataURL) + tappable `upi://pay?...` deep link; "Pay ₹X via UPI" button shows
+  on the fee card when balance>0 AND school_upi_id is set; graceful "not set up" note otherwise.
+- frontend/src/api/settings.ts + views/Settings.tsx (NEW): principal Settings tab to
+  set the school UPI ID. Wired into app.tsx (View 'settings', VIEW_ACCESS principal-only,
+  nav + render + icon).
+
+Verification (live, real uvicorn + HTTP):
+- principal PATCH /settings/upi valid → 200; invalid format → 422.
+- accountant GET /settings → 200; PATCH → 403 (RBAC).
+- parent summary (minted parent JWT) → returns school_name + school_upi_id.
+- UPI deep link well-formed: upi://pay?pa=…&pn=…&am=…&cu=INR&tn=…
+- qrcode-generator encodes the UPI string (33-module QR). Frontend tsc+build clean
+  (39.68 kB gzip — QR lib added ~10 kB, well within <2 MB budget). Test data removed,
+  daffodils upi_id reset to NULL.
+
+Caveat: visual QR not browser-driven (no headless browser available); encoder verified
+in node, data path verified over HTTP.
 
 ---
 
