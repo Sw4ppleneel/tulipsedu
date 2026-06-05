@@ -13,6 +13,7 @@ import { TimetableView } from './views/Timetable'
 import { ExamView } from './views/Exam'
 import { ParentPortalView } from './views/ParentPortal'
 import { CmsAdminView } from './views/CmsAdmin'
+import { SettingsView } from './views/Settings'
 import type { TokenResponse } from './types/auth'
 
 function getSubdomain(): string {
@@ -20,7 +21,7 @@ function getSubdomain(): string {
   return parts.length > 2 ? parts[0] : ''
 }
 
-type View = 'dashboard' | 'students' | 'staff' | 'attendance' | 'fees' | 'homework' | 'timetable' | 'exams' | 'cms' | 'superadmin'
+type View = 'dashboard' | 'students' | 'staff' | 'attendance' | 'fees' | 'homework' | 'timetable' | 'exams' | 'cms' | 'settings' | 'superadmin'
 
 // Display order of nav tabs.
 const ALL_VIEWS: { key: View; label: string }[] = [
@@ -33,6 +34,7 @@ const ALL_VIEWS: { key: View; label: string }[] = [
   { key: 'timetable',  label: 'Timetable' },
   { key: 'exams',      label: 'Exams' },
   { key: 'cms',        label: 'CMS' },
+  { key: 'settings',   label: 'Settings' },
   { key: 'superadmin', label: 'Superadmin' },
 ]
 
@@ -49,6 +51,7 @@ const VIEW_ACCESS: Record<View, string[]> = {
   timetable:  ['principal', 'vice_principal', 'class_teacher', 'teacher'],
   exams:      ['principal', 'vice_principal', 'class_teacher', 'teacher'],
   cms:        ['principal'],
+  settings:   ['principal'],
   superadmin: ['superadmin'],
 }
 
@@ -68,7 +71,8 @@ const ICONS: Record<string, string> = {
   timetable:  '🗓',
   exams:      '📝',
   cms:        '🌐',
-  superadmin: '⚙',
+  settings:   '⚙',
+  superadmin: '🛡',
 }
 
 // ── Staff App Shell ───────────────────────────────────────────────────────────
@@ -148,6 +152,7 @@ function AppShell({ onLogout, role, schoolName }: { onLogout: () => void; role: 
         {view === 'timetable'  && canSee(role, 'timetable')  && <TimetableView />}
         {view === 'exams'      && canSee(role, 'exams')      && <ExamView />}
         {view === 'cms'        && canSee(role, 'cms')        && <CmsAdminView />}
+        {view === 'settings'   && canSee(role, 'settings')   && <SettingsView />}
         {view === 'superadmin' && canSee(role, 'superadmin') && <SuperadminView />}
       </main>
     </div>

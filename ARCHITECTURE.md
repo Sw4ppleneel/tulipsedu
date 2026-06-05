@@ -188,6 +188,7 @@ Fields:
 * name (VARCHAR 255)
 * institution_type (VARCHAR 50, default 'school')
 * feature_flags (JSONB)
+* upi_id (VARCHAR 100, nullable) — school UPI VPA for parent QR fee payments (migration 021)
 * created_at
 
 ---

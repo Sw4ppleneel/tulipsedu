@@ -63,7 +63,14 @@
       "Bash(grep -nA40 \"async def create_student\" services/student.py)",
       "Bash(grep -nA12 \"class GenerateLedgerRequest\\\\|class MonthYear\" models/finance.py)",
       "Read(//Users/swapneelpremchand/frontend/src/api/**)",
-      "Bash(.venv/bin/python -c \"import main; print\\('backend import OK'\\)\")"
+      "Bash(.venv/bin/python -c \"import main; print\\('backend import OK'\\)\")",
+      "Bash(grep -nA14 \"class FeeSummary\\\\|class StudentSummary\\\\|class FeeAssignment\" models/parent.py)",
+      "Bash(grep -nA30 \"async def get_student_summary\" services/parent.py)",
+      "Bash(.venv/bin/python ../scripts/apply_migrations.py)",
+      "Bash(npm view *)",
+      "Bash(grep -nA20 \"interface StudentSummary\\\\|interface FeeSummary\\\\|interface FeeAssignment\\\\|type StudentSummary\" src/api/parent.ts)",
+      "Bash(grep -nA6 \"export function request\\\\|export async function request\" src/api/client.ts)",
+      "Bash(kill 1717)"
     ]
   }
 }

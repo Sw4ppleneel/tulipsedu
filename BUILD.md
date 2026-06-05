@@ -29,14 +29,46 @@ Completed:
 - Production deployment (*.tulipsedu.in, 4 schools seeded)
 - R2 upload endpoint (501 until credentials added)
 
-In Progress: Sprint 2 — Steps 1 & 2 DONE; next is Step 4 (fee Excel/ledger + UPI QR)
+In Progress: Sprint 2 — Steps 1, 2, 4a DONE; next is Step 4b (migration 021 + parent UPI QR)
 
 Blocked:
 - R2 credentials not yet added to production .env
 - SMS provider (parent auth moving to admission-number, OTP path to be replaced)
 
-Next Task: Step 4 — fee Excel import + view-only ledger + parent UPI QR
+Next Task: Step 4b — migration 021 (tenants.upi_id, fee_ledger.discount_amount)
++ parent-facing UPI QR (needs a small qrcode JS dependency — pending approval)
 (Step 3 absorbed: staff_class_assignments already provides subject-teacher links)
+
+---
+
+# Step 4a — Fee Setup Simplification (COMPLETED 2026-06-05)
+
+Problem (user): fee system "too complex, does not load on adding fees"; wants
+Excel to be the only way to set up fees.
+
+Root cause: the fee schema/service was complete but the UI had 5 tabs with manual
+"Add Fee Head" / "Add Schedule" forms AND a SEPARATE "Generate Ledger" tab.
+Adding structure did nothing visible until you found the separate generate step,
+so Outstanding stayed empty → "doesn't load on adding fees."
+
+What was built:
+- backend/services/finance.py: `_derive_month_year_pairs` (months spanned by the
+  academic year's start..end) + `import_and_generate` — imports the structure
+  Excel AND generates the per-student ledger for the whole year, in ONE explicit
+  transaction. `/fees/import-excel` now calls this (auth: principal/accountant).
+- frontend/src/views/FeesAdmin.tsx rewritten: removed all manual add forms and the
+  Generate Ledger tab. Structure tab = upload .xlsx + read-only view of heads &
+  schedules. Tabs now: Outstanding · Collect · Logs · Structure.
+
+Verification (live, real uvicorn + HTTP):
+- Upload (Fee Head|Fee Type|Class|Amount) → 1 head + 1 schedule + 360 ledger rows
+  (30 students × 12 months) in one call. Direct DB count confirmed 360.
+- Re-upload → 0 new ledger rows (idempotent, ON CONFLICT DO NOTHING).
+- Backend import-clean; frontend tsc+build clean (29.92 kB gzip). Test data removed.
+
+Note: import_and_generate reconciles the entire year's ledger on each upload
+(harmless idempotent fill). The summary's "existing" count aggregates across all
+schedules; UI only shows the accurate created/students_affected numbers.
 
 ---
 
