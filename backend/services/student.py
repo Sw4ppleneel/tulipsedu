@@ -1,4 +1,6 @@
+import io
 import uuid
+from datetime import date, datetime
 from typing import Optional
 
 import asyncpg
@@ -305,3 +307,123 @@ async def deactivate_student(
         student_id, tenant_id,
     )
     return result == "UPDATE 1"
+
+
+# ── Bulk Import ───────────────────────────────────────────────────────────────
+
+async def import_students(
+    conn: asyncpg.Connection,
+    tenant_id: uuid.UUID,
+    academic_year_id: uuid.UUID,
+    file_bytes: bytes,
+) -> dict:
+    try:
+        import openpyxl
+    except ImportError:
+        raise StudentError("openpyxl not installed on server")
+
+    wb = openpyxl.load_workbook(io.BytesIO(file_bytes), read_only=True, data_only=True)
+    ws = wb.active
+    rows = list(ws.iter_rows(values_only=True))
+    if len(rows) < 2:
+        raise StudentError("File must have a header row and at least one data row")
+
+    header = [str(h).strip().lower() if h is not None else "" for h in rows[0]]
+    required = {"admission no", "first name", "last name", "class", "section",
+                "roll no", "date of birth", "gender", "parent phone"}
+    missing = required - set(header)
+    if missing:
+        raise StudentError(f"Missing columns: {missing}")
+
+    idx = {name: header.index(name) for name in required}
+    hosteler_col = header.index("hosteler") if "hosteler" in header else None
+
+    class_rows = await conn.fetch(
+        "SELECT id, name FROM classes WHERE tenant_id = $1", tenant_id
+    )
+    class_map = {r["name"].strip().lower(): r["id"] for r in class_rows}
+
+    sec_rows = await conn.fetch(
+        """SELECT s.id, s.name, c.name AS cn
+           FROM sections s JOIN classes c ON c.id = s.class_id
+           WHERE s.tenant_id = $1""",
+        tenant_id,
+    )
+    section_map = {(r["cn"].strip().lower(), r["name"].strip().lower()): r["id"] for r in sec_rows}
+
+    created = updated = 0
+    errors: list[str] = []
+
+    for row_num, row in enumerate(rows[1:], start=2):
+        if all(cell is None for cell in row):
+            continue
+        try:
+            admission_no = str(row[idx["admission no"]]).strip()
+            first_name   = str(row[idx["first name"]]).strip()
+            last_name    = str(row[idx["last name"]]).strip()
+            class_str    = str(row[idx["class"]]).strip()
+            section_str  = str(row[idx["section"]]).strip()
+            roll_no      = str(row[idx["roll no"]]).strip()
+            gender       = str(row[idx["gender"]]).strip().upper()
+            parent_phone = str(row[idx["parent phone"]]).strip()
+            is_hosteler  = False
+            if hosteler_col is not None:
+                v = row[hosteler_col]
+                is_hosteler = str(v).strip().lower() in ("yes", "true", "1") if v else False
+
+            dob_raw = row[idx["date of birth"]]
+            if isinstance(dob_raw, datetime):
+                dob = dob_raw.date()
+            elif isinstance(dob_raw, date):
+                dob = dob_raw
+            else:
+                dob = datetime.strptime(str(dob_raw).strip(), "%Y-%m-%d").date()
+
+            if gender not in ("M", "F"):
+                raise ValueError(f"Gender must be M or F, got '{gender}'")
+
+            class_id = class_map.get(class_str.lower())
+            if not class_id:
+                raise ValueError(f"Class '{class_str}' not found")
+
+            section_id = section_map.get((class_str.lower(), section_str.lower()))
+            if not section_id:
+                raise ValueError(f"Section '{section_str}' not found for class '{class_str}'")
+
+            result = await conn.fetchrow(
+                """
+                INSERT INTO students
+                    (tenant_id, academic_year_id, class_id, section_id,
+                     admission_no, roll_number, first_name, last_name,
+                     date_of_birth, gender, parent_phone, is_hosteler)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+                ON CONFLICT (tenant_id, admission_no)
+                DO UPDATE SET
+                    academic_year_id = EXCLUDED.academic_year_id,
+                    class_id         = EXCLUDED.class_id,
+                    section_id       = EXCLUDED.section_id,
+                    roll_number      = EXCLUDED.roll_number,
+                    first_name       = EXCLUDED.first_name,
+                    last_name        = EXCLUDED.last_name,
+                    date_of_birth    = EXCLUDED.date_of_birth,
+                    gender           = EXCLUDED.gender,
+                    parent_phone     = EXCLUDED.parent_phone,
+                    is_hosteler      = EXCLUDED.is_hosteler,
+                    is_active        = TRUE
+                RETURNING (xmax = 0) AS inserted
+                """,
+                tenant_id, academic_year_id, class_id, section_id,
+                admission_no, roll_no, first_name, last_name,
+                dob, gender, parent_phone, is_hosteler,
+            )
+            if result["inserted"]:
+                created += 1
+            else:
+                updated += 1
+
+        except asyncpg.UniqueViolationError:
+            errors.append(f"Row {row_num}: roll number already taken in this section")
+        except Exception as exc:
+            errors.append(f"Row {row_num}: {exc}")
+
+    return {"created": created, "updated": updated, "errors": errors}

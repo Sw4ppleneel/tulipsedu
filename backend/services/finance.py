@@ -153,6 +153,8 @@ async def import_fee_structure_excel(
     created_heads = skipped_heads = created_schedules = skipped_schedules = 0
 
     for row_num, row in enumerate(rows[1:], start=2):
+        if all(cell is None for cell in row):
+            continue
         try:
             head_name = str(row[idx["fee head"]]).strip()
             fee_type  = str(row[idx["fee type"]]).strip().lower()

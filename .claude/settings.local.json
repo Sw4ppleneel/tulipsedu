@@ -74,7 +74,11 @@
       "Bash(kill 9731)",
       "Bash(grep -nA10 \"class SchoolInfo\\\\|class PageResponse\\\\|class AnnouncementResponse\" backend/models/cms.py)",
       "Bash(grep -nA20 \"async def get_school_info\" backend/services/cms.py)",
-      "Bash(grep -nB2 -A8 \"try_files\\\\|location /\" nginx.prod.conf)"
+      "Bash(grep -nB2 -A8 \"try_files\\\\|location /\" nginx.prod.conf)",
+      "Bash(rsync -av --exclude .venv --exclude __pycache__ --exclude *.pyc /Users/swapneelpremchand/Tulips.edu/backend/ swap@62.72.13.103:~/tulips/backend/)",
+      "Bash(rsync -av /Users/swapneelpremchand/Tulips.edu/req_doc_formats/ swap@62.72.13.103:~/tulips/req_doc_formats/)",
+      "Bash(backend/.venv/bin/python -c ' *)",
+      "Bash(backend/.venv/bin/python *)"
     ]
   }
 }

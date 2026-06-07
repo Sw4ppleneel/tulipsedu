@@ -1,7 +1,7 @@
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 
 from core.csv_export import csv_response, require_export_role
 from core.rbac import require_roles
@@ -13,6 +13,7 @@ from services.staff import (
     deactivate_staff,
     export_all_staff,
     get_staff_member,
+    import_staff,
     list_assignments,
     list_staff,
     update_staff,
@@ -133,3 +134,16 @@ async def get_assignments(staff_id: UUID, request: Request):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
         return await list_assignments(conn, request.state.tenant_id, staff_id)
+
+
+@router.post("/import", dependencies=[_principal_only])
+async def import_staff_xlsx(request: Request, file: UploadFile = File(...)):
+    if not file.filename or not file.filename.lower().endswith(".xlsx"):
+        raise HTTPException(status_code=400, detail="Only .xlsx files are accepted")
+    contents = await file.read()
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        try:
+            return await import_staff(conn, request.state.tenant_id, contents)
+        except StaffError as e:
+            raise HTTPException(status_code=422, detail=str(e))

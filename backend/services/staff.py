@@ -1,4 +1,6 @@
+import io
 import uuid
+from datetime import date, datetime
 from typing import Optional
 
 import asyncpg
@@ -184,3 +186,129 @@ async def export_all_staff(
         tenant_id,
     )
     return [StaffResponse(**dict(r)) for r in rows]
+
+
+# ── Bulk Import ───────────────────────────────────────────────────────────────
+
+async def import_staff(
+    conn: asyncpg.Connection,
+    tenant_id: uuid.UUID,
+    file_bytes: bytes,
+) -> dict:
+    try:
+        import openpyxl
+    except ImportError:
+        raise StaffError("openpyxl not installed on server")
+
+    wb = openpyxl.load_workbook(io.BytesIO(file_bytes), read_only=True, data_only=True)
+    ws = wb.active
+    rows = list(ws.iter_rows(values_only=True))
+    if len(rows) < 2:
+        raise StaffError("File must have a header row and at least one data row")
+
+    header = [str(h).strip().lower() if h is not None else "" for h in rows[0]]
+    required = {"employee no", "first name", "last name", "phone", "designation", "date of joining"}
+    missing = required - set(header)
+    if missing:
+        raise StaffError(f"Missing columns: {missing}")
+
+    idx = {name: header.index(name) for name in required}
+    opt_idx = {col: header.index(col) for col in
+               ("department", "date of birth", "role", "login phone") if col in header}
+
+    VALID_ROLES = {"principal", "vice_principal", "class_teacher", "teacher", "accountant"}
+
+    created = updated = users_created = 0
+    errors: list[str] = []
+
+    for row_num, row in enumerate(rows[1:], start=2):
+        if all(cell is None for cell in row):
+            continue
+        try:
+            emp_no      = str(row[idx["employee no"]]).strip()
+            first_name  = str(row[idx["first name"]]).strip()
+            last_name   = str(row[idx["last name"]]).strip()
+            phone       = str(row[idx["phone"]]).strip()
+            designation = str(row[idx["designation"]]).strip()
+
+            doj_raw = row[idx["date of joining"]]
+            if isinstance(doj_raw, datetime):
+                doj = doj_raw.date()
+            elif isinstance(doj_raw, date):
+                doj = doj_raw
+            else:
+                doj = datetime.strptime(str(doj_raw).strip(), "%Y-%m-%d").date()
+
+            department = dob = role = login_phone = None
+
+            if "department" in opt_idx:
+                v = row[opt_idx["department"]]
+                if v: department = str(v).strip()
+
+            if "date of birth" in opt_idx:
+                v = row[opt_idx["date of birth"]]
+                if v:
+                    if isinstance(v, datetime): dob = v.date()
+                    elif isinstance(v, date): dob = v
+                    else: dob = datetime.strptime(str(v).strip(), "%Y-%m-%d").date()
+
+            if "role" in opt_idx:
+                v = row[opt_idx["role"]]
+                if v: role = str(v).strip().lower()
+
+            if "login phone" in opt_idx:
+                v = row[opt_idx["login phone"]]
+                if v: login_phone = str(v).strip()
+
+            if role and role not in VALID_ROLES:
+                raise ValueError(f"Invalid role '{role}'. Valid: {', '.join(sorted(VALID_ROLES))}")
+
+            user_id = None
+            if role and login_phone:
+                import bcrypt
+                pw_hash = bcrypt.hashpw(login_phone.encode(), bcrypt.gensalt()).decode()
+                user_row = await conn.fetchrow(
+                    """
+                    INSERT INTO users (tenant_id, phone_number, password_hash, role)
+                    VALUES ($1,$2,$3,$4)
+                    ON CONFLICT (tenant_id, phone_number)
+                    DO UPDATE SET role = EXCLUDED.role
+                    RETURNING id, (xmax = 0) AS inserted
+                    """,
+                    tenant_id, login_phone, pw_hash, role,
+                )
+                user_id = user_row["id"]
+                if user_row["inserted"]:
+                    users_created += 1
+
+            result = await conn.fetchrow(
+                """
+                INSERT INTO staff
+                    (tenant_id, user_id, employee_no, first_name, last_name,
+                     phone_number, designation, department, date_of_joining, date_of_birth)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+                ON CONFLICT (tenant_id, employee_no)
+                DO UPDATE SET
+                    user_id        = COALESCE(EXCLUDED.user_id, staff.user_id),
+                    first_name     = EXCLUDED.first_name,
+                    last_name      = EXCLUDED.last_name,
+                    phone_number   = EXCLUDED.phone_number,
+                    designation    = EXCLUDED.designation,
+                    department     = EXCLUDED.department,
+                    date_of_joining = EXCLUDED.date_of_joining,
+                    date_of_birth  = EXCLUDED.date_of_birth,
+                    is_active      = TRUE
+                RETURNING (xmax = 0) AS inserted
+                """,
+                tenant_id, user_id, emp_no, first_name, last_name,
+                phone, designation, department, doj, dob,
+            )
+            if result["inserted"]:
+                created += 1
+            else:
+                updated += 1
+
+        except Exception as exc:
+            errors.append(f"Row {row_num}: {exc}")
+
+    return {"created": created, "updated": updated, "users_created": users_created, "errors": errors}

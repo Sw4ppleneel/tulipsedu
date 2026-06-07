@@ -1,7 +1,7 @@
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 
 from core.csv_export import csv_response, require_export_role
 from core.rbac import require_roles
@@ -11,6 +11,7 @@ from services.student import (
     create_student,
     deactivate_student,
     get_student,
+    import_students,
     list_students,
     update_student,
 )
@@ -120,3 +121,20 @@ async def remove_student(student_id: UUID, request: Request):
         deleted = await deactivate_student(conn, request.state.tenant_id, student_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Student not found or already inactive")
+
+
+@router.post("/import")
+async def import_students_xlsx(
+    request: Request,
+    academic_year_id: UUID = Query(...),
+    file: UploadFile = File(...),
+):
+    if not file.filename or not file.filename.lower().endswith(".xlsx"):
+        raise HTTPException(status_code=400, detail="Only .xlsx files are accepted")
+    contents = await file.read()
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        try:
+            return await import_students(conn, request.state.tenant_id, academic_year_id, contents)
+        except StudentError as e:
+            raise HTTPException(status_code=422, detail=str(e))
