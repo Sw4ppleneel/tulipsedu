@@ -201,15 +201,16 @@ async def create_student(
             INSERT INTO students (
                 tenant_id, academic_year_id, class_id, section_id,
                 admission_no, roll_number, first_name, last_name,
-                date_of_birth, gender, parent_phone, is_hosteler
-            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+                date_of_birth, gender, parent_phone, is_hosteler, is_transport
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
             RETURNING *
             """,
             tenant_id,
             data.academic_year_id, data.class_id, data.section_id,
             data.admission_no, data.roll_number,
             data.first_name, data.last_name,
-            data.date_of_birth, data.gender, data.parent_phone, data.is_hosteler,
+            data.date_of_birth, data.gender, data.parent_phone,
+            data.is_hosteler, data.is_transport,
         )
     except asyncpg.UniqueViolationError as e:
         msg = str(e)
@@ -336,7 +337,8 @@ async def import_students(
         raise StudentError(f"Missing columns: {missing}")
 
     idx = {name: header.index(name) for name in required}
-    hosteler_col = header.index("hosteler") if "hosteler" in header else None
+    hosteler_col  = header.index("hosteler")  if "hosteler"  in header else None
+    transport_col = header.index("transport") if "transport" in header else None
 
     class_rows = await conn.fetch(
         "SELECT id, name FROM classes WHERE tenant_id = $1", tenant_id
@@ -371,6 +373,11 @@ async def import_students(
                 v = row[hosteler_col]
                 is_hosteler = str(v).strip().lower() in ("yes", "true", "1") if v else False
 
+            is_transport = False
+            if transport_col is not None:
+                v = row[transport_col]
+                is_transport = str(v).strip().lower() in ("yes", "true", "1") if v else False
+
             dob_raw = row[idx["date of birth"]]
             if isinstance(dob_raw, datetime):
                 dob = dob_raw.date()
@@ -395,8 +402,8 @@ async def import_students(
                 INSERT INTO students
                     (tenant_id, academic_year_id, class_id, section_id,
                      admission_no, roll_number, first_name, last_name,
-                     date_of_birth, gender, parent_phone, is_hosteler)
-                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+                     date_of_birth, gender, parent_phone, is_hosteler, is_transport)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
                 ON CONFLICT (tenant_id, admission_no)
                 DO UPDATE SET
                     academic_year_id = EXCLUDED.academic_year_id,
@@ -409,12 +416,13 @@ async def import_students(
                     gender           = EXCLUDED.gender,
                     parent_phone     = EXCLUDED.parent_phone,
                     is_hosteler      = EXCLUDED.is_hosteler,
+                    is_transport     = EXCLUDED.is_transport,
                     is_active        = TRUE
                 RETURNING (xmax = 0) AS inserted
                 """,
                 tenant_id, academic_year_id, class_id, section_id,
                 admission_no, roll_no, first_name, last_name,
-                dob, gender, parent_phone, is_hosteler,
+                dob, gender, parent_phone, is_hosteler, is_transport,
             )
             if result["inserted"]:
                 created += 1

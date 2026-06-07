@@ -57,6 +57,7 @@ class StudentCreate(BaseModel):
     gender: str
     parent_phone: str
     is_hosteler: bool = False
+    is_transport: bool = False
 
     @field_validator("parent_phone")
     @classmethod
@@ -85,6 +86,7 @@ class StudentUpdate(BaseModel):
     gender: Optional[str] = None
     parent_phone: Optional[str] = None
     is_hosteler: Optional[bool] = None
+    is_transport: Optional[bool] = None
     is_active: Optional[bool] = None
 
 
@@ -102,6 +104,7 @@ class StudentResponse(BaseModel):
     gender: str
     parent_phone: str
     is_hosteler: bool
+    is_transport: bool
     is_active: bool
     created_at: datetime
     class_name: Optional[str] = None

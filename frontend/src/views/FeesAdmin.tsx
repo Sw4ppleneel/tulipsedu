@@ -186,7 +186,7 @@ function OutstandingTab({ years, classes }: { years: AcademicYear[]; classes: Cl
             <span style={{ flex: 1 }}>NAME</span>
             <span style={{ width: 90 }}>ADM NO</span>
             <span style={{ width: 100 }}>CLASS</span>
-            <span style={{ width: 70, textAlign: 'center' }}>MONTHS</span>
+            <span style={{ width: 70, textAlign: 'center' }}>ENTRIES</span>
             <span style={{ width: 110, textAlign: 'right' }}>TOTAL DUE</span>
           </div>
           {items.length === 0 && <p style={{ padding: '2rem', textAlign: 'center', color: '#9ca3af', fontSize: '0.875rem' }}>No outstanding dues. 🎉</p>}

@@ -143,6 +143,7 @@ async def import_fee_structure_excel(
         raise FinanceError(f"Missing columns. Expected: {required}. Found: {set(header)}")
 
     idx = {name: header.index(name) for name in required}
+    filter_col = header.index("student filter") if "student filter" in header else None
 
     # Cache classes for this tenant
     class_rows = await conn.fetch(
@@ -165,6 +166,12 @@ async def import_fee_structure_excel(
 
         if fee_type not in ("monthly", "annual", "one_time"):
             raise FinanceError(f"Row {row_num}: invalid fee_type '{fee_type}'")
+
+        student_filter = "all"
+        if filter_col is not None and row[filter_col]:
+            student_filter = str(row[filter_col]).strip().lower()
+        if student_filter not in ("all", "transport", "hosteler"):
+            raise FinanceError(f"Row {row_num}: invalid student filter '{student_filter}'. Use: all, transport, hosteler")
 
         # Upsert fee head
         head_row = await conn.fetchrow(
@@ -189,13 +196,13 @@ async def import_fee_structure_excel(
         sched_row = await conn.fetchrow(
             """
             INSERT INTO fee_schedules
-                (tenant_id, fee_head_id, academic_year_id, class_id, amount)
-            VALUES ($1, $2, $3, $4, $5)
+                (tenant_id, fee_head_id, academic_year_id, class_id, amount, student_filter)
+            VALUES ($1, $2, $3, $4, $5, $6)
             ON CONFLICT (tenant_id, fee_head_id, academic_year_id, class_id)
-            DO UPDATE SET amount = EXCLUDED.amount
+            DO UPDATE SET amount = EXCLUDED.amount, student_filter = EXCLUDED.student_filter
             RETURNING (xmax = 0) AS inserted
             """,
-            tenant_id, head_row["id"], academic_year_id, class_id, amount,
+            tenant_id, head_row["id"], academic_year_id, class_id, amount, student_filter,
         )
         if sched_row["inserted"]:
             created_schedules += 1
@@ -216,7 +223,9 @@ async def generate_ledger(
     conn: asyncpg.Connection, tenant_id: uuid.UUID, data: GenerateLedgerRequest
 ) -> dict:
     students = await conn.fetch(
-        "SELECT id, class_id FROM students WHERE tenant_id = $1 AND academic_year_id = $2 AND is_active = TRUE",
+        """SELECT id, class_id, is_transport, is_hosteler
+           FROM students
+           WHERE tenant_id = $1 AND academic_year_id = $2 AND is_active = TRUE""",
         tenant_id, data.academic_year_id,
     )
     if not students:
@@ -224,7 +233,7 @@ async def generate_ledger(
 
     schedules = await conn.fetch(
         """
-        SELECT fs.*, fh.fee_type
+        SELECT fs.*, fh.fee_type, fs.student_filter
         FROM fee_schedules fs
         JOIN fee_heads fh ON fh.id = fs.fee_head_id
         WHERE fs.tenant_id = $1 AND fs.academic_year_id = $2 AND fh.is_active = TRUE
@@ -236,6 +245,12 @@ async def generate_ledger(
     for student in students:
         for sched in schedules:
             if sched["class_id"] is not None and sched["class_id"] != student["class_id"]:
+                continue
+
+            sf = sched["student_filter"]
+            if sf == "transport" and not student["is_transport"]:
+                continue
+            if sf == "hosteler" and not student["is_hosteler"]:
                 continue
 
             if sched["fee_type"] == "monthly":
