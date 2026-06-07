@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks'
 import { login } from './api/client'
-import { clearAuthState, decodeJWT, setAuthState } from './api/auth_state'
+import { clearAuthState, decodeJWT, restoreAuthState, setAuthState } from './api/auth_state'
 import { loginByAdmissionNo } from './api/parent'
 import { DashboardView } from './views/Dashboard'
 import { StudentsView } from './views/Students'
@@ -254,8 +254,12 @@ export function App() {
   const [schoolName, setSchoolName] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [mode, setMode] = useState<AppMode>(initialMode)
-  const [userRole, setUserRole] = useState('')
+  const [mode, setMode] = useState<AppMode>(() => {
+    const saved = restoreAuthState()
+    if (saved) return saved.role === 'parent' ? 'parent-app' : 'staff-app'
+    return initialMode()
+  })
+  const [userRole, setUserRole] = useState(() => restoreAuthState()?.role ?? '')
 
   function goStaffLogin() {
     history.pushState(null, '', '/app')
