@@ -1,0 +1,460 @@
+#!/usr/bin/env python3
+"""
+Seed 4 production schools with realistic mock data.
+
+Usage:
+    DATABASE_URL=postgresql://... python scripts/seed_schools.py
+
+Idempotent — safe to re-run. Uses ON CONFLICT DO NOTHING.
+"""
+
+import asyncio
+import os
+import random
+from datetime import date, timedelta
+
+import asyncpg
+import bcrypt
+
+# ── School definitions ──────────────────────────────────────────────────────
+
+SCHOOLS = [
+    {
+        "slug":     "daffodilspublicschool",
+        "name":     "Daffodils Public School",
+        "city":     "Dhanbad",
+        "admin_phone":    "9801111111",
+        "admin_password": "Daffodils@2024",
+    },
+    {
+        "slug":     "premchandhighschool",
+        "name":     "Premchand High School",
+        "name":     "Premchand High School",
+        "city":     "Bokaro",
+        "admin_phone":    "9802222222",
+        "admin_password": "Premchand@2024",
+    },
+    {
+        "slug":     "premchandmahtoic",
+        "name":     "Premchand Mahto IC",
+        "city":     "Hazaribagh",
+        "admin_phone":    "9803333333",
+        "admin_password": "PMIC@2024",
+    },
+    {
+        "slug":     "vivekmemorialhighschool",
+        "name":     "Vivek Memorial High School",
+        "city":     "Ranchi",
+        "admin_phone":    "9804444444",
+        "admin_password": "Vivek@2024",
+    },
+]
+
+# ── Name pools ───────────────────────────────────────────────────────────────
+
+MALE_NAMES   = ["Aarav", "Vihaan", "Ishaan", "Arjun", "Rohan", "Dhruv", "Aditya",
+                "Kabir", "Aryan", "Pranav", "Soham", "Vivaan", "Rehan", "Nitin", "Sahil"]
+FEMALE_NAMES = ["Ananya", "Priya", "Kavya", "Divya", "Shreya", "Neha", "Pooja",
+                "Riya", "Sanya", "Diya", "Meera", "Nisha", "Ankita", "Simran", "Tanya"]
+SURNAMES     = ["Sharma", "Kumar", "Singh", "Verma", "Gupta", "Patel", "Yadav",
+                "Mishra", "Jha", "Pandey", "Tiwari", "Dubey", "Sinha", "Roy", "Das"]
+
+STAFF_FIRST  = ["Rajiv", "Sunita", "Manoj", "Preethi", "Ashok", "Vandana",
+                "Suresh", "Geeta", "Harish", "Rekha", "Deepak", "Anita"]
+DESIGNATIONS = ["Principal", "Vice Principal", "Senior Teacher", "Class Teacher",
+                "Head of Department", "Teacher", "Teacher", "Teacher"]
+
+SUBJECTS     = ["Mathematics", "Science", "English", "Hindi", "Social Science",
+                "Computer Science", "Physical Education"]
+CLASS_NAMES  = ["Grade 6", "Grade 7", "Grade 8", "Grade 9", "Grade 10"]
+
+HW_POSTS = [
+    ("Mathematics", "homework",     "Chapter 4 Exercise Set", "Complete all problems from Ex 4.3 and 4.4"),
+    ("Science",     "homework",     "Photosynthesis Diagram", "Draw and label the process of photosynthesis"),
+    ("English",     "announcement", "Essay Competition",      "Annual essay competition on 15th June. Topic: My India"),
+    ("Hindi",       "resource",     "Grammar Notes",          "Revised notes on Sandhi and Samas uploaded"),
+    ("Mathematics", "homework",     "Practice Test",          "Solve the practice paper for Unit Test 1"),
+]
+
+# ── Helpers ──────────────────────────────────────────────────────────────────
+
+def rng_name(gender: str) -> tuple[str, str]:
+    first = random.choice(MALE_NAMES if gender == "M" else FEMALE_NAMES)
+    last  = random.choice(SURNAMES)
+    return first, last
+
+def rng_phone() -> str:
+    return "98" + str(random.randint(10_000_000, 99_999_999))
+
+def pw_hash(password: str) -> str:
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+# ── Seed one school ──────────────────────────────────────────────────────────
+
+async def seed_school(conn: asyncpg.Connection, school: dict) -> None:
+    slug  = school["slug"]
+    name  = school["name"]
+    city  = school["city"]
+    print(f"\n{'='*55}")
+    print(f"  {name} ({slug})")
+    print(f"{'='*55}")
+
+    # 1. Tenant
+    tenant = await conn.fetchrow(
+        """
+        INSERT INTO tenants (slug, name)
+        VALUES ($1, $2)
+        ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name
+        RETURNING id
+        """,
+        slug, name,
+    )
+    tid = tenant["id"]
+    print(f"  tenant  {tid}")
+
+    # 2. Admin user
+    h = pw_hash(school["admin_password"])
+    await conn.execute(
+        """
+        INSERT INTO users (tenant_id, phone_number, password_hash, role)
+        VALUES ($1,$2,$3,'principal')
+        ON CONFLICT (tenant_id, phone_number) DO UPDATE SET password_hash = EXCLUDED.password_hash
+        """,
+        tid, school["admin_phone"], h,
+    )
+    print(f"  admin   {school['admin_phone']} / {school['admin_password']}")
+
+    # 3. Academic year
+    ay = await conn.fetchrow(
+        """
+        INSERT INTO academic_years (tenant_id, name, start_date, end_date, is_current)
+        VALUES ($1,'2025-2026','2025-04-01','2026-03-31',TRUE)
+        ON CONFLICT (tenant_id, name) DO UPDATE SET is_current = TRUE
+        RETURNING id
+        """,
+        tid,
+    )
+    ay_id = ay["id"]
+
+    # 4. Classes + sections
+    class_ids   = {}
+    section_ids = {}
+    for order, cname in enumerate(CLASS_NAMES, 1):
+        cls = await conn.fetchrow(
+            """
+            INSERT INTO classes (tenant_id, name, numeric_order)
+            VALUES ($1,$2,$3)
+            ON CONFLICT (tenant_id, name) DO UPDATE SET numeric_order = EXCLUDED.numeric_order
+            RETURNING id
+            """,
+            tid, cname, order,
+        )
+        cid = cls["id"]
+        class_ids[cname] = cid
+
+        sec = await conn.fetchrow(
+            """
+            INSERT INTO sections (tenant_id, class_id, name)
+            VALUES ($1,$2,'A')
+            ON CONFLICT DO NOTHING
+            RETURNING id
+            """,
+            tid, cid,
+        )
+        if sec:
+            section_ids[cname] = sec["id"]
+        else:
+            r = await conn.fetchrow(
+                "SELECT id FROM sections WHERE tenant_id=$1 AND class_id=$2 AND name='A'",
+                tid, cid,
+            )
+            section_ids[cname] = r["id"]
+
+    print(f"  classes {len(class_ids)} | sections {len(section_ids)}")
+
+    # 5. Staff (8 per school)
+    staff_ids = []
+    random.seed(hash(slug))
+    for i, desig in enumerate(DESIGNATIONS):
+        first = STAFF_FIRST[i % len(STAFF_FIRST)]
+        last  = random.choice(SURNAMES)
+        phone = rng_phone()
+        sid = await conn.fetchval(
+            """
+            INSERT INTO staff
+                (tenant_id, employee_no, first_name, last_name, phone_number, designation, date_of_joining)
+            VALUES ($1,$2,$3,$4,$5,$6,'2020-06-01')
+            ON CONFLICT DO NOTHING
+            RETURNING id
+            """,
+            tid, f"EMP{i+1:03d}", first, last, phone, desig,
+        )
+        if sid:
+            staff_ids.append(sid)
+        else:
+            r = await conn.fetchrow(
+                "SELECT id FROM staff WHERE tenant_id=$1 AND employee_no=$2",
+                tid, f"EMP{i+1:03d}",
+            )
+            if r:
+                staff_ids.append(r["id"])
+    print(f"  staff   {len(staff_ids)}")
+
+    # 6. Students (6 per class = 30 total)
+    student_ids_by_class: dict[str, list] = {}
+    for cname in CLASS_NAMES:
+        cid  = class_ids[cname]
+        seid = section_ids[cname]
+        ids  = []
+        for roll in range(1, 7):
+            gender = "M" if roll % 2 == 1 else "F"
+            fname, lname = rng_name(gender)
+            adm = f"{slug[:4].upper()}{cname[-1]}{roll:02d}"
+            roll_str = str(roll)
+            dob = date(2010 - (int(cname[-1]) - 6), random.randint(1, 12), random.randint(1, 28))
+            pphone = rng_phone()
+            st = await conn.fetchrow(
+                """
+                INSERT INTO students
+                    (tenant_id,academic_year_id,class_id,section_id,
+                     admission_no,roll_number,first_name,last_name,
+                     date_of_birth,gender,parent_phone)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+                ON CONFLICT (tenant_id,academic_year_id,class_id,section_id,roll_number) DO NOTHING
+                RETURNING id
+                """,
+                tid, ay_id, cid, seid,
+                adm, roll_str, fname, lname,
+                dob, gender, pphone,
+            )
+            if st:
+                ids.append(st["id"])
+            else:
+                r = await conn.fetchrow(
+                    "SELECT id FROM students WHERE tenant_id=$1 AND academic_year_id=$2 AND class_id=$3 AND section_id=$4 AND roll_number=$5",
+                    tid, ay_id, cid, seid, roll_str,
+                )
+                if r:
+                    ids.append(r["id"])
+        student_ids_by_class[cname] = ids
+    total_students = sum(len(v) for v in student_ids_by_class.values())
+    print(f"  students {total_students}")
+
+    # 7. Exam subjects (6 subjects per class)
+    exam_sub_ids: dict[tuple, object] = {}
+    for cname in CLASS_NAMES:
+        cid = class_ids[cname]
+        for order, subj in enumerate(SUBJECTS[:6], 1):
+            code = subj[:3].upper()
+            esid = await conn.fetchval(
+                """
+                INSERT INTO exam_subjects
+                    (tenant_id,academic_year_id,class_id,name,subject_code,sort_order)
+                VALUES ($1,$2,$3,$4,$5,$6)
+                ON CONFLICT (tenant_id,academic_year_id,class_id,name) DO NOTHING
+                RETURNING id
+                """,
+                tid, ay_id, cid, subj, code, order,
+            )
+            if not esid:
+                r = await conn.fetchrow(
+                    "SELECT id FROM exam_subjects WHERE tenant_id=$1 AND academic_year_id=$2 AND class_id=$3 AND name=$4",
+                    tid, ay_id, cid, subj,
+                )
+                esid = r["id"] if r else None
+            if esid:
+                exam_sub_ids[(cname, subj)] = esid
+
+    # 8. Exam terms
+    terms = [
+        ("Unit Test 1",  "unit_test",   "2025-07-01", "2025-07-07",  True,  1),
+        ("Half Yearly",  "half_yearly", "2025-09-15", "2025-09-25",  True,  2),
+        ("Unit Test 2",  "unit_test",   "2025-11-01", "2025-11-07",  False, 3),
+        ("Annual Exam",  "annual",      "2026-02-01", "2026-02-15",  False, 4),
+    ]
+    term_ids = {}
+    for t_name, t_type, t_start, t_end, t_pub, t_sort in terms:
+        tid2 = await conn.fetchval(
+            """
+            INSERT INTO exam_terms
+                (tenant_id,academic_year_id,name,term_type,start_date,end_date,is_published,sort_order)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+            ON CONFLICT (tenant_id,academic_year_id,name) DO NOTHING
+            RETURNING id
+            """,
+            tid, ay_id, t_name, t_type,
+            date.fromisoformat(t_start), date.fromisoformat(t_end),
+            t_pub, t_sort,
+        )
+        if not tid2:
+            r = await conn.fetchrow(
+                "SELECT id FROM exam_terms WHERE tenant_id=$1 AND academic_year_id=$2 AND name=$3",
+                tid, ay_id, t_name,
+            )
+            tid2 = r["id"] if r else None
+        if tid2:
+            term_ids[t_name] = tid2
+
+    # 9. Marks config + mark entries (Unit Test 1, Grade 9)
+    ut1_id  = term_ids.get("Unit Test 1")
+    hy_id   = term_ids.get("Half Yearly")
+    g9_cid  = class_ids.get("Grade 9")
+    g9_sids = student_ids_by_class.get("Grade 9", [])
+    admin_uid = await conn.fetchval("SELECT id FROM users WHERE tenant_id=$1 AND role='principal'", tid)
+
+    for t_id, max_m, pass_m in [(ut1_id, 25, 8), (hy_id, 80, 27)]:
+        if not t_id or not g9_cid:
+            continue
+        for subj in SUBJECTS[:6]:
+            esid = exam_sub_ids.get(("Grade 9", subj))
+            if not esid:
+                continue
+            # Marks config
+            await conn.execute(
+                """
+                INSERT INTO exam_marks_config
+                    (tenant_id,exam_term_id,exam_subject_id,max_marks,passing_marks)
+                VALUES ($1,$2,$3,$4,$5)
+                ON CONFLICT (tenant_id,exam_term_id,exam_subject_id) DO NOTHING
+                """,
+                tid, t_id, esid, max_m, pass_m,
+            )
+            # Mark entries
+            for st_id in g9_sids:
+                marks = float(random.randint(int(pass_m * 0.8), max_m))
+                await conn.execute(
+                    """
+                    INSERT INTO mark_entries
+                        (tenant_id,student_id,exam_term_id,exam_subject_id,
+                         marks_obtained,is_absent,entered_by)
+                    VALUES ($1,$2,$3,$4,$5,FALSE,$6)
+                    ON CONFLICT (tenant_id,student_id,exam_term_id,exam_subject_id) DO NOTHING
+                    """,
+                    tid, st_id, t_id, esid, marks, admin_uid,
+                )
+
+    # 10. Timetable (Grade 9 A, Mon–Fri)
+    from datetime import time as dtime
+    def _t(s):
+        h, m = s.split(":")
+        return dtime(int(h), int(m))
+
+    days_subjs = [
+        (1, 1, SUBJECTS[0], "08:00", "08:45"),
+        (1, 2, SUBJECTS[1], "08:45", "09:30"),
+        (2, 1, SUBJECTS[2], "08:00", "08:45"),
+        (2, 2, SUBJECTS[3], "08:45", "09:30"),
+        (3, 1, SUBJECTS[4], "08:00", "08:45"),
+        (4, 1, SUBJECTS[0], "08:00", "08:45"),
+        (5, 1, SUBJECTS[1], "08:00", "08:45"),
+    ]
+    if g9_cid:
+        g9_sec = section_ids.get("Grade 9")
+        stf_id = staff_ids[0] if staff_ids else None
+        for day, period, subj, st_t, en_t in days_subjs:
+            await conn.execute(
+                """
+                INSERT INTO timetable_slots
+                    (tenant_id,academic_year_id,class_id,section_id,
+                     day_of_week,period_number,start_time,end_time,subject,staff_id)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+                ON CONFLICT (tenant_id,academic_year_id,class_id,section_id,day_of_week,period_number)
+                DO NOTHING
+                """,
+                tid, ay_id, g9_cid, g9_sec, day, period, _t(st_t), _t(en_t), subj, stf_id,
+            )
+
+    # 11. Homework posts (5 per school, Grade 9 A)
+    if g9_cid:
+        g9_sec = section_ids.get("Grade 9")
+        for i, (subj, ptype, title, desc) in enumerate(HW_POSTS):
+            due = (date.today() + timedelta(days=3 + i * 2)) if ptype == "homework" else None
+            await conn.execute(
+                """
+                INSERT INTO homework_posts
+                    (tenant_id,academic_year_id,class_id,section_id,
+                     subject,post_type,title,description,due_date,attachment_urls)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'[]')
+                ON CONFLICT DO NOTHING
+                """,
+                tid, ay_id, g9_cid, g9_sec, subj, ptype, title, desc, due,
+            )
+
+    # 12. Fee heads + ledger (monthly tuition, April–June)
+    fh_id = await conn.fetchval(
+        """
+        INSERT INTO fee_heads (tenant_id, name, fee_type, sort_order)
+        VALUES ($1,'Tuition Fee','monthly',1)
+        ON CONFLICT DO NOTHING
+        RETURNING id
+        """,
+        tid,
+    )
+    if not fh_id:
+        fh_id = await conn.fetchval(
+            "SELECT id FROM fee_heads WHERE tenant_id=$1 AND name='Tuition Fee'", tid
+        )
+
+    if fh_id and g9_cid:
+        g9_sids_curr = student_ids_by_class.get("Grade 9", [])
+        for st_id in g9_sids_curr:
+            for month, year, paid in [(4,2025,True),(5,2025,True),(6,2025,False)]:
+                status = "paid" if paid else "pending"
+                await conn.execute(
+                    """
+                    INSERT INTO fee_ledger
+                        (tenant_id,student_id,fee_head_id,academic_year_id,
+                         period_month,period_year,amount_due,status)
+                    VALUES ($1,$2,$3,$4,$5,$6,1200,$7)
+                    ON CONFLICT DO NOTHING
+                    """,
+                    tid, st_id, fh_id, ay_id, month, year, status,
+                )
+
+    # 13. CMS page + announcement
+    await conn.execute(
+        """
+        INSERT INTO cms_pages (tenant_id,slug,title,content_html,is_published,sort_order)
+        VALUES ($1,'about','About Us',
+        $2,
+        TRUE, 1)
+        ON CONFLICT DO NOTHING
+        """,
+        tid,
+        f"<h2>Welcome to {name}</h2><p>Located in {city}, {name} is committed to quality education and holistic development of students.</p>",
+    )
+    await conn.execute(
+        """
+        INSERT INTO cms_announcements (tenant_id,title,body,is_published,published_at)
+        VALUES ($1,'Welcome to 2025-2026 Academic Year',
+        'We warmly welcome all students and parents to the new academic year. Classes begin on 1st April.',
+        TRUE, NOW())
+        ON CONFLICT DO NOTHING
+        """,
+        tid,
+    )
+
+    print(f"  ✓ seeded successfully")
+    print(f"  login: https://{slug}.tulipsedu.in  |  phone: {school['admin_phone']}  |  pass: {school['admin_password']}")
+
+
+# ── Main ─────────────────────────────────────────────────────────────────────
+
+async def main() -> None:
+    dsn = os.environ.get("DATABASE_URL", "postgresql://tulips:tulips@localhost:5432/tulipsedu")
+    conn = await asyncpg.connect(dsn)
+    random.seed(42)
+
+    for school in SCHOOLS:
+        async with conn.transaction():
+            await seed_school(conn, school)
+
+    await conn.close()
+    print("\n\nAll schools seeded.")
+    print("\n── Superadmin ──────────────────────────────────────────")
+    print("  DATABASE_URL=... python scripts/seed_platform.py 9000000000 superadmin123")
+    print("  Login: X-Tenant-Slug: platform  |  phone: 9000000000  |  pass: superadmin123")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

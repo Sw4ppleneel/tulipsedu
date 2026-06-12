@@ -1,0 +1,16 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install dependencies first (layer cache)
+COPY backend/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt gunicorn
+
+# Copy backend source, migrations, and scripts
+COPY backend/ .
+COPY migrations/ ./migrations/
+COPY scripts/ ./scripts/
+
+RUN chmod +x scripts/entrypoint.sh
+
+ENTRYPOINT ["sh", "scripts/entrypoint.sh"]

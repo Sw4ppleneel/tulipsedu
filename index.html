@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tulips — Run your school from one place</title>
+<meta name="description" content="Tulips is school management software built for Indian schools: admissions, fees with UPI, attendance that works without internet, and a parent portal. Trusted by 4 institutions.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --board:#14463A;        /* chalkboard green */
+  --board-deep:#0D332A;
+  --paper:#F7F9F5;        /* cool paper white with green tint */
+  --card:#FFFFFF;
+  --ink:#16241E;
+  --muted:#57685F;
+  --rule:#D7DFD6;         /* register ruling */
+  --tulip:#D8472F;        /* accent — used sparingly */
+  --tulip-deep:#B2371F;
+  --marigold:#F0B429;
+  --ok:#1F8A5D;
+  --maxw:1120px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion: reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+body{
+  font-family:'Figtree',system-ui,sans-serif;
+  background:var(--paper);
+  color:var(--ink);
+  font-size:16.5px;line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+}
+::selection{background:var(--marigold);color:var(--ink)}
+a:focus-visible,button:focus-visible{outline:2.5px solid var(--tulip);outline-offset:3px;border-radius:4px}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+.mono{font-family:'IBM Plex Mono',monospace}
+
+/* ---------- header ---------- */
+header.site{
+  position:sticky;top:0;z-index:60;background:var(--paper);
+  border-bottom:1px solid var(--rule);
+}
+.site-inner{max-width:var(--maxw);margin:0 auto;padding:0 24px;height:64px;display:flex;align-items:center;justify-content:space-between}
+.logo{display:flex;align-items:center;gap:9px;text-decoration:none;color:var(--ink)}
+.logo svg{width:26px;height:26px}
+.logo b{font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:21px;letter-spacing:-.01em}
+.logo span{font-size:12px;color:var(--muted);font-weight:500;margin-top:6px}
+header nav{display:flex;gap:26px;align-items:center}
+header nav a{font-size:14.5px;font-weight:500;color:var(--muted);text-decoration:none}
+header nav a:hover{color:var(--ink)}
+@media(max-width:760px){header nav a:not(.btn){display:none}}
+.btn{
+  display:inline-block;font-weight:600;font-size:15px;text-decoration:none;
+  padding:11px 22px;border-radius:8px;border:1.5px solid var(--board);
+  background:var(--board);color:#fff;transition:background .15s,transform .15s;
+}
+.btn:hover{background:var(--board-deep)}
+.btn.tulip{background:var(--tulip);border-color:var(--tulip)}
+.btn.tulip:hover{background:var(--tulip-deep)}
+.btn.ghost{background:transparent;color:var(--board)}
+.btn.ghost:hover{background:rgba(20,70,58,.06)}
+.btn.sm{padding:9px 18px;font-size:14px}
+
+/* ---------- hero ---------- */
+.hero{padding:76px 0 0;overflow:hidden}
+.hero-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:center}
+@media(max-width:920px){.hero-grid{grid-template-columns:1fr;gap:44px}}
+.kicker{
+  display:inline-flex;align-items:center;gap:8px;
+  font-size:13px;font-weight:600;color:var(--board);
+  background:rgba(20,70,58,.08);border:1px solid rgba(20,70,58,.15);
+  padding:5px 13px;border-radius:99px;margin-bottom:20px;
+}
+.kicker .dot{width:7px;height:7px;border-radius:50%;background:var(--ok)}
+h1{
+  font-family:'Bricolage Grotesque',sans-serif;
+  font-weight:750;font-size:clamp(36px,5vw,58px);
+  line-height:1.06;letter-spacing:-.022em;
+}
+h1 em{font-style:normal;color:var(--tulip)}
+.hero p.lede{margin-top:20px;font-size:18.5px;color:var(--muted);max-width:52ch}
+.hero p.lede strong{color:var(--ink)}
+.hero-cta{margin-top:30px;display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.hero-note{margin-top:16px;font-size:13.5px;color:var(--muted)}
+
+/* ---------- hero demo: attendance card ---------- */
+.demo-col{position:relative}
+.demo-card{
+  background:var(--card);border:1px solid var(--rule);border-radius:14px;
+  box-shadow:0 18px 50px -18px rgba(13,51,42,.25);
+  overflow:hidden;max-width:430px;margin:0 auto;
+}
+.demo-top{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 18px;border-bottom:1px solid var(--rule);background:var(--board);color:#fff;
+}
+.demo-top .cls{font-family:'Bricolage Grotesque',sans-serif;font-weight:600;font-size:16px}
+.demo-top .cls small{display:block;font-family:'Figtree',sans-serif;font-weight:400;font-size:12px;opacity:.75}
+.net-pill{
+  font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.04em;
+  padding:5px 11px;border-radius:99px;background:rgba(255,255,255,.14);
+  display:flex;align-items:center;gap:7px;
+}
+.net-pill .nd{width:7px;height:7px;border-radius:50%;background:#5EE0A0}
+.demo-card.offline .net-pill .nd{background:var(--marigold)}
+.roll{list-style:none}
+.roll li{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 18px;border-bottom:1px dashed var(--rule);
+}
+.roll li:last-child{border-bottom:none}
+.stu{display:flex;align-items:center;gap:12px}
+.stu .av{
+  width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-family:'Bricolage Grotesque',sans-serif;font-weight:600;font-size:13px;
+  background:rgba(20,70,58,.1);color:var(--board);
+}
+.stu .nm{font-weight:600;font-size:15px;line-height:1.25}
+.stu .nm small{display:block;font-weight:400;font-size:12px;color:var(--muted)}
+.mark{
+  font-weight:700;font-size:13px;border:1.5px solid var(--rule);background:#fff;
+  border-radius:8px;padding:7px 14px;cursor:pointer;color:var(--muted);
+  transition:all .15s;min-width:88px;font-family:'Figtree',sans-serif;
+}
+.mark.present{background:rgba(31,138,93,.1);border-color:var(--ok);color:var(--ok)}
+.mark.absent{background:rgba(216,71,47,.08);border-color:var(--tulip);color:var(--tulip-deep)}
+.demo-foot{
+  padding:13px 18px;border-top:1px solid var(--rule);background:#FBFCFA;
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+}
+.sync-line{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--muted)}
+.sync-line .ok{color:var(--ok)} .sync-line .q{color:#9A7110}
+.net-switch{
+  display:flex;align-items:center;gap:9px;font-size:13px;font-weight:600;color:var(--ink);
+  background:none;border:none;cursor:pointer;font-family:'Figtree',sans-serif;
+}
+.sw{width:40px;height:22px;border-radius:99px;background:var(--ok);position:relative;transition:background .2s;flex-shrink:0}
+.sw::after{content:'';position:absolute;top:3px;left:20px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .2s}
+.demo-card.offline .sw{background:#C8CFC9}
+.demo-card.offline .sw::after{left:4px}
+.demo-caption{text-align:center;margin-top:16px;font-size:13.5px;color:var(--muted);max-width:430px;margin-left:auto;margin-right:auto}
+.demo-caption b{color:var(--ink)}
+
+/* ---------- trust strip ---------- */
+.trust{border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);margin-top:72px;background:#FBFCFA}
+.trust-inner{max-width:var(--maxw);margin:0 auto;padding:18px 24px;display:flex;gap:14px 40px;flex-wrap:wrap;justify-content:center}
+.trust-inner span{font-size:14px;color:var(--muted);display:flex;align-items:center;gap:9px;font-weight:500}
+.trust-inner b{color:var(--board);font-weight:700}
+.tick{color:var(--ok);font-weight:700}
+
+/* ---------- sections ---------- */
+section{padding:84px 0}
+.sec-kicker{font-size:13.5px;font-weight:700;color:var(--tulip);text-transform:uppercase;letter-spacing:.09em;margin-bottom:12px}
+h2{font-family:'Bricolage Grotesque',sans-serif;font-weight:720;font-size:clamp(28px,3.6vw,42px);letter-spacing:-.018em;line-height:1.12;max-width:24ch}
+.sec-lede{margin-top:14px;color:var(--muted);max-width:62ch;font-size:17px}
+
+/* pains */
+.pain-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;margin-top:44px}
+@media(max-width:880px){.pain-grid{grid-template-columns:1fr}}
+.pain{background:var(--card);border:1px solid var(--rule);border-radius:14px;padding:28px 26px}
+.pain .ico{
+  width:44px;height:44px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+  background:rgba(20,70,58,.08);margin-bottom:18px;font-size:21px;
+}
+.pain h3{font-family:'Bricolage Grotesque',sans-serif;font-size:20px;font-weight:700;margin-bottom:9px}
+.pain p{font-size:15px;color:var(--muted)}
+.pain p b{color:var(--ink)}
+
+/* register table */
+.register{background:var(--board);color:#EDF3EE;border-radius:0}
+.register .sec-kicker{color:var(--marigold)}
+.register h2{color:#fff}
+.register .sec-lede{color:rgba(237,243,238,.7)}
+.reg-table{margin-top:44px;border:1px solid rgba(255,255,255,.16);border-radius:14px;overflow:hidden}
+.reg-row{
+  display:grid;grid-template-columns:220px 1fr 110px;gap:18px;align-items:center;
+  padding:17px 24px;border-bottom:1px solid rgba(255,255,255,.1);
+}
+.reg-row:nth-child(odd){background:rgba(255,255,255,.03)}
+.reg-row:last-child{border-bottom:none}
+@media(max-width:760px){.reg-row{grid-template-columns:1fr;gap:4px}.reg-row .stat{justify-self:start}}
+.reg-name{font-family:'Bricolage Grotesque',sans-serif;font-weight:650;font-size:17px;color:#fff}
+.reg-desc{font-size:14.5px;color:rgba(237,243,238,.72)}
+.stat{
+  font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.05em;
+  padding:4px 11px;border-radius:99px;justify-self:end;
+  background:rgba(94,224,160,.13);color:#7BE8AE;border:1px solid rgba(94,224,160,.3);
+}
+
+/* built-for-india */
+.india-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:22px;margin-top:44px}
+@media(max-width:760px){.india-grid{grid-template-columns:1fr}}
+.india-card{border:1px solid var(--rule);background:var(--card);border-radius:14px;padding:26px}
+.india-card h3{font-family:'Bricolage Grotesque',sans-serif;font-size:19px;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:10px}
+.india-card h3 .em{color:var(--tulip)}
+.india-card p{font-size:15px;color:var(--muted)}
+.india-card p b{color:var(--ink)}
+
+/* trust & safety */
+.safe{background:#FBFCFA;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)}
+.safe-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:36px;margin-top:40px}
+@media(max-width:880px){.safe-grid{grid-template-columns:1fr;gap:26px}}
+.safe-item h3{font-size:16.5px;font-weight:700;margin-bottom:7px;display:flex;gap:9px;align-items:baseline}
+.safe-item h3::before{content:'✓';color:var(--ok);font-weight:800}
+.safe-item p{font-size:14.5px;color:var(--muted)}
+
+/* final cta */
+.cta-final{text-align:center;padding:96px 0}
+.cta-final h2{margin:0 auto;max-width:20ch}
+.cta-final .sec-lede{margin-left:auto;margin-right:auto}
+.cta-final .hero-cta{justify-content:center}
+
+footer{border-top:1px solid var(--rule);padding:26px 0 40px}
+.foot-inner{max-width:var(--maxw);margin:0 auto;padding:0 24px;display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;font-size:13.5px;color:var(--muted)}
+.foot-inner a{color:var(--muted)}
+</style>
+</head>
+<body>
+
+<header class="site">
+  <div class="site-inner">
+    <a class="logo" href="#top" aria-label="Tulips home">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M12 13c3.2 0 5.5-2.4 5.5-6.2-1.9.2-3.2 1-3.9 2.1C13.3 7 12.8 5.4 12 4c-.8 1.4-1.3 3-1.6 4.9-.7-1.1-2-1.9-3.9-2.1C6.5 10.6 8.8 13 12 13Z" fill="#D8472F"/>
+        <path d="M12 13v7M12 17c0-2 1.8-3 3.5-3M12 16c0-1.6-1.5-2.4-3-2.4" stroke="#14463A" stroke-width="1.8" stroke-linecap="round"/>
+      </svg>
+      <b>Tulips</b><span>for schools</span>
+    </a>
+    <nav aria-label="Main">
+      <a href="#problems">Why Tulips</a>
+      <a href="#modules">Modules</a>
+      <a href="#india">Built for India</a>
+      <a href="#trust">Data &amp; safety</a>
+      <a class="btn tulip sm" href="https://wa.me/917979732954?text=Hi%20Tulips%2C%20I%27d%20like%20to%20book%20a%20demo%20for%20my%20school" target="_blank" rel="noopener">Book a demo</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+<section class="hero" style="padding-bottom:0">
+  <div class="wrap hero-grid">
+    <div>
+      <span class="kicker"><span class="dot" aria-hidden="true"></span>Running in 4 schools today</span>
+      <h1>Run your school from one place. <em>Even when the internet isn't running.</em></h1>
+      <p class="lede">Admissions, fees, attendance, exams, and parents who actually stay informed — in one system your office staff can learn in a day. <strong>No servers to buy, no consultants to call.</strong></p>
+      <div class="hero-cta">
+        <a class="btn tulip" href="https://wa.me/917979732954?text=Hi%20Tulips%2C%20I%27d%20like%20to%20book%20a%20demo%20for%20my%20school" target="_blank" rel="noopener">Book a 20-minute demo</a>
+        <a class="btn ghost" href="#modules">See what's inside</a>
+      </div>
+      <p class="hero-note">Demos happen on WhatsApp or a call — no forms, no spam.</p>
+    </div>
+
+    <div class="demo-col">
+      <!-- signature: offline attendance demo -->
+      <div class="demo-card" id="att-demo">
+        <div class="demo-top">
+          <div class="cls">Class 7-B · Morning attendance<small>Tuesday · 32 students</small></div>
+          <span class="net-pill"><span class="nd" aria-hidden="true"></span><span id="net-label">ONLINE</span></span>
+        </div>
+        <ul class="roll">
+          <li><span class="stu"><span class="av">AK</span><span class="nm">Aarav Khanna<small>Roll 01</small></span></span><button class="mark" data-i="0">Mark</button></li>
+          <li><span class="stu"><span class="av">DM</span><span class="nm">Diya Mehra<small>Roll 02</small></span></span><button class="mark" data-i="1">Mark</button></li>
+          <li><span class="stu"><span class="av">IS</span><span class="nm">Ishaan Singh<small>Roll 03</small></span></span><button class="mark" data-i="2">Mark</button></li>
+          <li><span class="stu"><span class="av">ZF</span><span class="nm">Zara Fatima<small>Roll 04</small></span></span><button class="mark" data-i="3">Mark</button></li>
+        </ul>
+        <div class="demo-foot">
+          <span class="sync-line" id="sync-line"><span class="ok">●</span> all marks saved to server</span>
+          <button class="net-switch" id="net-switch" type="button" aria-pressed="false">
+            <span class="sw" aria-hidden="true"></span> Internet
+          </button>
+        </div>
+      </div>
+      <p class="demo-caption">Try it: <b>switch the internet off</b>, keep marking. Tulips queues every mark on the device and syncs the moment the connection returns. Your teachers never see an error screen.</p>
+    </div>
+  </div>
+
+  <div class="trust">
+    <div class="trust-inner">
+      <span><span class="tick">✓</span> <b>4 institutions</b> in production</span>
+      <span><span class="tick">✓</span> UPI-native fee collection</span>
+      <span><span class="tick">✓</span> Works on any phone or computer</span>
+      <span><span class="tick">✓</span> Every change logged — forever</span>
+    </div>
+  </div>
+</section>
+
+<section id="problems">
+  <div class="wrap">
+    <p class="sec-kicker">The problems we actually solve</p>
+    <h2>Your office runs on registers, Excel, and one person's memory.</h2>
+    <p class="sec-lede">Tulips replaces the paperwork — not your people. Here's what changes in the first month.</p>
+    <div class="pain-grid">
+      <div class="pain">
+        <div class="ico" aria-hidden="true">₹</div>
+        <h3>Fees, without the chase</h3>
+        <p>Parents pay through <b>UPI — a QR code or one tap</b> — and the receipt generates itself. Your accountant sees who has paid and who hasn't, today, without touching a calculator. No more reconciling bank statements against a notebook.</p>
+      </div>
+      <div class="pain">
+        <div class="ico" aria-hidden="true">✓</div>
+        <h3>Attendance that never fails</h3>
+        <p>Marked in seconds from any phone — and it <b>keeps working when the internet doesn't</b>. Marks queue on the device and sync automatically. Built for real Indian campuses, not ideal network conditions.</p>
+      </div>
+      <div class="pain">
+        <div class="ico" aria-hidden="true">👪</div>
+        <h3>Parents who stop calling the office</h3>
+        <p>A <b>parent portal</b> with attendance, fees, and announcements. Circulars stop getting lost in school bags. The front office stops answering the same question forty times a day.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="register" id="modules">
+  <div class="wrap">
+    <p class="sec-kicker">What's inside</p>
+    <h2>One register for the whole school.</h2>
+    <p class="sec-lede">Every module shares the same student record — enter information once, use it everywhere.</p>
+    <div class="reg-table">
+      <div class="reg-row"><span class="reg-name">Admissions</span><span class="reg-desc">Enquiry to enrolment in one flow. Bulk-import your existing students from Excel in minutes.</span><span class="stat">LIVE</span></div>
+      <div class="reg-row"><span class="reg-name">Student records</span><span class="reg-desc">Complete profiles — guardians, documents, history — searchable in one place instead of five files.</span><span class="stat">LIVE</span></div>
+      <div class="reg-row"><span class="reg-name">Fee management</span><span class="reg-desc">Fee structures, UPI collection with QR codes, automatic receipts, and a defaulters list that updates itself.</span><span class="stat">LIVE</span></div>
+      <div class="reg-row"><span class="reg-name">Attendance</span><span class="reg-desc">Offline-first marking from any device, with class and student-level reports.</span><span class="stat">LIVE</span></div>
+      <div class="reg-row"><span class="reg-name">Academics &amp; exams</span><span class="reg-desc">Classes, sections, subjects, and assessment records tied to each student.</span><span class="stat">LIVE</span></div>
+      <div class="reg-row"><span class="reg-name">Parent portal</span><span class="reg-desc">Attendance, fee status, and announcements for every guardian — on their own phone, no app install.</span><span class="stat">LIVE</span></div>
+      <div class="reg-row"><span class="reg-name">Staff roles</span><span class="reg-desc">Principal, vice-principal, accountant, teacher, parent — everyone sees exactly what their role allows, nothing more.</span><span class="stat">LIVE</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="india">
+  <div class="wrap">
+    <p class="sec-kicker">Built for Indian schools</p>
+    <h2>Designed around how schools here actually work.</h2>
+    <div class="india-grid">
+      <div class="india-card">
+        <h3><span class="em">₹</span> UPI-native, not bolted on</h3>
+        <p>Fee payments work the way parents already pay for everything else — <b>UPI deep links and QR codes</b>. No payment gateway lectures, no card-machine rentals.</p>
+      </div>
+      <div class="india-card">
+        <h3><span class="em">⌁</span> Honest about Indian internet</h3>
+        <p>Power cuts and patchy networks are normal. Tulips treats them as normal too: <b>attendance works fully offline</b> and syncs when the connection returns.</p>
+      </div>
+      <div class="india-card">
+        <h3><span class="em">☎</span> A person, not a ticket queue</h3>
+        <p>You deal directly with the team that built the software. Questions get answered on <b>WhatsApp or a phone call</b> — not a support portal that replies in five working days.</p>
+      </div>
+      <div class="india-card">
+        <h3><span class="em">⊞</span> Any device your school already owns</h3>
+        <p>Runs in the browser on the office desktop, the principal's laptop, and a teacher's phone. <b>Nothing to install, nothing to buy.</b></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="safe" id="trust">
+  <div class="wrap">
+    <p class="sec-kicker">Data &amp; safety</p>
+    <h2>Fee records and student data deserve more care than an Excel file.</h2>
+    <div class="safe-grid">
+      <div class="safe-item">
+        <h3>Every change is logged, permanently</h3>
+        <p>Who changed what, and when — every edit to a fee, mark, or record leaves a permanent trail. If a number looks wrong, you can see its entire history.</p>
+      </div>
+      <div class="safe-item">
+        <h3>Each school's data stays separate</h3>
+        <p>Tulips serves multiple schools, but isolation is enforced in the software's core — one school can never see another's records.</p>
+      </div>
+      <div class="safe-item">
+        <h3>Role-based access, enforced everywhere</h3>
+        <p>A teacher can't open fee records; an accountant can't edit marks. Every single action is checked against the person's role — there are no side doors.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="cta-final">
+  <div class="wrap">
+    <h2>See your school running on Tulips.</h2>
+    <p class="sec-lede">A 20-minute demo with your own use cases — admissions season, fee day, morning attendance. If it doesn't fit your school, we'll tell you.</p>
+    <div class="hero-cta">
+      <a class="btn tulip" href="https://wa.me/917979732954?text=Hi%20Tulips%2C%20I%27d%20like%20to%20book%20a%20demo%20for%20my%20school" target="_blank" rel="noopener">Book a demo on WhatsApp</a>
+      <a class="btn ghost" href="mailto:swapneel.bit@gmail.com">Email us</a>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="foot-inner">
+    <span>© 2026 Tulips · tulipsedu.in</span>
+    <span><a href="https://wa.me/917979732954?text=Hi%20Tulips%2C%20I%27d%20like%20to%20book%20a%20demo%20for%20my%20school" target="_blank" rel="noopener">WhatsApp</a> · <a href="mailto:swapneel.bit@gmail.com">Email</a></span>
+  </div>
+</footer>
+
+<script>
+(function(){
+  const card = document.getElementById('att-demo');
+  const netSwitch = document.getElementById('net-switch');
+  const netLabel = document.getElementById('net-label');
+  const syncLine = document.getElementById('sync-line');
+  const marks = card.querySelectorAll('.mark');
+  let online = true;
+  let queued = 0;
+  const states = ['Mark','Present','Absent'];
+  const stuState = [0,0,0,0];
+
+  function setSync(){
+    if(online){
+      syncLine.innerHTML = '<span class="ok">●</span> all marks saved to server';
+    } else {
+      syncLine.innerHTML = '<span class="q">●</span> offline — ' + queued + ' mark' + (queued===1?'':'s') + ' queued on device';
+    }
+  }
+
+  marks.forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const i = +btn.dataset.i;
+      stuState[i] = (stuState[i] + 1) % 3;
+      btn.textContent = states[stuState[i]];
+      btn.classList.toggle('present', stuState[i]===1);
+      btn.classList.toggle('absent', stuState[i]===2);
+      if(!online && stuState[i]!==0){ queued++; }
+      setSync();
+    });
+  });
+
+  netSwitch.addEventListener('click', ()=>{
+    online = !online;
+    card.classList.toggle('offline', !online);
+    netSwitch.setAttribute('aria-pressed', String(!online));
+    netLabel.textContent = online ? 'ONLINE' : 'OFFLINE';
+    if(online && queued>0){
+      syncLine.innerHTML = '<span class="ok">●</span> back online — syncing ' + queued + ' queued mark' + (queued===1?'':'s') + '…';
+      setTimeout(()=>{ queued=0; setSync(); }, 1100);
+    } else {
+      setSync();
+    }
+  });
+})();
+</script>
+</body>
+</html>

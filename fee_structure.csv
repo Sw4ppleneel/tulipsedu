@@ -1,0 +1,9 @@
+Fee Head,Fee Type,Class,Amount,Due Date,Installment Label
+Tuition Fee,Mandatory,Class 1,2500.00,2026-07-10,July-2026
+Tuition Fee,Mandatory,Class 2,2700.00,2026-07-10,July-2026
+Tuition Fee,Mandatory,Class 3,2700.00,2026-07-10,July-2026
+Transport Fee,Optional,Class 1,800.00,2026-07-10,July-2026
+Transport Fee,Optional,Class 2,800.00,2026-07-10,July-2026
+Science Lab Fee,Mandatory,Class 9,1200.00,2026-07-10,July-2026
+Computer Fee,Mandatory,Class 5,500.00,2026-07-10,July-2026
+Registration Fee,One-Time,Class 1,5000.00,2026-07-10,Admission-2026
