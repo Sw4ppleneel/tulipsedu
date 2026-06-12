@@ -78,7 +78,10 @@
       "Bash(rsync -av --exclude .venv --exclude __pycache__ --exclude *.pyc /Users/swapneelpremchand/Tulips.edu/backend/ swap@62.72.13.103:~/tulips/backend/)",
       "Bash(rsync -av /Users/swapneelpremchand/Tulips.edu/req_doc_formats/ swap@62.72.13.103:~/tulips/req_doc_formats/)",
       "Bash(backend/.venv/bin/python -c ' *)",
-      "Bash(backend/.venv/bin/python *)"
+      "Bash(backend/.venv/bin/python *)",
+      "Bash(scp -q index.html nginx.prod.conf docker-compose.prod.yml swap@62.72.13.103:~/tulips/)",
+      "Bash(ssh swap@62.72.13.103 'docker exec tulips-nginx-1 nginx -t')",
+      "Bash(ssh *)"
     ]
   }
 }
