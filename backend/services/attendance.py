@@ -128,22 +128,24 @@ async def mark_attendance(
     student_ids = [m.student_id for m in req.marks]
     statuses = [m.status for m in req.marks]
 
-    await conn.execute(
-        """
-        INSERT INTO attendance_records (tenant_id, session_id, student_id, status)
-        SELECT $1, $2, UNNEST($3::uuid[]), UNNEST($4::char[])
-        ON CONFLICT (tenant_id, session_id, student_id)
-        DO UPDATE SET status = EXCLUDED.status
-        """,
-        tenant_id, session_id, student_ids, statuses,
-    )
+    # Records + event must land atomically — the worker consumes the event.
+    async with conn.transaction():
+        await conn.execute(
+            """
+            INSERT INTO attendance_records (tenant_id, session_id, student_id, status)
+            SELECT $1, $2, UNNEST($3::uuid[]), UNNEST($4::char[])
+            ON CONFLICT (tenant_id, session_id, student_id)
+            DO UPDATE SET status = EXCLUDED.status
+            """,
+            tenant_id, session_id, student_ids, statuses,
+        )
 
-    # Editing an already-submitted session is a correction — audit it distinctly.
-    event = "ATTENDANCE_CORRECTED" if session["submitted"] else "ATTENDANCE_MARKED"
-    await emit(conn, event, tenant_id, {
-        "session_id": str(session_id),
-        "count": len(req.marks),
-    })
+        # Editing an already-submitted session is a correction — audit it distinctly.
+        event = "ATTENDANCE_CORRECTED" if session["submitted"] else "ATTENDANCE_MARKED"
+        await emit(conn, event, tenant_id, {
+            "session_id": str(session_id),
+            "count": len(req.marks),
+        })
     return len(req.marks)
 
 
@@ -157,13 +159,15 @@ async def submit_session(
     if not row:
         return None
 
-    await conn.execute(
-        "UPDATE attendance_sessions SET submitted = TRUE WHERE id = $1 AND tenant_id = $2",
-        session_id, tenant_id,
-    )
-    await emit(conn, "ATTENDANCE_SESSION_SUBMITTED", tenant_id, {
-        "session_id": str(session_id),
-    })
+    # Submit flag + event must land atomically — the event triggers absent alerts.
+    async with conn.transaction():
+        await conn.execute(
+            "UPDATE attendance_sessions SET submitted = TRUE WHERE id = $1 AND tenant_id = $2",
+            session_id, tenant_id,
+        )
+        await emit(conn, "ATTENDANCE_SESSION_SUBMITTED", tenant_id, {
+            "session_id": str(session_id),
+        })
     updated = dict(row)
     updated["submitted"] = True
     return AttendanceSession(**updated)

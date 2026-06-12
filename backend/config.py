@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     base_domain: str = "tulipsedu.in"
     app_base_url: str = "http://localhost:8000"
 
+    # Workflow worker (python -m worker.main)
+    worker_poll_seconds: int = 3
+    worker_batch_size: int = 100
+
     # CORS — comma-separated origins for production (e.g. "https://s1.tulipsedu.in")
     # Use cors_origin_regex for wildcard subdomain support in production.
     cors_origins: str = "http://localhost:5173"

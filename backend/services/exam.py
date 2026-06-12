@@ -129,10 +129,24 @@ async def list_terms(
 async def publish_term(
     conn: asyncpg.Connection, tenant_id: uuid.UUID, term_id: uuid.UUID, publish: bool
 ) -> Optional[ExamTermResponse]:
-    row = await conn.fetchrow(
-        "UPDATE exam_terms SET is_published = $1 WHERE id = $2 AND tenant_id = $3 RETURNING *",
-        publish, term_id, tenant_id,
-    )
+    async with conn.transaction():
+        prev = await conn.fetchval(
+            "SELECT is_published FROM exam_terms WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
+            term_id, tenant_id,
+        )
+        if prev is None:
+            return None
+        row = await conn.fetchrow(
+            "UPDATE exam_terms SET is_published = $1 WHERE id = $2 AND tenant_id = $3 RETURNING *",
+            publish, term_id, tenant_id,
+        )
+        # Emit only on the false→true transition so re-publishing is a no-op
+        # for downstream consumers (worker fan-out to parents).
+        if publish and not prev:
+            await emit(conn, "EXAM_PUBLISHED", tenant_id, {
+                "term_id": str(term_id),
+                "academic_year_id": str(row["academic_year_id"]),
+            })
     return ExamTermResponse(**dict(row)) if row else None
 
 

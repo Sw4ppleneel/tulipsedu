@@ -38,6 +38,38 @@ Next Task: Get approval for ADR-010 (worker + outbox schema), then Sprint 3 item
 
 ---
 
+# ⏸ CHECKPOINT 2026-06-13 — Workflow Spine IN PROGRESS (resume here)
+
+Approved plan: `~/.claude/plans/elegant-jumping-widget.md` (scope: spine + first
+workflows). ADR-010 amended during planning: audit_events stays immutable; worker uses
+a **cursor table + DLQ** (NOT outbox columns). `tenants.feature_flags` already exists
+(migration 001, holds gateway SECRETS — never expose wholesale; use allowlist).
+
+## Done (committed, NOT yet verified or deployed)
+- [x] W0 — working tree committed (cda2776, 61 files)
+- [x] Migration `024_worker_spine.sql` — worker_cursors (bootstraps at head, no replay),
+      worker_dlq, notifications (+dedup unique index), fee_ledger.reminded_at. NOT applied yet.
+- [x] Emit fixes — exam.py publish_term: EXAM_PUBLISHED on false→true in txn w/ FOR UPDATE;
+      attendance.py mark_attendance + submit_session wrapped in transactions.
+- [x] Notifications service/API — services/notification.py, models/notification.py,
+      api/v1/notifications.py (staff, RBAC), parent.py + /parent/notifications*, router registered.
+- [x] Worker — backend/worker/{main,registry,scheduler}.py + handlers/{attendance,fees,
+      homework,exams}.py. 6 events wired incl. REMINDER_SENT (makes the existing dead
+      /fees/reminders button real). config.py: worker_poll_seconds/worker_batch_size.
+      Imports verified clean (.venv).
+
+## Remaining (tasks 5–8)
+- [ ] Task 5: docker-compose.prod.yml `worker` service (same image,
+      `entrypoint: ["python","-m","worker.main"]`, depends postgres healthy + backend) +
+      `GET /me/features` (allowlist: attendance,fees,homework,timetable,exams,cms; absent=true)
+- [ ] Task 6: frontend — api/notifications.ts, NotificationsBell.tsx (45s poll + focus
+      refetch, mount in AppShell header), ParentPortal "Updates" card, feature-flag nav gating
+- [ ] Task 7: LOCAL VERIFICATION (plan §Verification, flows 1–9) — nothing verified yet
+- [ ] Task 8: deploy (build backend+worker → up backend (applies 024) → up worker →
+      frontend_build → nginx) + final doc updates (ARCHITECTURE event catalog/topology/ADR-010)
+
+---
+
 # Workflow ERP Transformation — FINAL TODO
 
 Goal: stop being a pile of forms; become a system that *drives school processes*. None of
