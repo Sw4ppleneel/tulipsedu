@@ -3,33 +3,88 @@
 # Project Status
 
 Project: Tulips.edu
-Phase: Phase 1 MVP — Post-Launch Iteration
-Current Sprint: Sprint 2 — RBAC, UX Fixes, Payment, Exam Structure
-Last Updated: 2026-06-04
+Phase: Phase 1 MVP shipped → pivoting to Phase 2 "Workflow ERP"
+Current Sprint: Sprint 3 — Workflow Spine (event bus + worker + notifications)
+Last Updated: 2026-06-12
 
 ---
 
 # PROJECT STATE
 
-Current Phase: Phase 1 MVP (deployed to production)
-Current Sprint: Sprint 2 — Role-Based Access, UX Overhaul, Exam Restructure, Fee Excel Import, Payment QR
+Current Phase: Phase 1 MVP deployed to production; Phase 2 transformation starting
+Current Sprint: Sprint 3 — turn the CRUD modules into driven workflows
 
-Completed:
-- Auth + Tenant Isolation
-- Student Management
-- Staff Management
-- ClassSwipe Attendance
-- Finance (fee heads, ledger, payments)
+Completed (Phase 1, all deployed to *.tulipsedu.in, 4 schools seeded):
+- Auth + Tenant Isolation + RBAC (6 staff roles + parent, migration 018)
+- Student / Staff Management
+- ClassSwipe Attendance (offline-first, edit-after-submit)
+- Finance (fee heads, schedules, ledger, payments, Excel import, UPI QR)
 - Homework & Classroom Feed
-- Timetable Engine
-- Examination Management
-- Parent Portal (OTP, student summary)
-- CMS (pages + announcements)
+- Timetable Engine (with teacher assignment — already has timetable_slots.staff_id)
+- Examination Management (terms, subjects, mark components → grade rollup)
+- Parent Portal (admission-number login, attendance/fee/homework summary, UPI QR pay)
+- CMS (pages + announcements) + per-tenant public website at subdomain root
 - Dashboard
-- Production deployment (*.tulipsedu.in, 4 schools seeded)
+- Apex marketing landing page at tulipsedu.in / www (2026-06-12)
 - R2 upload endpoint (501 until credentials added)
 
-In Progress: Sprint 2 COMPLETE + public school website. Ready to deploy.
+In Progress: Phase 1 is feature-complete and shipped. The product is now a competent
+**CRUD amalgamation** — see the assessment in ARCHITECTURE.md "Current Reality". The next
+work is the **Workflow ERP Transformation** (final TODO below), which adds the connective
+tissue: an event-bus worker, notifications, lifecycle state machines, and cross-module
+orchestration. North-star write-up: top of ROADMAP.md. Decision: ADR-010 in ARCHITECTURE.md.
+
+Next Task: Get approval for ADR-010 (worker + outbox schema), then Sprint 3 item W1.
+
+---
+
+# Workflow ERP Transformation — FINAL TODO
+
+Goal: stop being a pile of forms; become a system that *drives school processes*. None of
+this is a new module — it is the wiring that makes the existing modules act on each other.
+Ordered so each step unblocks the next. ⛔ = trips a CLAUDE.md approval gate (stop & ask).
+
+## Sprint 3 — The Spine (makes events do something)
+- [ ] **W0. Commit the working tree.** 61 files are untracked (whole feature set lives only
+      on disk + VPS). Get git to match reality before building on it.
+- [ ] **W1. ⛔ Transactional outbox.** Migration: add `status,attempts,processed_at,
+      available_at` to `audit_events`. `emit()` unchanged (already writes in-txn). [schema]
+- [ ] **W2. ⛔ Background worker.** New `worker` service in docker-compose; asyncpg poller
+      claims rows `FOR UPDATE SKIP LOCKED` → handler registry → mark done/failed + backoff.
+      Postgres polling only, no broker. [deployment topology]
+- [ ] **W3. ⛔ Notifications.** Migration: `notifications(tenant_id, recipient_scope,
+      recipient_id, type, title, body, read_at, created_at)`. `GET /notifications`
+      (in-app feed) + bell badge in the SPA + parent portal. [schema]
+- [ ] **W4. ⛔ Feature flags.** Migration: `tenants.features JSONB DEFAULT '{}'` (mandated
+      in CLAUDE.md, still unbuilt — 023 was the transport filter, not this). Nav renders
+      enabled tabs only. [schema]
+
+## Sprint 4 — Wire the first three workflows (prove the pattern, all in-app first)
+- [ ] **W5. Attendance → absent alert.** Handler on ATTENDANCE_MARKED/_CORRECTED(absent)
+      → parent notification. (No paid SMS yet — in-app/portal only.)
+- [ ] **W6. Fee collected → receipt + reconciliation.** Handler on FEE_COLLECTED → parent
+      receipt notification + accountant reconciliation record.
+- [ ] **W7. Homework assigned → parent ping.** Handler on HOMEWORK_ASSIGNED.
+
+## Sprint 5 — Lifecycle state machines (the "ERP" part)
+- [ ] **W8. ⛔ Exam term lifecycle.** `status: draft→marks_open→locked→published` gates marks
+      entry; publishing emits EXAM_PUBLISHED (meaningful for the first time). [schema]
+- [ ] **W9. ⛔ Fee installment lifecycle + scheduler.** `pending→due→overdue→paid`; worker
+      scheduler advances due→overdue and emits FEE_INSTALLMENT_OVERDUE → reminder. [schema]
+- [ ] **W10. ⛔ Admissions pipeline (new).** `enquiry→application→docs→approved→enrolled`.
+      The `approve` step is one orchestrated transaction: create student + assign fee
+      schedule + provision parent access, emitting ADMISSION_APPROVED. [schema + R2 for docs]
+- [ ] **W11. ⛔ Academic-year rollover.** The flagship multi-step transaction from CLAUDE.md:
+      promote students, close/carry fee ledgers, archive the year, clone sections/timetable,
+      flag the graduating batch — one explicit transaction, fully reversible. [schema]
+
+## Sprint 6 — Delivery + polish (blocked on credentials / paid services)
+- [ ] **W12. ⛔ SMS/WhatsApp delivery adapter** (MSG91 or WhatsApp Cloud API). The worker
+      gains a delivery channel beyond in-app. [paid service + credentials — BLOCKED]
+- [ ] **W13. ⛔ Report-card PDF.** EXAM_PUBLISHED → worker renders PDF → R2 → parent
+      downloads. [dependency: PDF lib + R2 credentials — BLOCKED]
+- [ ] **W14. Analytics aggregates** precomputed on write (fee recovery %, attendance
+      trend, low-attendance <75% list) — no runtime heavy queries.
 
 ---
 
@@ -99,9 +154,8 @@ contact fields on tenants (address/phone — currently via a CMS 'contact' page)
 Blocked:
 - R2 credentials not yet added to production .env (uploads return 501 until then)
 
-Next Task: Deploy migrations 018–022 + frontend (qrcode-generator dep) to prod;
-test staff app (role logins) + parent app (admission-number login). Then optional:
-public school website rendering at subdomain root (CMS backend exists, no frontend yet).
+Next Task: (superseded) — all of Sprint 2 shipped to prod. See the Workflow ERP
+Transformation FINAL TODO near the top of this file for the current direction.
 
 ---
 
@@ -435,24 +489,31 @@ Project scaffold, Docker, migration framework, auth, tenant isolation, Preact fr
 **Reason:** Manual UI too complex for field use; Excel already the school's existing format.
 ## ADR-008 — UPI QR code for parent payments, no gateway in Phase 1 (Proposed — Sprint 2)
 **Reason:** Zero MDR on UPI; manual reconciliation acceptable for pilot schools; Razorpay in Phase 2.
-## ADR-009 — RBAC via role column on users table (Proposed — Sprint 2)
+## ADR-009 — RBAC via role column on users table (Approved — Sprint 2, shipped)
 **Reason:** Simple column-level role with middleware propagation; no need for full permission table at MVP scale.
+## ADR-010 — Event-bus worker via transactional outbox (Proposed — Sprint 3)
+**Reason:** `audit_events` is producer-only; a single Postgres-polling worker over an outbox
+turns recorded events into driven workflows without a broker (₹2k/month + single-codebase
+constraints). Full write-up in ARCHITECTURE.md. **Trips approval gates** — see W1/W2.
 
 ---
 
 # Known Issues
 
-- Fee add form broken (doesn't load) — will be replaced by Excel import
-- Roll numbers not unique within class — pending migration
-- Attendance locked after submit — pending fix
-- Timetable has no teacher assignment — pending migration + UI
+- (RESOLVED) Fee add form broken → replaced by Excel import (Step 4a)
+- (RESOLVED) Roll numbers not unique → constraint already enforced (migration 006)
+- (RESOLVED) Attendance locked after submit → edit-after-submit shipped (Step 2)
+- (RESOLVED) Timetable teacher field → `timetable_slots.staff_id` exists (migration 013)
+- Feature flags (`tenants.features` JSONB) mandated by CLAUDE.md but NOT built — see W4.
+  (ROADMAP previously mislabelled migration 023 as this; 023 is the transport fee filter.)
+- Domain events are recorded but not consumed (no worker) — the central Phase-2 gap (W1–W2).
 
 ---
 
 # Blockers
 
-- R2 credentials for production file uploads
-- SMS provider for production OTP delivery
+- R2 credentials for production file uploads (blocks report-card PDF W13, admission docs W10)
+- SMS/WhatsApp provider — paid service, needs approval + credentials (blocks W12)
 
 ---
 

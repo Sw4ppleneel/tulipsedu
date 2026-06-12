@@ -1,24 +1,42 @@
 # ARCHITECTURE.md
 
-# Current Reality
+# Current Reality (2026-06-12)
 
-Implemented:
-- Multi-tenant database schema (tenants, users, audit_events)
-- JWT authentication with tenant isolation middleware
-- Auth API: login / refresh / logout
-- Event audit framework
-- Migration runner
-- Preact + Vite frontend shell with IndexedDB abstraction and service worker
-- Student Management: academic_years, classes, sections, students
-- Staff Management: staff CRUD
-- ClassSwipe Attendance: sessions, attendance_records (offline-first)
-- Finance: fee_structures, fee_items, student_fees, payments, receipts, superadmin panel
-- Homework & Feed: homework_posts (full backend)
-- Timetable Engine: timetable_slots (full backend)
-- Examination Management: exam_subjects, exam_terms, exam_marks_config, mark_entries (full backend)
+Deployed to production on the VPS (Cloudflare-proxied, `*.tulipsedu.in`, 4 schools seeded):
 
-MVP Feature Complete:
-All Phase 1 modules implemented and verified. Awaiting domain/VPS/R2 credentials for production deployment.
+- Multi-tenant schema + JWT auth + tenant-isolation middleware
+- RBAC: 6 staff roles + parent (migration 018), role gates at middleware and service layer
+- Student / Staff management
+- ClassSwipe Attendance (offline-first, edit-after-submit)
+- Finance: fee heads, schedules, per-student ledger, payments, receipts, Excel import, UPI QR
+- Homework & Feed, Timetable (with teacher assignment), Examination (terms, subjects,
+  mark components → grade rollup)
+- Parent Portal (admission-number login, attendance/fee/homework summary, UPI QR pay)
+- CMS (pages + announcements) + per-tenant public website at the subdomain root
+- **Apex marketing site** — static `index.html` served at `tulipsedu.in` / `www` (2026-06-12)
+
+## Honest assessment: this is a CRUD amalgamation, not yet a workflow ERP
+
+Every module is a competent set of forms over its own tables, but the modules do not
+drive processes across each other. The connective tissue is missing:
+
+- **Events are write-only.** `core/events.py::emit()` only INSERTs into `audit_events`.
+  Producers fire (ATTENDANCE_MARKED, FEE_COLLECTED, EXAM_PUBLISHED, …) but **nothing
+  consumes them** — there is no event bus and no worker. The "event-driven architecture"
+  in CLAUDE.md has producers and no subscribers.
+- **No background worker** ("Background Jobs: TBD"). The 202/async mandate for SMS, email,
+  and PDF is therefore unfulfilled — those features simply don't exist (no absent alerts,
+  no fee reminders, no report-card PDFs).
+- **No lifecycle/state machines.** Records are flat. There is no admission pipeline, no
+  exam-term lifecycle (draft→open→locked→published), no fee escalation (due→overdue).
+- **No cross-module orchestration.** Creating a student doesn't assign fees or provision
+  parent access; there is no academic-year rollover (the flagship multi-step transaction
+  named in CLAUDE.md); approving an admission doesn't exist.
+- **No notifications table.** Parents must pull (log in and check); nothing is pushed.
+
+The transformation plan that closes this gap is the north-star section at the top of
+ROADMAP.md; the ordered work is the "Workflow ERP Transformation" TODO in BUILD.md, and
+the architectural decision is captured in ADR-010 below.
 
 ---
 
@@ -48,7 +66,8 @@ Driver: asyncpg
 Authentication: JWT (python-jose, HS256)
 Password Hashing: bcrypt (passlib)
 Config: pydantic-settings
-Background Jobs: TBD
+Background Jobs: NOT YET BUILT — see ADR-010 (event-bus worker). Until it exists, every
+SMS/email/PDF feature is blocked and domain events are audit-only (see Event Catalog note).
 
 ## Frontend
 
@@ -410,6 +429,21 @@ Grade scale (CBSE): A1≥91, A2≥81, B1≥71, B2≥61, C1≥51, C2≥41, D≥33
 
 # Event Catalog
 
+> **Current state: producers only.** `core/events.py::emit()` writes each event to
+> `audit_events` inside the state-changing transaction and stops there. No consumer reads
+> them, so today this is an audit log, not a bus. **Target (ADR-010):** a background worker
+> consumes events and dispatches to handlers (the "Producer → Triggers" column below is the
+> intended wiring, none of which is built yet).
+>
+> | Event | Should trigger (target) |
+> |---|---|
+> | ATTENDANCE_MARKED / _CORRECTED (absent) | parent absent-alert notification |
+> | FEE_COLLECTED | receipt notification to parent + reconciliation entry |
+> | EXAM_PUBLISHED *(new)* | report-card PDF generation + parent notification |
+> | HOMEWORK_ASSIGNED | parent "new homework" notification |
+> | FEE_INSTALLMENT_OVERDUE *(new, scheduled)* | fee reminder to parent |
+> | ADMISSION_APPROVED *(new)* | create student + assign fees + provision parent access |
+
 ## STAFF_AUTHENTICATED
 Producer: services/auth.py
 Payload: tenant_id, user_id
@@ -631,6 +665,37 @@ API: Async only (no blocking I/O in request handlers)
 * No PII in log output
 * Audit events are immutable (append-only)
 * File uploads via presigned URLs only (when implemented)
+
+---
+
+# Major Architectural Decisions
+
+## ADR-010 — Event-bus worker via transactional outbox (PROPOSED — needs approval)
+
+**Context:** `audit_events` is written by every state change but read by nothing. The
+event-driven architecture mandated by CLAUDE.md has producers and no subscribers, so no
+cross-module workflow, notification, or async (202) feature can exist.
+
+**Decision (proposed):** Adopt the **transactional outbox** pattern over the existing
+table — the producer already writes the event in the same transaction as the state change,
+which is exactly the outbox guarantee. Add dispatch bookkeeping (`status`,`attempts`,
+`processed_at`,`available_at`) and run a **single in-repo background worker** that claims
+unprocessed rows (`FOR UPDATE SKIP LOCKED`), dispatches to a handler registry, and marks
+them done/failed with retry/backoff. Start with Postgres polling (no new infra); add
+`LISTEN/NOTIFY` only if latency demands it. The same worker runs the **scheduler** for
+time-based triggers (fee due/overdue, daily digests).
+
+**Why not a queue broker (Redis/RabbitMQ/Celery):** violates the ₹2,000/month and
+single-codebase constraints; Postgres-as-queue is sufficient at 500–5,000 students/tenant.
+
+**Approval gates this trips (do NOT implement until cleared):**
+- Deployment topology — adds a `worker` service to `docker-compose.prod.yml`.
+- Schema change — outbox columns + `notifications` table (+ later admissions / lifecycle).
+- Dependencies — none required for the poller; PDF (report cards) and SMS/WhatsApp adapters
+  are separate gates (PDF lib = dependency; SMS = paid service).
+
+**Consequence:** unblocks every Phase-2 workflow (absent alerts, fee reminders, report
+cards, admissions orchestration, year rollover) on one shared mechanism.
 
 ---
 
