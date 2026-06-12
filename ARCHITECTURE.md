@@ -585,7 +585,11 @@ Status: Planned
 ```
 Internet
   ↓
-Nginx (subdomain routing: school1.tulipsedu.in)
+Cloudflare (DNS + proxy + Universal SSL, terminates browser TLS)
+  ↓
+Nginx (origin, host-based routing)
+  ├─ tulipsedu.in / www.tulipsedu.in  → static marketing landing page (index.html)
+  └─ <slug>.tulipsedu.in              → Preact SPA + /api proxy → FastAPI
   ↓
 FastAPI (port 8000)
   ↓
@@ -595,6 +599,13 @@ Background Workers (TBD)
   ↓
 Cloudflare R2
 ```
+
+Apex marketing site: a single self-contained `index.html` (inline CSS/JS, Google-CDN
+fonts) bind-mounted into the nginx container at `/usr/share/nginx/landing` and served by
+a dedicated `server_name tulipsedu.in www.tulipsedu.in` 443 block. Exact server_name
+matches win over the tenant regex block, so the apex serves marketing while every
+`*.tulipsedu.in` subdomain continues to serve the SPA (still the nginx default server).
+No backend, migration, dependency, or cert change — the existing origin cert is reused.
 
 Local dev: `docker compose up postgres` + `uvicorn main:app --reload --port 8000` + `npm run dev`
 

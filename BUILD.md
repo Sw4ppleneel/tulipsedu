@@ -33,6 +33,40 @@ In Progress: Sprint 2 COMPLETE + public school website. Ready to deploy.
 
 ---
 
+# Apex Marketing Landing Page (COMPLETED 2026-06-12, DEPLOYED)
+
+The repo-root `index.html` is now the public marketing site for the apex domain
+(`tulipsedu.in` + `www`), distinct from the per-tenant SPA at `*.tulipsedu.in`.
+
+Problem: apex/www had no nginx server block, so they fell through to the tenant SPA
+block (nginx default server) and served the broken Preact shell with no tenant.
+
+Built (infra only — no backend/migration/dependency/cert change):
+- nginx.prod.conf: new `server_name tulipsedu.in www.tulipsedu.in` 443 block, root
+  `/usr/share/nginx/landing`, HTML no-cache, reuses the existing origin cert. Exact
+  server_name beats the tenant regex; tenant block stays the 443 default. Apex/www also
+  added to the port-80 → HTTPS redirect block.
+- docker-compose.prod.yml: bind-mounts `./index.html` → `/usr/share/nginx/landing/index.html:ro`.
+- index.html: self-contained landing page (inline CSS/JS, Google-CDN fonts, offline-
+  attendance interactive demo). Chalkboard-green / tulip-red theme, system-font body.
+
+Deployed: scp'd to ~/tulips, `nginx -t` clean, `docker compose up -d nginx`.
+Verified PUBLICLY through Cloudflare:
+- https://tulipsedu.in       → "Tulips — Run your school from one place" (HTTP 200)
+- https://www.tulipsedu.in   → same marketing page
+- https://daffodils.tulipsedu.in → still the SPA ("Tulips.edu"), /health 200 (proxy intact)
+
+CTAs wired (2026-06-12): Book-a-demo buttons → `https://wa.me/917979732854` (prefilled
+demo message, opens new tab); Email us → `mailto:swapneel.bit@gmail.com`. Redeployed and
+verified live through Cloudflare. (Cloudflare Scrape Shield obfuscates the mailto into
+`/cdn-cgi/l/email-protection#…` for scrapers — it decodes to the real address in a real
+browser, so the link works for visitors.)
+
+OPEN (optional): switch Email us to a branded `contact@tulipsedu.in` once Cloudflare
+Email Routing is enabled (free; forwards to the Gmail). One-line index.html edit + re-scp.
+
+---
+
 # Public School Website + Path Routing (COMPLETED 2026-06-05)
 
 Decision: path-based routing (no new subdomains/cert). One-page CMS-driven site.
