@@ -41,11 +41,26 @@ fee installment lifecycle + W10 admissions pipeline.
 
 ---
 
-# 🟡 IN PROGRESS 2026-06-13 — Role-portal framework + daily-attendance directive
+# ✅ DEPLOYED 2026-06-13 — Role portals + design system + daily attendance
 
 Directive: Tulips.edu = multiple role-specific apps over one backend, composed from
-permissions (see ARCHITECTURE.md + memory role-based-portal-framework). Attendance = strict
-DAILY model (one record/student/day, no period/subject attendance).
+permissions (see ARCHITECTURE.md + memory role-based-portal-framework), all sharing ONE
+design system inherited from the landing page. Attendance = strict DAILY model.
+
+## Unified design system + dedicated portals — DEPLOYED
+- [x] globals.css repointed to the landing brand identity (chalkboard green / tulip /
+      marigold on paper; Bricolage+Figtree via CDN, display=swap + system fallback). Stable
+      token names → existing views reskinned automatically; hardcoded hex swept to tokens.
+- [x] Shared primitives `frontend/src/ui/`: Brand (text wordmark + configurable logoUrl —
+      NO placeholder T, no generated logo), Button, Card, Badge, SectionTile, Spinner,
+      Empty/Error states.
+- [x] `PortalShell` + big-button `PortalHome`: startup = section tiles, click opens a
+      dedicated page with back-to-home. `buildPortalConfig` resolves role → Principal/
+      Vice-Principal (full, feature-gated), Teacher, Accountant (Fees), SuperAdmin (Platform).
+      app.tsx routes all staff through StaffPortal; old AppShell/TeacherShell removed.
+- [x] Deployed: rsync → build backend+worker → up backend+worker (no migration) →
+      frontend_build → nginx. Live: apex/SPA 200, new bundle served, teacher route 401,
+      4 containers healthy. Logo = configurable text wordmark (final logo drops in via logoUrl).
 
 ## Attendance directive — DONE (backend, verified local)
 - [x] Core daily model already compliant (sessions unique per class/section/day; upsert mark;

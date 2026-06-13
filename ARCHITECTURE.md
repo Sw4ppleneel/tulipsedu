@@ -648,7 +648,15 @@ backend remains the real authorization boundary via `require_roles` + `load_clas
 Teacher attendance is the **daily** Indian K-12 model (one record/student/day; no
 period/subject attendance). Sessions lock at end of their IST calendar day; after lock only
 principal/admin may edit and each edit emits `ATTENDANCE_OVERRIDE` (→ absent_alert, dedup-safe).
-Full per-role portal split (accountant shell, permission-driven module loading) is in progress.
+
+**Design system:** the public landing page (`index.html`) is the single source of truth for
+the visual language. All portals inherit one token set in `frontend/src/globals.css`
+(chalkboard-green primary, tulip accent, marigold; Bricolage Grotesque + Figtree via CDN with
+`display=swap` + system fallback) and one primitive library in `frontend/src/ui/` (Brand,
+Button, Card, Badge, SectionTile, Spinner, Empty/Error states). No second visual language,
+no Material/Bootstrap/etc. Each portal's startup is a **big-button launcher** (`PortalHome`)
+whose tiles open dedicated pages. Logo = configurable text wordmark (`Brand`, swappable via
+`logoUrl` from tenant settings — no placeholder/generated image).
 
 # Deployment Topology
 
