@@ -41,7 +41,7 @@ fee installment lifecycle + W10 admissions pipeline.
 
 ---
 
-# ✅ CHECKPOINT 2026-06-13 — Workflow Spine BUILT + VERIFIED (deploy pending approval)
+# ✅ CHECKPOINT 2026-06-13 — Workflow Spine BUILT + VERIFIED + DEPLOYED TO PROD
 
 Approved plan: `~/.claude/plans/elegant-jumping-widget.md` (scope: spine + first
 workflows). ADR-010 amended during planning: audit_events stays immutable; worker uses
@@ -72,11 +72,17 @@ a **cursor table + DLQ** (NOT outbox columns). `tenants.feature_flags` already e
       flow6 overdue scan+no-repeat · flow7 DLQ poison parks & stream advances · flow8 tenant
       isolation. Plus RBAC matrix (parent/none→403, staff/superadmin→ALLOW) + app imports + 90 routes.
 
-## Remaining (task 8 — gated)
-- [ ] Task 8 (⛔ outward-facing): deploy to prod — scp/rsync → `compose build backend worker`
-      → `up -d backend` (applies 024) → verify schema_migrations → `up -d worker` (watch logs:
-      cursor at head, no replay) → `run --rm frontend_build` → `up -d nginx` → spot-check
-      flows 2–5 on a pilot school. Awaiting user go-ahead.
+## Task 8 — DEPLOYED to prod 2026-06-13 ✅
+- [x] rsync `~/Tulips.edu` → `swap@62.72.13.103:~/tulips` (excluded backend/.env + artifacts);
+      `compose build backend worker`; `up -d backend` applied **024 to prod** (worker_cursors
+      bootstrapped at head=86, no replay); `up -d worker`; `run --rm frontend_build`
+      (173 kB/45 kB gzip, new bundle served); `up -d nginx`.
+- [x] Live verification: apex + tenant SPA → 200; `/me/features`, `/notifications`,
+      `/parent/notifications` → 401 unauth (routes wired, not 404). Worker's first
+      `fee_overdue_scan` created **725 FEE_OVERDUE in-app reminders across 4 tenants** (one-time,
+      reminded_at now suppresses repeats); DLQ clean (0); 4 containers healthy, no errors.
+- Event-driven handlers (absent/receipt/homework/exam) will fire as staff use the system;
+  verified locally 11/11. Not artificially triggered in prod (would notify real parents).
 
 ---
 
