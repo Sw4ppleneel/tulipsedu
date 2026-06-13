@@ -2,6 +2,7 @@ import { useEffect, useState } from 'preact/hooks'
 import { VirtualList } from '../components/VirtualList'
 import { listStaff } from '../api/staff'
 import { StaffForm } from './StaffForm'
+import { ExcelImport } from '../ui'
 import type { Staff } from '../types/staff'
 
 const ROW_H = 52
@@ -84,12 +85,19 @@ export function StaffView() {
           <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>Staff</h2>
           {!loading && <p style={{ margin: '0.25rem 0 0', fontSize: '0.8rem', color: '#6b7280' }}>{total} member{total !== 1 ? 's' : ''}</p>}
         </div>
-        <button
-          onClick={() => setShowForm(true)}
-          style={{ padding: '0.5rem 1rem', background: '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem', fontWeight: 500 }}
-        >
-          + Add Staff
-        </button>
+        <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
+          <ExcelImport
+            endpoint="/staff/import"
+            columns="Employee No, First Name, Last Name, Phone, Designation, Date of Joining"
+            onImported={load}
+          />
+          <button
+            onClick={() => setShowForm(true)}
+            style={{ padding: '0.5rem 1rem', background: '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem', fontWeight: 500 }}
+          >
+            + Add Staff
+          </button>
+        </div>
       </div>
 
       {showForm && (

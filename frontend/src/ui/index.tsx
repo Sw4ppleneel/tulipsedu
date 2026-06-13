@@ -7,6 +7,7 @@
  */
 import type { ComponentChildren, JSX } from 'preact'
 export { Icon, type IconName } from './icons'
+export { ExcelImport } from './ExcelImport'
 
 // ── Brand wordmark ───────────────────────────────────────────────────────────
 // Logo policy: no placeholder image and no generated logo. Render a text wordmark

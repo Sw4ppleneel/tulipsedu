@@ -2,6 +2,7 @@ import { useEffect, useState } from 'preact/hooks'
 import { VirtualList } from '../components/VirtualList'
 import { listAcademicYears, listClasses, listStudents } from '../api/students'
 import { StudentForm } from './StudentForm'
+import { ExcelImport } from '../ui'
 import type { AcademicYear, Class, Student, StudentFilters } from '../types/student'
 
 const ROW_HEIGHT = 56
@@ -114,12 +115,21 @@ export function StudentsView() {
             </p>
           )}
         </div>
-        <button
-          onClick={() => setShowForm(true)}
-          style={{ padding: '0.5rem 1rem', background: '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem', fontWeight: 500 }}
-        >
-          + Add Student
-        </button>
+        <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
+          <ExcelImport
+            endpoint="/students/import"
+            query={{ academic_year_id: filters.academic_year_id }}
+            columns="Admission No, First Name, Last Name, Class, Section, Roll No, Date of Birth, Gender, Parent Phone (optional: Hosteler, Transport)"
+            disabledReason={filters.academic_year_id ? undefined : 'Select an academic year first.'}
+            onImported={() => setFilters((f) => ({ ...f }))}
+          />
+          <button
+            onClick={() => setShowForm(true)}
+            style={{ padding: '0.5rem 1rem', background: '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem', fontWeight: 500 }}
+          >
+            + Add Student
+          </button>
+        </div>
       </div>
 
       {/* Add form */}
