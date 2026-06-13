@@ -26,6 +26,7 @@ export function StudentForm({ academicYears, classes, onCreated, onCancel }: Pro
     gender: 'Male',
     parent_phone: '',
     is_hosteler: false,
+    is_transport: false,
   })
   const [sections, setSections] = useState<Section[]>([])
   const [loading, setLoading] = useState(false)
@@ -152,14 +153,15 @@ export function StudentForm({ academicYears, classes, onCreated, onCancel }: Pro
           <input type="tel" value={form.parent_phone} onInput={(e) => set('parent_phone', (e.target as HTMLInputElement).value)} style={INPUT} placeholder="9876543210" maxLength={10} required />
         </div>
 
-        <div style={{ ...ROW, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <input
-            type="checkbox"
-            id="is_hosteler"
-            checked={form.is_hosteler}
-            onChange={(e) => set('is_hosteler', (e.target as HTMLInputElement).checked)}
-          />
-          <label for="is_hosteler" style={{ fontSize: '0.875rem', color: '#444', cursor: 'pointer' }}>Day boarder / Hosteler</label>
+        <div style={{ ...ROW, display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', color: '#444', cursor: 'pointer' }}>
+            <input type="checkbox" checked={form.is_hosteler} onChange={(e) => set('is_hosteler', (e.target as HTMLInputElement).checked)} />
+            Day boarder / Hosteler
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', color: '#444', cursor: 'pointer' }}>
+            <input type="checkbox" checked={form.is_transport ?? false} onChange={(e) => set('is_transport', (e.target as HTMLInputElement).checked)} />
+            Uses school transport
+          </label>
         </div>
 
         <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem' }}>

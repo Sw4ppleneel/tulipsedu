@@ -37,6 +37,7 @@ export interface Student {
   gender: string
   parent_phone: string
   is_hosteler: boolean
+  is_transport: boolean
   is_active: boolean
   created_at: string
   class_name: string | null
@@ -61,6 +62,7 @@ export interface StudentCreate {
   gender: string
   parent_phone: string
   is_hosteler: boolean
+  is_transport?: boolean
 }
 
 export interface StudentFilters {

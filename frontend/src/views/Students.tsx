@@ -1,14 +1,38 @@
 import { useEffect, useState } from 'preact/hooks'
 import { VirtualList } from '../components/VirtualList'
-import { listAcademicYears, listClasses, listStudents } from '../api/students'
+import { listAcademicYears, listClasses, listStudents, updateStudent } from '../api/students'
 import { StudentForm } from './StudentForm'
 import { ExcelImport } from '../ui'
 import type { AcademicYear, Class, Student, StudentFilters } from '../types/student'
 
+type FlagField = 'is_transport' | 'is_hosteler'
+
+// Inline pill toggle for a student flag — filled when on, outlined when off.
+function FlagChip({ on, label, busy, onClick }: { on: boolean; label: string; busy: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick} disabled={busy} title={`Toggle ${label}`}
+      style={{
+        padding: '2px 9px', borderRadius: 9999, fontSize: '0.68rem', fontWeight: 600,
+        cursor: busy ? 'default' : 'pointer', fontFamily: 'inherit', opacity: busy ? 0.5 : 1,
+        border: on ? '1px solid transparent' : '1px solid var(--gray-300)',
+        background: on ? 'var(--c-primary-lt)' : 'transparent',
+        color: on ? 'var(--c-primary)' : 'var(--gray-400)',
+      }}
+    >
+      {label}
+    </button>
+  )
+}
+
 const ROW_HEIGHT = 56
 const LIST_HEIGHT = 520
 
-function StudentRow({ student }: { student: Student }) {
+function StudentRow({ student, busy, onToggle }: {
+  student: Student
+  busy: boolean
+  onToggle: (id: string, field: FlagField, value: boolean) => void
+}) {
   return (
     <div style={{
       height: ROW_HEIGHT,
@@ -29,12 +53,9 @@ function StudentRow({ student }: { student: Student }) {
       <span style={{ width: 110, color: '#6b7280', flexShrink: 0 }}>{student.admission_no}</span>
       <span style={{ width: 70, color: '#6b7280', flexShrink: 0 }}>{student.gender}</span>
       <span style={{ width: 110, color: '#6b7280', flexShrink: 0 }}>{student.parent_phone}</span>
-      <span style={{ width: 80, textAlign: 'right', flexShrink: 0 }}>
-        {student.is_hosteler && (
-          <span style={{ padding: '2px 7px', background: '#e0f2fe', color: '#0369a1', borderRadius: 9999, fontSize: '0.7rem', fontWeight: 600 }}>
-            Hosteler
-          </span>
-        )}
+      <span style={{ width: 168, display: 'flex', gap: '0.35rem', justifyContent: 'flex-end', flexShrink: 0 }}>
+        <FlagChip on={student.is_transport} label="Transport" busy={busy} onClick={() => onToggle(student.id, 'is_transport', !student.is_transport)} />
+        <FlagChip on={student.is_hosteler} label="Hosteler" busy={busy} onClick={() => onToggle(student.id, 'is_hosteler', !student.is_hosteler)} />
       </span>
     </div>
   )
@@ -52,7 +73,7 @@ function TableHeader() {
       <span style={{ width: 110, flexShrink: 0 }}>ADMISSION NO</span>
       <span style={{ width: 70, flexShrink: 0 }}>GENDER</span>
       <span style={{ width: 110, flexShrink: 0 }}>PARENT PHONE</span>
-      <span style={{ width: 80, flexShrink: 0 }}></span>
+      <span style={{ width: 168, flexShrink: 0, textAlign: 'right' }}>TRANSPORT · HOSTEL</span>
     </div>
   )
 }
@@ -85,6 +106,24 @@ export function StudentsView() {
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
   }, [filters])
+
+  const [togglingId, setTogglingId] = useState('')
+
+  // Flip a student flag (transport/hosteler) inline. Optimistic, reverts on error.
+  // NOTE: changing is_transport only affects future ledger generation — re-run
+  // "Generate Ledger" to apply/remove the transport fee for newly-flagged students.
+  async function onToggleFlag(id: string, field: FlagField, value: boolean) {
+    setTogglingId(id); setError('')
+    setStudents((prev) => prev.map((s) => (s.id === id ? { ...s, [field]: value } : s)))
+    try {
+      await updateStudent(id, { [field]: value })
+    } catch (e) {
+      setStudents((prev) => prev.map((s) => (s.id === id ? { ...s, [field]: !value } : s)))
+      setError(e instanceof Error ? e.message : 'Update failed')
+    } finally {
+      setTogglingId('')
+    }
+  }
 
   const selectedClass = classes.find((c) => c.id === filters.class_id)
   const sections = selectedClass?.sections ?? []
@@ -179,11 +218,11 @@ export function StudentsView() {
               rowHeight={ROW_HEIGHT}
               containerHeight={LIST_HEIGHT}
               keyFn={(s) => s.id}
-              renderRow={(s) => <StudentRow student={s} />}
+              renderRow={(s) => <StudentRow student={s} busy={togglingId === s.id} onToggle={onToggleFlag} />}
             />
           ) : (
             <div>
-              {students.map((s) => <StudentRow key={s.id} student={s} />)}
+              {students.map((s) => <StudentRow key={s.id} student={s} busy={togglingId === s.id} onToggle={onToggleFlag} />)}
             </div>
           )}
         </div>
