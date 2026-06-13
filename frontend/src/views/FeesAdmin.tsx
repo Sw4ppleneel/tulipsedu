@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'preact/hooks'
 import {
-  createOrder, getOutstanding, getPaymentLogs, getStudentLedger,
-  listFeeHeads, listSchedules, mockComplete, pollPayment, sendReminders,
+  collectOffline, getOutstanding, getPaymentLogs, getStudentLedger,
+  listFeeHeads, listSchedules, sendReminders,
 } from '../api/finance'
 import { listAcademicYears, listClasses } from '../api/students'
 import type { AcademicYear, Class } from '../types/student'

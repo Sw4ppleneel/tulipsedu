@@ -109,3 +109,13 @@ export function approvePayment(id: string): Promise<{ status: string; receipt_nu
 export function rejectPayment(id: string, reason: string): Promise<void> {
   return request<void>(`/fees/payments/${id}/reject`, { method: 'POST', body: JSON.stringify({ reason }) })
 }
+
+// ── Office (offline) fee collection: cash/cheque/upi/bank — marks paid + receipt ──
+export function collectOffline(data: {
+  student_id: string
+  ledger_ids: string[]
+  method: 'cash' | 'cheque' | 'upi' | 'bank_transfer' | 'card'
+  reference_no?: string
+}): Promise<{ payment_id: string; receipt_number: string }> {
+  return request('/fees/collect', { method: 'POST', body: JSON.stringify(data) })
+}
