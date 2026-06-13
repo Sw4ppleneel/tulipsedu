@@ -87,12 +87,12 @@ function StructureTab({ years }: { years: AcademicYear[] }) {
           <button
             onClick={upload}
             disabled={!xlsxFile || !yearId || busy}
-            style={{ padding: '0.375rem 0.875rem', background: (!xlsxFile || !yearId || busy) ? '#9ca3af' : '#059669', color: '#fff', border: 'none', borderRadius: 4, cursor: (!xlsxFile || !yearId || busy) ? 'default' : 'pointer', fontSize: '0.8rem', fontWeight: 600 }}
+            style={{ padding: '0.375rem 0.875rem', background: (!xlsxFile || !yearId || busy) ? '#9ca3af' : '#1F8A5D', color: '#fff', border: 'none', borderRadius: 4, cursor: (!xlsxFile || !yearId || busy) ? 'default' : 'pointer', fontSize: '0.8rem', fontWeight: 600 }}
           >
             {busy ? 'Applying…' : 'Upload & Apply'}
           </button>
         </div>
-        {result && <p style={{ margin: '0.75rem 0 0', fontSize: '0.78rem', color: '#059669', fontWeight: 600 }}>{result}</p>}
+        {result && <p style={{ margin: '0.75rem 0 0', fontSize: '0.78rem', color: '#1F8A5D', fontWeight: 600 }}>{result}</p>}
       </div>
 
       {/* Read-only view of what is configured */}
@@ -119,7 +119,7 @@ function StructureTab({ years }: { years: AcademicYear[] }) {
               <div key={s.id} style={{ display: 'flex', padding: '0.5rem 0.875rem', borderBottom: '1px solid #f3f4f6', gap: '0.5rem', fontSize: '0.8rem', alignItems: 'center' }}>
                 <span style={{ flex: 1 }}>{s.fee_head_name}</span>
                 <span style={{ color: '#6b7280', width: 80 }}>{s.class_name ?? 'All Classes'}</span>
-                <span style={{ fontWeight: 700, color: '#1a56db', width: 80, textAlign: 'right' }}>{fmt(s.amount)}</span>
+                <span style={{ fontWeight: 700, color: '#14463A', width: 80, textAlign: 'right' }}>{fmt(s.amount)}</span>
               </div>
             ))}
           </div>
@@ -269,19 +269,19 @@ function CollectTab() {
     <div style={{ maxWidth: 560 }}>
       <form onSubmit={loadStudent} style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
         <input value={admNo} onInput={(e) => setAdmNo((e.target as HTMLInputElement).value)} placeholder="Admission number" style={{ ...INP, flex: 1 }} required />
-        <button type="submit" disabled={loading} style={{ padding: '0.5rem 1rem', background: '#1a56db', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem' }}>Load</button>
+        <button type="submit" disabled={loading} style={{ padding: '0.5rem 1rem', background: '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem' }}>Load</button>
       </form>
 
       {ledger && (
         <div>
           <p style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.75rem' }}>{ledger.student_name} · {ledger.admission_no} · {ledger.class_section}</p>
           <p style={{ fontSize: '0.8rem', color: '#6b7280', marginBottom: '0.5rem' }}>Select months to pay:</p>
-          {ledger.pending.length === 0 && <p style={{ fontSize: '0.8rem', color: '#059669' }}>✓ No pending dues</p>}
+          {ledger.pending.length === 0 && <p style={{ fontSize: '0.8rem', color: '#1F8A5D' }}>✓ No pending dues</p>}
           {ledger.pending.map((e) => (
             <label key={e.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0', borderBottom: '1px solid #f3f4f6', fontSize: '0.8rem', cursor: 'pointer' }}>
               <input type="checkbox" checked={selected.has(e.id)} onChange={(ev) => setSelected((p) => { const n = new Set(p); (ev.target as HTMLInputElement).checked ? n.add(e.id) : n.delete(e.id); return n })} />
               <span style={{ flex: 1 }}>{periodLabel(e.period_month, e.period_year)} — {e.fee_head_name}</span>
-              <span style={{ fontWeight: 700, color: '#1a56db' }}>{fmt(e.amount_due)}</span>
+              <span style={{ fontWeight: 700, color: '#14463A' }}>{fmt(e.amount_due)}</span>
             </label>
           ))}
           {selected.size > 0 && (
@@ -289,12 +289,12 @@ function CollectTab() {
               <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.75rem' }}>
                 <span style={{ fontSize: '0.875rem' }}>Gateway:</span>
                 {(['razorpay', 'phonepe', 'mock'] as const).map((g) => (
-                  <button key={g} onClick={() => setGateway(g)} style={{ padding: '0.25rem 0.75rem', background: gateway === g ? '#1a56db' : '#f3f4f6', color: gateway === g ? '#fff' : '#374151', border: '1px solid #d1d5db', borderRadius: 4, cursor: 'pointer', fontSize: '0.8rem' }}>
+                  <button key={g} onClick={() => setGateway(g)} style={{ padding: '0.25rem 0.75rem', background: gateway === g ? '#14463A' : '#f3f4f6', color: gateway === g ? '#fff' : '#374151', border: '1px solid #d1d5db', borderRadius: 4, cursor: 'pointer', fontSize: '0.8rem' }}>
                     {g === 'mock' ? 'Test (Mock)' : g.charAt(0).toUpperCase() + g.slice(1)}
                   </button>
                 ))}
               </div>
-              <button onClick={pay} disabled={loading || !!order} style={{ padding: '0.625rem 1.25rem', background: '#059669', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600 }}>
+              <button onClick={pay} disabled={loading || !!order} style={{ padding: '0.625rem 1.25rem', background: '#1F8A5D', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600 }}>
                 Pay {fmt(totalSelected)} ({selected.size} item{selected.size !== 1 ? 's' : ''})
               </button>
             </div>
@@ -303,14 +303,14 @@ function CollectTab() {
             <div style={{ marginTop: '1rem', padding: '1rem', background: '#f5f7ff', borderRadius: 6, fontSize: '0.85rem' }}>
               {order.payment_url && gateway !== 'mock' && (
                 <p>
-                  <a href={order.payment_url} target="_blank" rel="noreferrer" style={{ color: '#1a56db', fontWeight: 600 }}>Open Payment Page ↗</a>
+                  <a href={order.payment_url} target="_blank" rel="noreferrer" style={{ color: '#14463A', fontWeight: 600 }}>Open Payment Page ↗</a>
                   {pollingId && <span style={{ color: '#9ca3af', marginLeft: '0.5rem' }}>Waiting for payment…</span>}
                 </p>
               )}
               {status === 'paid' && (
-                <div style={{ color: '#065f46', fontWeight: 600, marginTop: '0.5rem' }}>
+                <div style={{ color: '#0D332A', fontWeight: 600, marginTop: '0.5rem' }}>
                   ✓ Payment successful!{' '}
-                  <a href={receiptUrl} target="_blank" rel="noreferrer" style={{ color: '#1a56db' }}>View Receipt ↗</a>
+                  <a href={receiptUrl} target="_blank" rel="noreferrer" style={{ color: '#14463A' }}>View Receipt ↗</a>
                 </div>
               )}
             </div>
@@ -330,8 +330,8 @@ function LogsTab() {
     getPaymentLogs(200).then((r) => setLogs(r as any)).finally(() => setLoading(false))
   }, [])
 
-  const STATUS_COLORS: Record<string, string> = { paid: '#065f46', pending: '#92400e', failed: '#991b1b', processing: '#1e40af' }
-  const STATUS_BG: Record<string, string>     = { paid: '#d1fae5', pending: '#fef3c7', failed: '#fee2e2', processing: '#dbeafe' }
+  const STATUS_COLORS: Record<string, string> = { paid: '#0D332A', pending: '#92400e', failed: '#991b1b', processing: '#0D332A' }
+  const STATUS_BG: Record<string, string>     = { paid: '#d1fae5', pending: '#fef3c7', failed: '#fee2e2', processing: '#E7EFEA' }
 
   return (
     <div>
@@ -348,7 +348,7 @@ function LogsTab() {
           {logs.length === 0 && <p style={{ padding: '2rem', textAlign: 'center', color: '#9ca3af', fontSize: '0.875rem' }}>No payment records yet.</p>}
           {logs.map((p: any) => (
             <div key={p.id} style={{ display: 'flex', padding: '0.5rem 1rem', borderBottom: '1px solid #f3f4f6', gap: '0.75rem', fontSize: '0.8rem', alignItems: 'center' }}>
-              <span style={{ width: 120, fontWeight: p.receipt_number ? 600 : 400, color: p.receipt_number ? '#1a56db' : '#9ca3af' }}>
+              <span style={{ width: 120, fontWeight: p.receipt_number ? 600 : 400, color: p.receipt_number ? '#14463A' : '#9ca3af' }}>
                 {p.receipt_number ? (
                   <a href={`/api/v1/payments/${p.id}/receipt`} target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>{p.receipt_number}</a>
                 ) : '—'}
@@ -386,8 +386,8 @@ export function FeesAdminView() {
   ]
 
   const TAB_BTN = (active: boolean): preact.JSX.CSSProperties => ({
-    padding: '0.375rem 0.875rem', border: 'none', borderBottom: active ? '2px solid #1a56db' : '2px solid transparent',
-    background: 'none', color: active ? '#1a56db' : '#6b7280', cursor: 'pointer', fontSize: '0.875rem', fontWeight: active ? 600 : 400,
+    padding: '0.375rem 0.875rem', border: 'none', borderBottom: active ? '2px solid #14463A' : '2px solid transparent',
+    background: 'none', color: active ? '#14463A' : '#6b7280', cursor: 'pointer', fontSize: '0.875rem', fontWeight: active ? 600 : 400,
   })
 
   return (

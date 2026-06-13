@@ -15,8 +15,8 @@ const CELL: preact.JSX.CSSProperties = {
 function SlotCell({ slot, onDelete }: { slot: TimetableSlot | undefined; onDelete?: () => void }) {
   if (!slot) return <td style={{ ...CELL, background: '#fafafa' }} />
   return (
-    <td style={{ ...CELL, background: '#eff6ff', position: 'relative' }}>
-      <div style={{ fontWeight: 600, color: '#1e40af', marginBottom: 2 }}>{slot.subject}</div>
+    <td style={{ ...CELL, background: '#EDF3EE', position: 'relative' }}>
+      <div style={{ fontWeight: 600, color: '#0D332A', marginBottom: 2 }}>{slot.subject}</div>
       {slot.staff_name && <div style={{ color: '#6b7280' }}>{slot.staff_name}</div>}
       {slot.room && <div style={{ color: '#9ca3af' }}>Rm {slot.room}</div>}
       <div style={{ color: '#9ca3af' }}>{slot.start_time.slice(0, 5)}–{slot.end_time.slice(0, 5)}</div>
@@ -90,7 +90,7 @@ function SlotForm({
       </div>
       {err && <p style={{ color: '#ef4444', fontSize: '0.75rem', margin: '0 0 0.5rem' }}>{err}</p>}
       <div style={{ display: 'flex', gap: '0.5rem' }}>
-        <button type="submit" disabled={saving} style={{ padding: '0.4rem 1rem', background: '#1a56db', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.8rem' }}>
+        <button type="submit" disabled={saving} style={{ padding: '0.4rem 1rem', background: '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.8rem' }}>
           {saving ? 'Saving…' : 'Add Slot'}
         </button>
         <button type="button" onClick={onCancel} style={{ padding: '0.4rem 0.875rem', background: 'none', border: '1px solid #d1d5db', borderRadius: 4, cursor: 'pointer', fontSize: '0.8rem', color: '#374151' }}>
@@ -165,7 +165,7 @@ export function TimetableView() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
         <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#111827' }}>Timetable</h2>
         {timetable && (
-          <button onClick={() => setShowForm(s => !s)} style={{ padding: '0.4rem 1rem', background: '#1a56db', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem' }}>
+          <button onClick={() => setShowForm(s => !s)} style={{ padding: '0.4rem 1rem', background: '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem' }}>
             {showForm ? 'Cancel' : '+ Add Slot'}
           </button>
         )}

@@ -19,7 +19,7 @@ function StudentRow({ student }: { student: Student }) {
       fontSize: '0.8rem',
       background: '#fff',
     }}>
-      <span style={{ width: 52, fontWeight: 700, color: '#1a56db', flexShrink: 0 }}>
+      <span style={{ width: 52, fontWeight: 700, color: '#14463A', flexShrink: 0 }}>
         #{student.roll_number}
       </span>
       <span style={{ flex: 1, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -116,7 +116,7 @@ export function StudentsView() {
         </div>
         <button
           onClick={() => setShowForm(true)}
-          style={{ padding: '0.5rem 1rem', background: '#1a56db', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem', fontWeight: 500 }}
+          style={{ padding: '0.5rem 1rem', background: '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem', fontWeight: 500 }}
         >
           + Add Student
         </button>

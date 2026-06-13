@@ -45,7 +45,7 @@ function PayModal({ upi, schoolName, amount, note, onClose }: {
         <div style={{ fontSize: '.7rem', color: '#9ca3af', margin: '.5rem 0 .875rem' }}>
           Scan with Google Pay · PhonePe · Paytm · BHIM
         </div>
-        <a href={uri} style={{ display: 'block', background: '#059669', color: '#fff', padding: '.7rem', borderRadius: 8, textDecoration: 'none', fontWeight: 700, fontSize: '.95rem', marginBottom: '.5rem' }}>
+        <a href={uri} style={{ display: 'block', background: '#1F8A5D', color: '#fff', padding: '.7rem', borderRadius: 8, textDecoration: 'none', fontWeight: 700, fontSize: '.95rem', marginBottom: '.5rem' }}>
           Open UPI app ↗
         </a>
         <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b7280', fontSize: '.82rem', cursor: 'pointer', padding: '.25rem', fontFamily: 'inherit' }}>
@@ -172,7 +172,7 @@ function FeeBreakdown({ studentId, totalBalance, upi, schoolName }: {
           {upi && totalBalance > 0 && !open && (
             <button
               onClick={e => { e.stopPropagation(); setPay({ amount: totalBalance, note: `${schoolName} — All Fees` }) }}
-              style={{ background: '#059669', color: '#fff', border: 'none', borderRadius: 6, padding: '.35rem .7rem', fontSize: '.75rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+              style={{ background: '#1F8A5D', color: '#fff', border: 'none', borderRadius: 6, padding: '.35rem .7rem', fontSize: '.75rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
             >
               Pay all
             </button>
@@ -194,7 +194,7 @@ function FeeBreakdown({ studentId, totalBalance, upi, schoolName }: {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '.5rem 1rem', background: '#f9fafb', borderBottom: '1px solid #f3f4f6' }}>
                   <button
                     onClick={allSelected ? clearAll : selectAll}
-                    style={{ fontSize: '.72rem', color: '#1a56db', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, padding: 0, fontFamily: 'inherit' }}
+                    style={{ fontSize: '.72rem', color: '#14463A', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, padding: 0, fontFamily: 'inherit' }}
                   >
                     {allSelected ? 'Deselect all' : 'Select all pending'}
                   </button>
@@ -211,9 +211,9 @@ function FeeBreakdown({ studentId, totalBalance, upi, schoolName }: {
                     {/* Month header row */}
                     <div
                       onClick={() => toggleGroup(group)}
-                      style={{ display: 'flex', alignItems: 'center', padding: '.5rem 1rem', gap: '.625rem', cursor: 'pointer', background: groupSelected ? '#eff6ff' : '#fff' }}
+                      style={{ display: 'flex', alignItems: 'center', padding: '.5rem 1rem', gap: '.625rem', cursor: 'pointer', background: groupSelected ? '#EDF3EE' : '#fff' }}
                     >
-                      <div style={{ width: 18, height: 18, borderRadius: 4, border: `2px solid ${groupSelected ? '#1a56db' : '#d1d5db'}`, background: groupSelected ? '#1a56db' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <div style={{ width: 18, height: 18, borderRadius: 4, border: `2px solid ${groupSelected ? '#14463A' : '#d1d5db'}`, background: groupSelected ? '#14463A' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                         {groupSelected && <span style={{ color: '#fff', fontSize: 11, fontWeight: 900, lineHeight: 1 }}>✓</span>}
                       </div>
                       <span style={{ flex: 1, fontWeight: 600, fontSize: '.82rem', color: '#374151' }}>{group.label}</span>
@@ -228,10 +228,10 @@ function FeeBreakdown({ studentId, totalBalance, upi, schoolName }: {
                         <div
                           key={entry.id}
                           onClick={() => !isPaid && toggleEntry(entry.id)}
-                          style={{ display: 'flex', alignItems: 'center', padding: '.4rem 1rem .4rem 2.75rem', gap: '.5rem', cursor: isPaid ? 'default' : 'pointer', background: isSel ? '#f0f9ff' : '#fff' }}
+                          style={{ display: 'flex', alignItems: 'center', padding: '.4rem 1rem .4rem 2.75rem', gap: '.5rem', cursor: isPaid ? 'default' : 'pointer', background: isSel ? '#EDF3EE' : '#fff' }}
                         >
                           {!isPaid && (
-                            <div style={{ width: 15, height: 15, borderRadius: 3, border: `2px solid ${isSel ? '#1a56db' : '#d1d5db'}`, background: isSel ? '#1a56db' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <div style={{ width: 15, height: 15, borderRadius: 3, border: `2px solid ${isSel ? '#14463A' : '#d1d5db'}`, background: isSel ? '#14463A' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                               {isSel && <span style={{ color: '#fff', fontSize: 9, fontWeight: 900, lineHeight: 1 }}>✓</span>}
                             </div>
                           )}
@@ -240,7 +240,7 @@ function FeeBreakdown({ studentId, totalBalance, upi, schoolName }: {
                           <span style={{ fontSize: '.78rem', fontWeight: 600, color: isPaid ? '#9ca3af' : '#374151', textDecoration: isPaid ? 'line-through' : 'none' }}>
                             {inr(entry.amount_due)}
                           </span>
-                          {isPaid && <span style={{ fontSize: '.62rem', background: '#d1fae5', color: '#065f46', borderRadius: 9999, padding: '1px 5px', fontWeight: 600 }}>PAID</span>}
+                          {isPaid && <span style={{ fontSize: '.62rem', background: '#d1fae5', color: '#0D332A', borderRadius: 9999, padding: '1px 5px', fontWeight: 600 }}>PAID</span>}
                         </div>
                       )
                     })}
@@ -266,7 +266,7 @@ function FeeBreakdown({ studentId, totalBalance, upi, schoolName }: {
 
               {/* Pay selected sticky bar */}
               {selected.size > 0 && (
-                <div style={{ position: 'sticky', bottom: 0, padding: '.875rem 1rem', background: '#fff', borderTop: '2px solid #1a56db', display: 'flex', alignItems: 'center', gap: '.75rem' }}>
+                <div style={{ position: 'sticky', bottom: 0, padding: '.875rem 1rem', background: '#fff', borderTop: '2px solid #14463A', display: 'flex', alignItems: 'center', gap: '.75rem' }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: '.68rem', color: '#6b7280' }}>{selected.size} item{selected.size > 1 ? 's' : ''} selected</div>
                     <div style={{ fontWeight: 800, fontSize: '1.1rem', color: '#111827' }}>{inr(selectedAmount)}</div>
@@ -274,7 +274,7 @@ function FeeBreakdown({ studentId, totalBalance, upi, schoolName }: {
                   {upi ? (
                     <button
                       onClick={() => setPay({ amount: selectedAmount, note: `${schoolName} — Fee Payment` })}
-                      style={{ background: '#1a56db', color: '#fff', border: 'none', borderRadius: 8, padding: '.6rem 1rem', fontWeight: 700, fontSize: '.85rem', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}
+                      style={{ background: '#14463A', color: '#fff', border: 'none', borderRadius: 8, padding: '.6rem 1rem', fontWeight: 700, fontSize: '.85rem', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}
                     >
                       Pay via UPI ↗
                     </button>
@@ -289,7 +289,7 @@ function FeeBreakdown({ studentId, totalBalance, upi, schoolName }: {
                 <div style={{ padding: '.875rem 1rem', borderTop: '1px solid #f3f4f6' }}>
                   <button
                     onClick={() => setPay({ amount: totalBalance, note: `${schoolName} — All Fees` })}
-                    style={{ width: '100%', background: '#059669', color: '#fff', border: 'none', borderRadius: 8, padding: '.65rem', fontWeight: 700, fontSize: '.9rem', cursor: 'pointer', fontFamily: 'inherit' }}
+                    style={{ width: '100%', background: '#1F8A5D', color: '#fff', border: 'none', borderRadius: 8, padding: '.65rem', fontWeight: 700, fontSize: '.9rem', cursor: 'pointer', fontFamily: 'inherit' }}
                   >
                     Pay all {inr(totalBalance)} via UPI
                   </button>
@@ -310,9 +310,9 @@ function FeeBreakdown({ studentId, totalBalance, upi, schoolName }: {
 // ── Homework Item ─────────────────────────────────────────────────────────────
 
 const PILL: Record<string, { bg: string; color: string }> = {
-  homework:     { bg: '#dbeafe', color: '#1e40af' },
+  homework:     { bg: '#E7EFEA', color: '#0D332A' },
   announcement: { bg: '#fef3c7', color: '#92400e' },
-  resource:     { bg: '#d1fae5', color: '#065f46' },
+  resource:     { bg: '#d1fae5', color: '#0D332A' },
 }
 
 // ── Summary Card ──────────────────────────────────────────────────────────────
@@ -325,7 +325,7 @@ function SummaryCard({ summary }: { summary: StudentSummary }) {
     <div style={{ background: '#fff', borderRadius: 12, boxShadow: '0 1px 4px rgba(0,0,0,.08)', overflow: 'hidden', marginBottom: '1rem' }}>
 
       {/* Header */}
-      <div style={{ background: 'linear-gradient(135deg,#1a56db,#1e40af)', color: '#fff', padding: '1rem 1rem .875rem' }}>
+      <div style={{ background: 'linear-gradient(135deg,#14463A,#0D332A)', color: '#fff', padding: '1rem 1rem .875rem' }}>
         <div style={{ fontWeight: 800, fontSize: '1.05rem', letterSpacing: '-.01em' }}>
           {student.first_name} {student.last_name}
         </div>
@@ -450,7 +450,7 @@ function UpdatesCard() {
           )}
         </div>
         {unread > 0 && (
-          <button onClick={markAll} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#1a56db', fontSize: '.72rem', fontFamily: 'inherit', padding: 0 }}>
+          <button onClick={markAll} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#14463A', fontSize: '.72rem', fontFamily: 'inherit', padding: 0 }}>
             Mark all read
           </button>
         )}
@@ -463,7 +463,7 @@ function UpdatesCard() {
             display: 'flex', gap: '.6rem', padding: '.6rem 1rem',
             borderBottom: '1px solid #f9fafb', alignItems: 'flex-start',
             cursor: n.read_at ? 'default' : 'pointer',
-            background: n.read_at ? '#fff' : 'rgba(26,86,219,.04)',
+            background: n.read_at ? '#fff' : 'rgba(20,70,58,.04)',
           }}
         >
           <span style={{ fontSize: '1rem', flexShrink: 0, marginTop: 1 }}>{NOTIF_ICON[n.type] ?? '🔔'}</span>
@@ -474,7 +474,7 @@ function UpdatesCard() {
             </div>
             {n.body && <div style={{ fontSize: '.74rem', color: '#6b7280', marginTop: 1 }}>{n.body}</div>}
           </div>
-          {!n.read_at && <span style={{ width: 7, height: 7, borderRadius: 4, background: '#1a56db', flexShrink: 0, marginTop: 6 }} />}
+          {!n.read_at && <span style={{ width: 7, height: 7, borderRadius: 4, background: '#14463A', flexShrink: 0, marginTop: 6 }} />}
         </div>
       ))}
     </div>
@@ -504,7 +504,7 @@ export function ParentPortalView({ onLogout }: { onLogout: () => void }) {
 
   return (
     <div style={{ minHeight: '100vh', background: '#f3f4f6', fontFamily: 'system-ui,-apple-system,sans-serif' }}>
-      <header style={{ background: '#1a56db', color: '#fff', padding: '.875rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 10 }}>
+      <header style={{ background: '#14463A', color: '#fff', padding: '.875rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 10 }}>
         <div>
           <div style={{ fontWeight: 800, fontSize: '1rem', letterSpacing: '-.01em' }}>Tulips.edu</div>
           <div style={{ fontSize: '.68rem', opacity: .75 }}>Parent Portal</div>

@@ -1,74 +1,92 @@
-/* ── Design tokens ─────────────────────────────────────────────────────────── */
+/* ── Tulips.edu design system ───────────────────────────────────────────────
+   Single source of truth = the public landing page (index.html). Every portal
+   inherits these tokens; do not introduce a second visual language. Variable
+   NAMES are kept stable so existing token-based components reskin automatically. */
 :root {
-  --c-primary:      #1a56db;
-  --c-primary-dk:   #1e40af;
-  --c-primary-lt:   #dbeafe;
-  --c-success:      #16a34a;
-  --c-success-lt:   #dcfce7;
-  --c-warn:         #d97706;
-  --c-warn-lt:      #fef3c7;
-  --c-danger:       #dc2626;
-  --c-danger-lt:    #fee2e2;
+  /* Brand — chalkboard green primary, tulip accent, marigold highlight */
+  --c-primary:      #14463A;  /* board */
+  --c-primary-dk:   #0D332A;  /* board-deep */
+  --c-primary-lt:   #E7EFEA;  /* light green tint (solid) */
+  --c-primary-tint: rgba(20,70,58,.08);
+  --c-accent:       #D8472F;  /* tulip — use sparingly */
+  --c-accent-dk:    #B2371F;
+  --c-accent-lt:    #FBE7E2;
+  --c-marigold:     #F0B429;
+
+  --c-success:      #1F8A5D;
+  --c-success-lt:   #E3F3EA;
+  --c-warn:         #9A7110;
+  --c-warn-lt:      #FBEFCF;
+  --c-danger:       #C0392B;
+  --c-danger-lt:    #FBE7E2;
   --c-purple:       #7c3aed;
   --c-purple-lt:    #ede9fe;
 
-  --gray-50:  #f9fafb;
-  --gray-100: #f3f4f6;
-  --gray-200: #e5e7eb;
-  --gray-300: #d1d5db;
-  --gray-400: #9ca3af;
-  --gray-500: #6b7280;
-  --gray-600: #4b5563;
-  --gray-700: #374151;
-  --gray-900: #111827;
+  /* Warm-tinted neutrals (paper → ink) */
+  --gray-50:  #F7F9F5;  /* paper */
+  --gray-100: #EDF3EE;
+  --gray-200: #D7DFD6;  /* rule */
+  --gray-300: #C8CFC9;
+  --gray-400: #8A988F;
+  --gray-500: #57685F;  /* muted */
+  --gray-600: #3F4F47;
+  --gray-700: #2E3D36;
+  --gray-900: #16241E;  /* ink */
 
-  --r:          6px;
-  --r-lg:       10px;
-  --shadow-sm:  0 1px 2px rgba(0,0,0,.05);
-  --shadow:     0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.05);
-  --shadow-md:  0 4px 12px rgba(0,0,0,.08), 0 2px 4px rgba(0,0,0,.04);
-  --font:       system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --r:          8px;
+  --r-lg:       14px;
+  --r-pill:     9999px;
+  --shadow-sm:  0 1px 2px rgba(13,51,42,.06);
+  --shadow:     0 2px 6px rgba(13,51,42,.07), 0 1px 2px rgba(13,51,42,.05);
+  --shadow-md:  0 18px 50px -18px rgba(13,51,42,.25);
+
+  --font:         'Figtree', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: 'Bricolage Grotesque', var(--font);
+  --font-mono:    'IBM Plex Mono', ui-monospace, monospace;
 }
 
 /* ── Reset ─────────────────────────────────────────────────────────────────── */
 *,*::before,*::after{box-sizing:border-box}
-body{margin:0;font-family:var(--font);font-size:14px;line-height:1.5;color:var(--gray-900);background:var(--gray-50);-webkit-font-smoothing:antialiased}
-h1,h2,h3,h4,h5{margin:0;font-weight:700}
+body{margin:0;font-family:var(--font);font-size:14px;line-height:1.55;color:var(--gray-900);background:var(--gray-50);-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4,h5{margin:0;font-weight:700;font-family:var(--font-display);letter-spacing:-.01em}
 p{margin:0}
 a{color:var(--c-primary);text-decoration:none}
+::selection{background:var(--c-marigold);color:var(--gray-900)}
+a:focus-visible,button:focus-visible{outline:2.5px solid var(--c-accent);outline-offset:2px;border-radius:4px}
+.mono{font-family:var(--font-mono)}
 
-/* ── Base component styles ─────────────────────────────────────────────────── */
-
-/* Buttons */
-.btn{display:inline-flex;align-items:center;gap:.375rem;padding:.45rem 1rem;border-radius:var(--r);font-size:.8125rem;font-weight:500;cursor:pointer;border:none;font-family:var(--font);transition:opacity .15s,background .15s;white-space:nowrap}
+/* ── Buttons ───────────────────────────────────────────────────────────────── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.375rem;padding:.5rem 1.05rem;border-radius:var(--r);font-size:.8125rem;font-weight:600;cursor:pointer;border:1.5px solid transparent;font-family:var(--font);transition:background .15s,opacity .15s,transform .15s;white-space:nowrap}
 .btn:disabled{opacity:.55;cursor:not-allowed}
-.btn-primary{background:var(--c-primary);color:#fff}
-.btn-primary:hover:not(:disabled){background:var(--c-primary-dk)}
-.btn-ghost{background:transparent;color:var(--gray-700);border:1px solid var(--gray-300)}
-.btn-ghost:hover:not(:disabled){background:var(--gray-100)}
-.btn-danger{background:var(--c-danger);color:#fff}
-.btn-sm{padding:.3rem .75rem;font-size:.75rem}
-.btn-lg{padding:.65rem 1.5rem;font-size:.9375rem}
+.btn-primary{background:var(--c-primary);border-color:var(--c-primary);color:#fff}
+.btn-primary:hover:not(:disabled){background:var(--c-primary-dk);border-color:var(--c-primary-dk)}
+.btn-accent{background:var(--c-accent);border-color:var(--c-accent);color:#fff}
+.btn-accent:hover:not(:disabled){background:var(--c-accent-dk);border-color:var(--c-accent-dk)}
+.btn-ghost{background:transparent;color:var(--c-primary);border-color:var(--gray-300)}
+.btn-ghost:hover:not(:disabled){background:var(--c-primary-tint)}
+.btn-danger{background:var(--c-danger);border-color:var(--c-danger);color:#fff}
+.btn-sm{padding:.35rem .8rem;font-size:.75rem}
+.btn-lg{padding:.7rem 1.5rem;font-size:.9375rem}
 
-/* Inputs */
-.input,.select{width:100%;padding:.475rem .7rem;border:1px solid var(--gray-300);border-radius:var(--r);font-size:.8125rem;line-height:1.5;font-family:var(--font);color:var(--gray-900);background:#fff;transition:border-color .15s,box-shadow .15s}
-.input:focus,.select:focus{outline:none;border-color:var(--c-primary);box-shadow:0 0 0 3px rgba(26,86,219,.12)}
+/* ── Inputs ────────────────────────────────────────────────────────────────── */
+.input,.select{width:100%;padding:.5rem .7rem;border:1.5px solid var(--gray-300);border-radius:var(--r);font-size:.8125rem;line-height:1.5;font-family:var(--font);color:var(--gray-900);background:#fff;transition:border-color .15s,box-shadow .15s}
+.input:focus,.select:focus{outline:none;border-color:var(--c-primary);box-shadow:0 0 0 3px var(--c-primary-tint)}
 .input::placeholder{color:var(--gray-400)}
 label.lbl{display:block;font-size:.72rem;font-weight:600;color:var(--gray-600);margin-bottom:.3rem;letter-spacing:.01em}
 
-/* Cards */
+/* ── Cards ─────────────────────────────────────────────────────────────────── */
 .card{background:#fff;border-radius:var(--r-lg);border:1px solid var(--gray-200);box-shadow:var(--shadow-sm)}
 .card-pad{padding:1.25rem}
 
-/* Stat cards */
+/* ── Stat cards ────────────────────────────────────────────────────────────── */
 .stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:.875rem;margin-bottom:1.5rem}
-.stat-card{background:#fff;border-radius:var(--r-lg);border:1px solid var(--gray-200);padding:1.125rem 1.25rem;display:flex;flex-direction:column;gap:.25rem}
+.stat-card{background:#fff;border-radius:var(--r-lg);border:1px solid var(--gray-200);padding:1.125rem 1.25rem;display:flex;flex-direction:column;gap:.25rem;box-shadow:var(--shadow-sm)}
 .stat-card .stat-label{font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-500)}
-.stat-card .stat-value{font-size:1.75rem;font-weight:800;line-height:1.1;color:var(--gray-900)}
+.stat-card .stat-value{font-size:1.75rem;font-weight:800;line-height:1.1;color:var(--gray-900);font-family:var(--font-display)}
 .stat-card .stat-sub{font-size:.72rem;color:var(--gray-500)}
 .stat-card .stat-icon{font-size:1.25rem;margin-bottom:.25rem}
 
-/* Tables */
+/* ── Tables ────────────────────────────────────────────────────────────────── */
 .tbl-wrap{overflow-x:auto;border-radius:var(--r-lg);border:1px solid var(--gray-200)}
 table{width:100%;border-collapse:collapse;background:#fff}
 thead th{font-size:.69rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--gray-500);padding:.625rem 1rem;border-bottom:1px solid var(--gray-200);text-align:left;background:var(--gray-50);white-space:nowrap}
@@ -76,31 +94,29 @@ tbody td{padding:.7rem 1rem;border-bottom:1px solid var(--gray-100);font-size:.8
 tbody tr:last-child td{border-bottom:none}
 tbody tr:hover td{background:var(--gray-50)}
 
-/* Badges / pills */
-.badge{display:inline-block;padding:.1rem .55rem;border-radius:9999px;font-size:.67rem;font-weight:600}
-.badge-blue{background:var(--c-primary-lt);color:#1e40af}
-.badge-green{background:var(--c-success-lt);color:#15803d}
-.badge-yellow{background:var(--c-warn-lt);color:#92400e}
-.badge-red{background:var(--c-danger-lt);color:#b91c1c}
+/* ── Badges / pills ────────────────────────────────────────────────────────── */
+.badge{display:inline-block;padding:.12rem .55rem;border-radius:var(--r-pill);font-size:.67rem;font-weight:600}
+.badge-blue{background:var(--c-primary-lt);color:var(--c-primary)}
+.badge-green{background:var(--c-success-lt);color:var(--c-success)}
+.badge-yellow{background:var(--c-warn-lt);color:var(--c-warn)}
+.badge-red{background:var(--c-accent-lt);color:var(--c-accent-dk)}
 .badge-gray{background:var(--gray-100);color:var(--gray-600)}
 .badge-purple{background:var(--c-purple-lt);color:#5b21b6}
 
-/* Page layout */
+/* ── Page layout ───────────────────────────────────────────────────────────── */
 .page{max-width:1080px;margin:1.5rem auto;padding:0 1.25rem}
 .page-sm{max-width:640px;margin:1.5rem auto;padding:0 1.25rem}
 .page-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;gap:.75rem;flex-wrap:wrap}
-.page-title{font-size:1rem;font-weight:700;color:var(--gray-900)}
+.page-title{font-size:1.1rem;font-weight:700;color:var(--gray-900);font-family:var(--font-display)}
 
-/* Form grid */
+/* ── Forms ─────────────────────────────────────────────────────────────────── */
 .form-grid{display:grid;gap:.75rem}
 .form-grid-2{grid-template-columns:1fr 1fr}
 .form-grid-3{grid-template-columns:1fr 1fr 1fr}
 @media(max-width:560px){.form-grid-2,.form-grid-3{grid-template-columns:1fr}}
-
-/* Filter bar */
 .filter-bar{display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap;align-items:center}
 
-/* Misc */
+/* ── Misc ──────────────────────────────────────────────────────────────────── */
 .divider{height:1px;background:var(--gray-200);margin:.75rem 0}
 .text-muted{color:var(--gray-500)}
 .text-sm{font-size:.8rem}
@@ -108,7 +124,31 @@ tbody tr:hover td{background:var(--gray-50)}
 .empty-state{text-align:center;padding:3rem 1rem;color:var(--gray-400);font-size:.875rem}
 .err{color:var(--c-danger);font-size:.8rem;margin-top:.25rem}
 
-/* Scrollbar */
+/* ── Portal launcher (big-button home) ─────────────────────────────────────── */
+.tile-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:1rem}
+.tile{
+  display:flex;flex-direction:column;gap:.5rem;text-align:left;
+  background:#fff;border:1px solid var(--gray-200);border-radius:var(--r-lg);
+  padding:1.25rem;cursor:pointer;font-family:var(--font);
+  box-shadow:var(--shadow-sm);transition:transform .15s,box-shadow .15s,border-color .15s;
+  min-height:128px;
+}
+.tile:hover{transform:translateY(-2px);box-shadow:var(--shadow-md);border-color:var(--c-primary)}
+.tile .tile-icon{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.4rem;background:var(--c-primary-tint);color:var(--c-primary)}
+.tile .tile-label{font-family:var(--font-display);font-weight:700;font-size:1rem;color:var(--gray-900)}
+.tile .tile-desc{font-size:.74rem;color:var(--gray-500);line-height:1.4}
+.tile .tile-badge{align-self:flex-start;margin-top:auto}
+
+/* ── Brand wordmark ────────────────────────────────────────────────────────── */
+.brand{display:inline-flex;align-items:center;gap:.5rem;font-family:var(--font-display);font-weight:700;letter-spacing:-.01em;color:inherit;text-decoration:none}
+.brand .brand-dot{width:9px;height:9px;border-radius:50%;background:var(--c-accent);flex-shrink:0}
+
+/* ── Spinner ───────────────────────────────────────────────────────────────── */
+@keyframes tl-spin{to{transform:rotate(360deg)}}
+.spinner{width:22px;height:22px;border:2.5px solid var(--gray-200);border-top-color:var(--c-primary);border-radius:50%;animation:tl-spin .7s linear infinite}
+@media (prefers-reduced-motion: reduce){.spinner{animation-duration:1.4s}.tile{transition:none}}
+
+/* ── Scrollbar ─────────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--gray-300);border-radius:3px}

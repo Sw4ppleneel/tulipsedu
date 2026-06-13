@@ -14,7 +14,7 @@ function StaffRow({ member }: { member: Staff }) {
       padding: '0 1rem', borderBottom: '1px solid #f3f4f6',
       gap: '0.75rem', fontSize: '0.8rem', background: '#fff',
     }}>
-      <span style={{ width: 80, fontWeight: 700, color: '#1a56db', flexShrink: 0 }}>{member.employee_no}</span>
+      <span style={{ width: 80, fontWeight: 700, color: '#14463A', flexShrink: 0 }}>{member.employee_no}</span>
       <span style={{ flex: 1, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {member.first_name} {member.last_name}
       </span>
@@ -23,7 +23,7 @@ function StaffRow({ member }: { member: Staff }) {
       <span style={{ width: 110, color: '#6b7280', flexShrink: 0 }}>{member.phone_number}</span>
       <span style={{ width: 80, textAlign: 'right', flexShrink: 0 }}>
         {member.user_id && (
-          <span style={{ padding: '2px 7px', background: '#d1fae5', color: '#065f46', borderRadius: 9999, fontSize: '0.7rem', fontWeight: 600 }}>
+          <span style={{ padding: '2px 7px', background: '#d1fae5', color: '#0D332A', borderRadius: 9999, fontSize: '0.7rem', fontWeight: 600 }}>
             Login
           </span>
         )}
@@ -86,7 +86,7 @@ export function StaffView() {
         </div>
         <button
           onClick={() => setShowForm(true)}
-          style={{ padding: '0.5rem 1rem', background: '#1a56db', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem', fontWeight: 500 }}
+          style={{ padding: '0.5rem 1rem', background: '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem', fontWeight: 500 }}
         >
           + Add Staff
         </button>

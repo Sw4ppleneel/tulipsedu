@@ -5,9 +5,9 @@ import type { HomeworkPost, HomeworkCreate } from '../api/homework'
 import type { AcademicYear, Class, Section } from '../types/student'
 
 const PILL: Record<string, { bg: string; color: string }> = {
-  homework:     { bg: '#dbeafe', color: '#1e40af' },
+  homework:     { bg: '#E7EFEA', color: '#0D332A' },
   announcement: { bg: '#fef3c7', color: '#92400e' },
-  resource:     { bg: '#d1fae5', color: '#065f46' },
+  resource:     { bg: '#d1fae5', color: '#0D332A' },
 }
 
 function PostCard({ post, onDelete }: { post: HomeworkPost; onDelete: () => void }) {
@@ -126,7 +126,7 @@ function PostForm({
       </div>
       {err && <p style={{ color: '#ef4444', fontSize: '0.8rem', marginBottom: '0.5rem' }}>{err}</p>}
       <div style={{ display: 'flex', gap: '0.5rem' }}>
-        <button type="submit" disabled={saving} style={{ padding: '0.5rem 1.25rem', background: '#1a56db', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem' }}>
+        <button type="submit" disabled={saving} style={{ padding: '0.5rem 1.25rem', background: '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem' }}>
           {saving ? 'Posting…' : 'Post'}
         </button>
         <button type="button" onClick={onCancel} style={{ padding: '0.5rem 1rem', background: 'none', border: '1px solid #d1d5db', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem', color: '#374151' }}>
@@ -191,7 +191,7 @@ export function HomeworkView() {
         <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#111827' }}>Homework & Feed</h2>
         <button
           onClick={() => setShowForm(s => !s)}
-          style={{ padding: '0.4rem 1rem', background: '#1a56db', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem' }}
+          style={{ padding: '0.4rem 1rem', background: '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem' }}
         >
           {showForm ? 'Cancel' : '+ New Post'}
         </button>

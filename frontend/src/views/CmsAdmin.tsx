@@ -70,7 +70,7 @@ function PageEditor({
       </div>
       {err && <p style={{ color: '#ef4444', fontSize: '0.8rem', marginBottom: '0.5rem' }}>{err}</p>}
       <div style={{ display: 'flex', gap: '0.5rem' }}>
-        <button type="submit" disabled={saving} style={{ padding: '0.5rem 1.25rem', background: '#1a56db', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem' }}>
+        <button type="submit" disabled={saving} style={{ padding: '0.5rem 1.25rem', background: '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem' }}>
           {saving ? 'Saving…' : 'Save Page'}
         </button>
         <button type="button" onClick={onCancel} style={{ padding: '0.5rem 1rem', background: 'none', border: '1px solid #d1d5db', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem', color: '#374151' }}>Cancel</button>
@@ -114,7 +114,7 @@ function PagesTab() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
         <span style={{ fontSize: '0.875rem', color: '#6b7280' }}>{pages.length} page{pages.length !== 1 ? 's' : ''}</span>
-        <button onClick={() => { setShowForm(s => !s); setEditing(null) }} style={{ padding: '0.4rem 1rem', background: '#1a56db', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem' }}>
+        <button onClick={() => { setShowForm(s => !s); setEditing(null) }} style={{ padding: '0.4rem 1rem', background: '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem' }}>
           {showForm ? 'Cancel' : '+ New Page'}
         </button>
       </div>
@@ -128,7 +128,7 @@ function PagesTab() {
             <div style={{ fontWeight: 600, fontSize: '0.875rem', color: '#111827' }}>{p.title}</div>
             <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>/{p.slug} · order {p.sort_order}</div>
           </div>
-          <span style={{ padding: '2px 8px', borderRadius: 9999, fontSize: '0.7rem', fontWeight: 600, background: p.is_published ? '#d1fae5' : '#f3f4f6', color: p.is_published ? '#065f46' : '#6b7280' }}>
+          <span style={{ padding: '2px 8px', borderRadius: 9999, fontSize: '0.7rem', fontWeight: 600, background: p.is_published ? '#d1fae5' : '#f3f4f6', color: p.is_published ? '#0D332A' : '#6b7280' }}>
             {p.is_published ? 'PUBLISHED' : 'DRAFT'}
           </span>
           <button onClick={() => { setEditing(p); setShowForm(false) }} style={{ background: 'none', border: '1px solid #d1d5db', borderRadius: 4, padding: '0.25rem 0.625rem', cursor: 'pointer', fontSize: '0.75rem', color: '#374151' }}>Edit</button>
@@ -196,7 +196,7 @@ function AnnEditor({
       </div>
       {err && <p style={{ color: '#ef4444', fontSize: '0.8rem', marginBottom: '0.5rem' }}>{err}</p>}
       <div style={{ display: 'flex', gap: '0.5rem' }}>
-        <button type="submit" disabled={saving} style={{ padding: '0.5rem 1.25rem', background: '#1a56db', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem' }}>
+        <button type="submit" disabled={saving} style={{ padding: '0.5rem 1.25rem', background: '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem' }}>
           {saving ? 'Saving…' : 'Save'}
         </button>
         <button type="button" onClick={onCancel} style={{ padding: '0.5rem 1rem', background: 'none', border: '1px solid #d1d5db', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem', color: '#374151' }}>Cancel</button>
@@ -240,7 +240,7 @@ function AnnouncementsTab() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
         <span style={{ fontSize: '0.875rem', color: '#6b7280' }}>{anns.length} announcement{anns.length !== 1 ? 's' : ''}</span>
-        <button onClick={() => { setShowForm(s => !s); setEditing(null) }} style={{ padding: '0.4rem 1rem', background: '#1a56db', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem' }}>
+        <button onClick={() => { setShowForm(s => !s); setEditing(null) }} style={{ padding: '0.4rem 1rem', background: '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem' }}>
           {showForm ? 'Cancel' : '+ New Announcement'}
         </button>
       </div>
@@ -259,7 +259,7 @@ function AnnouncementsTab() {
               </div>
             )}
           </div>
-          <span style={{ padding: '2px 8px', borderRadius: 9999, fontSize: '0.7rem', fontWeight: 600, background: a.is_published ? '#d1fae5' : '#f3f4f6', color: a.is_published ? '#065f46' : '#6b7280', flexShrink: 0 }}>
+          <span style={{ padding: '2px 8px', borderRadius: 9999, fontSize: '0.7rem', fontWeight: 600, background: a.is_published ? '#d1fae5' : '#f3f4f6', color: a.is_published ? '#0D332A' : '#6b7280', flexShrink: 0 }}>
             {a.is_published ? 'LIVE' : 'DRAFT'}
           </span>
           <button onClick={() => { setEditing(a); setShowForm(false) }} style={{ background: 'none', border: '1px solid #d1d5db', borderRadius: 4, padding: '0.25rem 0.625rem', cursor: 'pointer', fontSize: '0.75rem', color: '#374151', flexShrink: 0 }}>Edit</button>
@@ -280,7 +280,7 @@ export function CmsAdminView() {
 
   const TAB = (active: boolean): preact.JSX.CSSProperties => ({
     padding: '0.4rem 1rem',
-    background: active ? '#1a56db' : 'transparent',
+    background: active ? '#14463A' : 'transparent',
     color: active ? '#fff' : '#374151',
     border: active ? 'none' : '1px solid #d1d5db',
     borderRadius: 4,

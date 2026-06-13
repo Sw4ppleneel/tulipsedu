@@ -11,7 +11,7 @@ import type {
 import type { AcademicYear, Class, Section } from '../types/student'
 
 const GRADE_COLOR: Record<string, string> = {
-  A1: '#065f46', A2: '#065f46', B1: '#1e40af', B2: '#1e40af',
+  A1: '#0D332A', A2: '#0D332A', B1: '#0D332A', B2: '#0D332A',
   C1: '#92400e', C2: '#92400e', D: '#7c3aed', E: '#dc2626', AB: '#6b7280',
 }
 
@@ -197,7 +197,7 @@ function MarksEntryTab({
             ) : (
               <span>No components set — entering a single mark out of {selectedConfig?.max_marks ?? '?'}.</span>
             )}
-            <button onClick={() => setShowConfig(v => !v)} style={{ background: 'none', border: '1px solid #d1d5db', borderRadius: 4, padding: '0.2rem 0.5rem', fontSize: '0.72rem', cursor: 'pointer', color: '#1a56db' }}>
+            <button onClick={() => setShowConfig(v => !v)} style={{ background: 'none', border: '1px solid #d1d5db', borderRadius: 4, padding: '0.2rem 0.5rem', fontSize: '0.72rem', cursor: 'pointer', color: '#14463A' }}>
               {showConfig ? 'Close' : (hasComponents ? 'Edit components' : 'Set up components')}
             </button>
           </div>
@@ -221,7 +221,7 @@ function MarksEntryTab({
               <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '0.5rem' }}>
                 <button onClick={() => setDefs(p => [...p, { name: '', max_marks: '' }])} style={{ background: 'none', border: '1px solid #d1d5db', borderRadius: 4, padding: '0.3rem 0.625rem', fontSize: '0.75rem', cursor: 'pointer' }}>+ Add component</button>
                 <span style={{ fontSize: '0.74rem', color: '#6b7280' }}>Total: <strong>{defs.reduce((s, d) => s + (+d.max_marks || 0), 0)}</strong></span>
-                <button onClick={saveComponentDefs} style={{ marginLeft: 'auto', background: '#1a56db', color: '#fff', border: 'none', borderRadius: 4, padding: '0.4rem 1rem', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>Save components</button>
+                <button onClick={saveComponentDefs} style={{ marginLeft: 'auto', background: '#14463A', color: '#fff', border: 'none', borderRadius: 4, padding: '0.4rem 1rem', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>Save components</button>
               </div>
             </div>
           )}
@@ -265,10 +265,10 @@ function MarksEntryTab({
             </table>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <button onClick={handleSaveComponents} disabled={saving} style={{ padding: '0.5rem 1.25rem', background: '#1a56db', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem' }}>
+            <button onClick={handleSaveComponents} disabled={saving} style={{ padding: '0.5rem 1.25rem', background: '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem' }}>
               {saving ? 'Saving…' : 'Save Marks'}
             </button>
-            {saved && <span style={{ color: '#059669', fontSize: '0.8rem', fontWeight: 600 }}>✓ Saved</span>}
+            {saved && <span style={{ color: '#1F8A5D', fontSize: '0.8rem', fontWeight: 600 }}>✓ Saved</span>}
           </div>
         </>
       )}
@@ -304,10 +304,10 @@ function MarksEntryTab({
             </tbody>
           </table>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <button onClick={handleSaveFlat} disabled={saving} style={{ padding: '0.5rem 1.25rem', background: '#1a56db', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem' }}>
+            <button onClick={handleSaveFlat} disabled={saving} style={{ padding: '0.5rem 1.25rem', background: '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem' }}>
               {saving ? 'Saving…' : 'Save Marks'}
             </button>
-            {saved && <span style={{ color: '#059669', fontSize: '0.8rem', fontWeight: 600 }}>✓ Saved</span>}
+            {saved && <span style={{ color: '#1F8A5D', fontSize: '0.8rem', fontWeight: 600 }}>✓ Saved</span>}
           </div>
         </>
       )}
@@ -423,7 +423,7 @@ function ResultsTab({ terms, classes }: { terms: ExamTerm[]; classes: Class[] })
                       {r.grade}
                     </td>
                     <td style={{ border: '1px solid #e5e7eb', padding: '0.3rem 0.5rem', textAlign: 'center' }}>
-                      <span style={{ padding: '1px 7px', borderRadius: 9999, fontSize: '0.7rem', fontWeight: 600, background: r.passed ? '#d1fae5' : '#fee2e2', color: r.passed ? '#065f46' : '#dc2626' }}>
+                      <span style={{ padding: '1px 7px', borderRadius: 9999, fontSize: '0.7rem', fontWeight: 600, background: r.passed ? '#d1fae5' : '#fee2e2', color: r.passed ? '#0D332A' : '#dc2626' }}>
                         {r.passed ? 'PASS' : 'FAIL'}
                       </span>
                     </td>
@@ -469,9 +469,9 @@ export function ExamView() {
   }, [])
 
   const TAB_BTN = (active: boolean): preact.JSX.CSSProperties => ({
-    padding: '0.4rem 1rem', border: 'none', borderBottom: active ? '2px solid #1a56db' : '2px solid transparent',
+    padding: '0.4rem 1rem', border: 'none', borderBottom: active ? '2px solid #14463A' : '2px solid transparent',
     background: 'none', cursor: 'pointer', fontSize: '0.875rem', fontWeight: active ? 600 : 400,
-    color: active ? '#1a56db' : '#6b7280',
+    color: active ? '#14463A' : '#6b7280',
   })
 
   if (loading) return <div style={{ padding: '2rem', color: '#6b7280', fontSize: '0.875rem' }}>Loading…</div>

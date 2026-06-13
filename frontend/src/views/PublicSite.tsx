@@ -24,17 +24,17 @@ export function PublicSite({
       minHeight: '100vh', display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center', textAlign: 'center',
       padding: '2rem 1.25rem', fontFamily: 'system-ui, -apple-system, sans-serif',
-      background: 'linear-gradient(160deg, #eff6ff 0%, #f0fdf4 55%, #fafafa 100%)',
+      background: 'linear-gradient(160deg, #EDF3EE 0%, #EDF3EE 55%, #fafafa 100%)',
       color: '#1f2937',
     }}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', maxWidth: 560 }}>
         {/* Crest */}
         <div style={{
           width: 76, height: 76, borderRadius: 20,
-          background: 'linear-gradient(135deg,#1a56db,#1e40af)',
+          background: 'linear-gradient(135deg,#14463A,#0D332A)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           color: '#fff', fontWeight: 900, fontSize: '2rem',
-          boxShadow: '0 10px 30px rgba(26,86,219,.3)', marginBottom: '1.5rem',
+          boxShadow: '0 10px 30px rgba(20,70,58,.3)', marginBottom: '1.5rem',
         }}>
           {initial}
         </div>
@@ -47,11 +47,11 @@ export function PublicSite({
         {/* Pill */}
         <div style={{
           display: 'inline-flex', alignItems: 'center', gap: '.4rem',
-          background: 'rgba(26,86,219,.1)', color: '#1a56db',
+          background: 'rgba(20,70,58,.1)', color: '#14463A',
           borderRadius: 9999, padding: '.35rem .9rem', fontSize: '.78rem', fontWeight: 600,
           margin: '.5rem 0 1.25rem',
         }}>
-          <span style={{ width: 7, height: 7, borderRadius: 9999, background: '#1a56db' }} />
+          <span style={{ width: 7, height: 7, borderRadius: 9999, background: '#14463A' }} />
           Coming soon
         </div>
 
@@ -67,10 +67,10 @@ export function PublicSite({
       {/* Discreet login access for staff & parents */}
       <footer style={{ paddingBottom: '1.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '.6rem' }}>
         <div style={{ display: 'flex', gap: '1.25rem' }}>
-          <button onClick={onParentLogin} style={{ background: 'none', border: 'none', color: '#1a56db', cursor: 'pointer', fontSize: '.85rem', fontWeight: 600, fontFamily: 'inherit' }}>
+          <button onClick={onParentLogin} style={{ background: 'none', border: 'none', color: '#14463A', cursor: 'pointer', fontSize: '.85rem', fontWeight: 600, fontFamily: 'inherit' }}>
             Parent Login
           </button>
-          <button onClick={onStaffLogin} style={{ background: 'none', border: 'none', color: '#1a56db', cursor: 'pointer', fontSize: '.85rem', fontWeight: 600, fontFamily: 'inherit' }}>
+          <button onClick={onStaffLogin} style={{ background: 'none', border: 'none', color: '#14463A', cursor: 'pointer', fontSize: '.85rem', fontWeight: 600, fontFamily: 'inherit' }}>
             Staff Login
           </button>
         </div>

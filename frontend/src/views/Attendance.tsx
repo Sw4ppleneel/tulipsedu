@@ -35,7 +35,7 @@ function StudentMarkRow({ student, mark, onChange }: { student: Student; mark: A
       borderBottom: '1px solid #f3f4f6', gap: '0.75rem', background: '#fff',
       transition: 'background 0.1s',
     }}>
-      <span style={{ width: 44, fontWeight: 700, color: '#1a56db', fontSize: '0.8rem', flexShrink: 0 }}>#{student.roll_number}</span>
+      <span style={{ width: 44, fontWeight: 700, color: '#14463A', fontSize: '0.8rem', flexShrink: 0 }}>#{student.roll_number}</span>
       <span style={{ flex: 1, fontSize: '0.875rem' }}>{student.first_name} {student.last_name}</span>
       {mark && (
         <span style={{ padding: '1px 8px', background: STATUS_BG[mark], color: STATUS_COLOR[mark], borderRadius: 9999, fontSize: '0.7rem', fontWeight: 700 }}>
@@ -219,7 +219,7 @@ export function AttendanceView() {
         </div>
       )}
       {online && queued > 0 && (
-        <div style={{ background: '#d1fae5', border: '1px solid #6ee7b7', borderRadius: 6, padding: '0.5rem 0.875rem', marginBottom: '0.75rem', fontSize: '0.8rem', color: '#065f46' }}>
+        <div style={{ background: '#d1fae5', border: '1px solid #6ee7b7', borderRadius: 6, padding: '0.5rem 0.875rem', marginBottom: '0.75rem', fontSize: '0.8rem', color: '#0D332A' }}>
           {syncing ? 'Syncing…' : `${queued} offline mark${queued !== 1 ? 's' : ''} synced ✓`}
         </div>
       )}
@@ -243,7 +243,7 @@ export function AttendanceView() {
           <button
             onClick={handleOpenSession}
             disabled={!yearId || !classId || !sectionId || !dateStr || loading}
-            style={{ padding: '0.375rem 0.875rem', background: '#1a56db', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.8rem' }}
+            style={{ padding: '0.375rem 0.875rem', background: '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.8rem' }}
           >
             {loading ? 'Loading…' : session ? 'Reload' : 'Start'}
           </button>
@@ -261,7 +261,7 @@ export function AttendanceView() {
               <span>{marked}/{total} marked ({pct}%)</span>
             </div>
             <div style={{ height: 4, background: '#e5e7eb', borderRadius: 2 }}>
-              <div style={{ height: 4, background: '#1a56db', borderRadius: 2, width: `${pct}%`, transition: 'width 0.2s' }} />
+              <div style={{ height: 4, background: '#14463A', borderRadius: 2, width: `${pct}%`, transition: 'width 0.2s' }} />
             </div>
           </div>
 
@@ -274,7 +274,7 @@ export function AttendanceView() {
               <button
                 onClick={handleSubmit}
                 disabled={marked === 0}
-                style={{ padding: '0.375rem 0.875rem', background: marked > 0 ? '#1a56db' : '#e5e7eb', color: marked > 0 ? '#fff' : '#9ca3af', border: 'none', borderRadius: 4, cursor: marked > 0 ? 'pointer' : 'default', fontSize: '0.8rem', fontWeight: 600 }}
+                style={{ padding: '0.375rem 0.875rem', background: marked > 0 ? '#14463A' : '#e5e7eb', color: marked > 0 ? '#fff' : '#9ca3af', border: 'none', borderRadius: 4, cursor: marked > 0 ? 'pointer' : 'default', fontSize: '0.8rem', fontWeight: 600 }}
               >
                 {editing ? 'Save corrections' : 'Submit'}
               </button>
@@ -288,12 +288,12 @@ export function AttendanceView() {
 
           {locked && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginBottom: '0.75rem' }}>
-              <div style={{ padding: '0.5rem 0.875rem', background: '#d1fae5', borderRadius: 6, fontSize: '0.8rem', color: '#065f46', fontWeight: 600 }}>
+              <div style={{ padding: '0.5rem 0.875rem', background: '#d1fae5', borderRadius: 6, fontSize: '0.8rem', color: '#0D332A', fontWeight: 600 }}>
                 ✓ Session submitted
               </div>
               <button
                 onClick={() => setEditing(true)}
-                style={{ padding: '0.375rem 0.875rem', background: '#fff', color: '#1a56db', border: '1px solid #1a56db', borderRadius: 4, cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}
+                style={{ padding: '0.375rem 0.875rem', background: '#fff', color: '#14463A', border: '1px solid #14463A', borderRadius: 4, cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}
               >
                 Edit / Correct
               </button>

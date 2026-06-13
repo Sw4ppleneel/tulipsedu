@@ -117,7 +117,7 @@ export function NotificationsBell() {
             {items.some(i => !i.read_at) && (
               <button onClick={markAll} style={{
                 background: 'none', border: 'none', cursor: 'pointer',
-                color: '#1a56db', fontSize: '.72rem', fontFamily: 'inherit', padding: 0,
+                color: '#14463A', fontSize: '.72rem', fontFamily: 'inherit', padding: 0,
               }}>
                 Mark all read
               </button>
@@ -138,11 +138,11 @@ export function NotificationsBell() {
                 style={{
                   padding: '.6rem .8rem', borderBottom: '1px solid var(--gray-100, #f3f4f6)',
                   cursor: n.read_at ? 'default' : 'pointer',
-                  background: n.read_at ? '#fff' : 'rgba(26,86,219,.04)',
+                  background: n.read_at ? '#fff' : 'rgba(20,70,58,.04)',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: '.5rem' }}>
-                  {!n.read_at && <span style={{ width: 7, height: 7, borderRadius: 4, background: '#1a56db', flexShrink: 0 }} />}
+                  {!n.read_at && <span style={{ width: 7, height: 7, borderRadius: 4, background: '#14463A', flexShrink: 0 }} />}
                   <span style={{ fontWeight: 600, fontSize: '.78rem', flex: 1 }}>{n.title}</span>
                   <span style={{ fontSize: '.66rem', color: 'var(--gray-400)', flexShrink: 0 }}>{ago(n.created_at)}</span>
                 </div>

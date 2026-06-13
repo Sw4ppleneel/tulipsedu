@@ -101,7 +101,7 @@ export function StaffForm({ onCreated, onCancel }: Props) {
         </div>
 
         <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem' }}>
-          <button type="submit" disabled={loading} style={{ padding: '0.625rem 1.25rem', background: '#1a56db', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem' }}>
+          <button type="submit" disabled={loading} style={{ padding: '0.625rem 1.25rem', background: '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem' }}>
             {loading ? 'Saving…' : 'Save Staff Member'}
           </button>
           <button type="button" onClick={onCancel} style={{ padding: '0.625rem 1.25rem', background: '#f3f4f6', color: '#374151', border: '1px solid #d1d5db', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem' }}>

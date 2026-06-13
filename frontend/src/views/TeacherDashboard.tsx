@@ -5,7 +5,7 @@ import type { AttendanceStatus, TeacherDashboard } from '../api/teacher'
 const STATUS_PILL: Record<AttendanceStatus, { label: string; bg: string; color: string }> = {
   none:      { label: 'Not marked', bg: '#fef2f2', color: '#b91c1c' },
   draft:     { label: 'Draft',      bg: '#fffbeb', color: '#b45309' },
-  submitted: { label: 'Submitted',  bg: '#ecfdf5', color: '#047857' },
+  submitted: { label: 'Submitted',  bg: '#ecfdf5', color: '#14463A' },
 }
 
 function fmtDate(iso: string): string {
@@ -52,13 +52,13 @@ export function TeacherDashboard({ onGoToAttendance }: { onGoToAttendance: () =>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 600, fontSize: '.85rem', color: '#111827' }}>
                     {c.class_name} {c.section_name}
-                    {c.is_class_teacher && <span style={{ marginLeft: '.4rem', fontSize: '.6rem', background: '#eef2ff', color: '#4338ca', borderRadius: 9999, padding: '1px 6px', fontWeight: 700 }}>CLASS TEACHER</span>}
+                    {c.is_class_teacher && <span style={{ marginLeft: '.4rem', fontSize: '.6rem', background: '#EDF3EE', color: '#14463A', borderRadius: 9999, padding: '1px 6px', fontWeight: 700 }}>CLASS TEACHER</span>}
                   </div>
                   <div style={{ fontSize: '.7rem', color: '#9ca3af' }}>{c.subject || '—'}</div>
                 </div>
                 <span style={{ ...pill, fontSize: '.62rem', fontWeight: 700, borderRadius: 9999, padding: '2px 8px' }}>{pill.label}</span>
                 {c.attendance_today !== 'submitted' && (
-                  <button onClick={onGoToAttendance} style={{ background: '#1a56db', color: '#fff', border: 'none', borderRadius: 6, padding: '.35rem .7rem', fontSize: '.72rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  <button onClick={onGoToAttendance} style={{ background: '#14463A', color: '#fff', border: 'none', borderRadius: 6, padding: '.35rem .7rem', fontSize: '.72rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                     Mark
                   </button>
                 )}

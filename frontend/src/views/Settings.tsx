@@ -51,14 +51,14 @@ export function SettingsView() {
             <button
               onClick={save}
               disabled={busy}
-              style={{ padding: '0.5rem 1.25rem', background: busy ? '#9ca3af' : '#1a56db', color: '#fff', border: 'none', borderRadius: 4, cursor: busy ? 'default' : 'pointer', fontSize: '0.875rem', fontWeight: 600 }}
+              style={{ padding: '0.5rem 1.25rem', background: busy ? '#9ca3af' : '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: busy ? 'default' : 'pointer', fontSize: '0.875rem', fontWeight: 600 }}
             >
               {busy ? 'Saving…' : 'Save'}
             </button>
           </div>
           {error && <p style={{ color: '#c00', fontSize: '0.8rem', marginTop: '0.625rem' }}>{error}</p>}
           {!error && saved !== null && (
-            <p style={{ color: '#059669', fontSize: '0.8rem', marginTop: '0.625rem' }}>
+            <p style={{ color: '#1F8A5D', fontSize: '0.8rem', marginTop: '0.625rem' }}>
               ✓ Current UPI ID: <b>{saved}</b>
             </p>
           )}

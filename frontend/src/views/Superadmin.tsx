@@ -6,7 +6,7 @@ function fmt(v: string | number) {
   return `₹${Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
 }
 
-const STATUS_COLORS: Record<string, string> = { paid: '#065f46', pending: '#92400e', failed: '#991b1b' }
+const STATUS_COLORS: Record<string, string> = { paid: '#0D332A', pending: '#92400e', failed: '#991b1b' }
 const STATUS_BG: Record<string, string>     = { paid: '#d1fae5', pending: '#fef3c7', failed: '#fee2e2' }
 
 export function SuperadminView() {
@@ -26,8 +26,8 @@ export function SuperadminView() {
   const totalPayments = revenue.reduce((s, r) => s + r.payment_count, 0)
 
   const TAB_BTN = (a: boolean): preact.JSX.CSSProperties => ({
-    padding: '0.375rem 0.875rem', border: 'none', borderBottom: a ? '2px solid #1a56db' : '2px solid transparent',
-    background: 'none', color: a ? '#1a56db' : '#6b7280', cursor: 'pointer', fontSize: '0.875rem', fontWeight: a ? 600 : 400,
+    padding: '0.375rem 0.875rem', border: 'none', borderBottom: a ? '2px solid #14463A' : '2px solid transparent',
+    background: 'none', color: a ? '#14463A' : '#6b7280', cursor: 'pointer', fontSize: '0.875rem', fontWeight: a ? 600 : 400,
   })
 
   if (loading) return <div style={{ padding: '2rem', fontFamily: 'system-ui' }}>Loading…</div>
@@ -39,9 +39,9 @@ export function SuperadminView() {
       {/* Summary cards */}
       <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
         {[
-          { label: 'Total Collected', value: fmt(totalCollected), color: '#065f46', bg: '#d1fae5' },
+          { label: 'Total Collected', value: fmt(totalCollected), color: '#0D332A', bg: '#d1fae5' },
           { label: 'Total Outstanding', value: fmt(totalOutstanding), color: '#991b1b', bg: '#fee2e2' },
-          { label: 'Schools', value: String(revenue.length), color: '#1e40af', bg: '#dbeafe' },
+          { label: 'Schools', value: String(revenue.length), color: '#0D332A', bg: '#E7EFEA' },
           { label: 'Payments', value: String(totalPayments), color: '#374151', bg: '#f3f4f6' },
         ].map((c) => (
           <div key={c.label} style={{ padding: '1rem 1.5rem', background: c.bg, borderRadius: 8, minWidth: 160 }}>
@@ -54,7 +54,7 @@ export function SuperadminView() {
       <div style={{ display: 'flex', gap: '0.25rem', borderBottom: '1px solid #e5e7eb', marginBottom: '1.25rem' }}>
         <button onClick={() => setTab('revenue')} style={TAB_BTN(tab === 'revenue')}>School Revenue</button>
         <button onClick={() => setTab('payments')} style={TAB_BTN(tab === 'payments')}>All Payments</button>
-        <a href="/api/v1/superadmin/payments/export.csv" style={{ marginLeft: 'auto', padding: '0.375rem 0.875rem', color: '#1a56db', textDecoration: 'none', fontSize: '0.8rem', alignSelf: 'center' }}>
+        <a href="/api/v1/superadmin/payments/export.csv" style={{ marginLeft: 'auto', padding: '0.375rem 0.875rem', color: '#14463A', textDecoration: 'none', fontSize: '0.8rem', alignSelf: 'center' }}>
           Export CSV ↓
         </a>
       </div>
@@ -72,7 +72,7 @@ export function SuperadminView() {
             <div key={r.tenant_id} style={{ display: 'flex', padding: '0.625rem 1rem', borderBottom: '1px solid #f3f4f6', gap: '1rem', fontSize: '0.875rem', alignItems: 'center' }}>
               <span style={{ flex: 1, fontWeight: 500 }}>{r.school_name}</span>
               <span style={{ width: 80, color: '#6b7280', fontFamily: 'monospace' }}>{r.slug}</span>
-              <span style={{ width: 120, textAlign: 'right', fontWeight: 700, color: '#065f46' }}>{fmt(r.total_collected)}</span>
+              <span style={{ width: 120, textAlign: 'right', fontWeight: 700, color: '#0D332A' }}>{fmt(r.total_collected)}</span>
               <span style={{ width: 120, textAlign: 'right', fontWeight: 700, color: Number(r.total_outstanding) > 0 ? '#dc2626' : '#6b7280' }}>{fmt(r.total_outstanding)}</span>
               <span style={{ width: 80, textAlign: 'right', color: '#6b7280' }}>{r.payment_count}</span>
             </div>
@@ -95,7 +95,7 @@ export function SuperadminView() {
             <div key={p.id} style={{ display: 'flex', padding: '0.5rem 1rem', borderBottom: '1px solid #f3f4f6', gap: '0.75rem', fontSize: '0.8rem', alignItems: 'center' }}>
               <span style={{ width: 90, color: '#6b7280', fontFamily: 'monospace' }}>{p.tenant_slug}</span>
               <span style={{ flex: 1 }}>{p.student_name}</span>
-              <span style={{ width: 110, fontWeight: p.receipt_number ? 600 : 400, color: p.receipt_number ? '#1a56db' : '#9ca3af' }}>{p.receipt_number ?? '—'}</span>
+              <span style={{ width: 110, fontWeight: p.receipt_number ? 600 : 400, color: p.receipt_number ? '#14463A' : '#9ca3af' }}>{p.receipt_number ?? '—'}</span>
               <span style={{ width: 80, textAlign: 'right', fontWeight: 700 }}>{fmt(p.amount)}</span>
               <span style={{ width: 70 }}>
                 <span style={{ padding: '2px 6px', background: STATUS_BG[p.status] ?? '#f3f4f6', color: STATUS_COLORS[p.status] ?? '#374151', borderRadius: 9999, fontSize: '0.7rem', fontWeight: 600 }}>{p.status}</span>

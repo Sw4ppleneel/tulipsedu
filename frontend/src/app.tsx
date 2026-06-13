@@ -2,22 +2,12 @@ import { useEffect, useState } from 'preact/hooks'
 import { login } from './api/client'
 import { clearAuthState, decodeJWT, restoreAuthState, setAuthState } from './api/auth_state'
 import { loginByAdmissionNo } from './api/parent'
-import { DashboardView } from './views/Dashboard'
-import { StudentsView } from './views/Students'
-import { StaffView } from './views/Staff'
-import { AttendanceView } from './views/Attendance'
-import { FeesAdminView } from './views/FeesAdmin'
-import { SuperadminView } from './views/Superadmin'
-import { HomeworkView } from './views/Homework'
-import { TimetableView } from './views/Timetable'
-import { ExamView } from './views/Exam'
 import { ParentPortalView } from './views/ParentPortal'
-import { CmsAdminView } from './views/CmsAdmin'
-import { SettingsView } from './views/Settings'
 import { PublicSite } from './views/PublicSite'
-import { TeacherShell } from './views/TeacherShell'
-import { NotificationsBell } from './views/NotificationsBell'
+import { PortalShell } from './portals/PortalShell'
+import { buildPortalConfig } from './portals/configs'
 import { featuresApi, type FeatureFlags } from './api/notifications'
+import { Brand } from './ui'
 import type { TokenResponse } from './types/auth'
 
 function getSubdomain(): string {
@@ -25,164 +15,15 @@ function getSubdomain(): string {
   return parts.length > 2 ? parts[0] : ''
 }
 
-type View = 'dashboard' | 'students' | 'staff' | 'attendance' | 'fees' | 'homework' | 'timetable' | 'exams' | 'cms' | 'settings' | 'superadmin'
-
-// Display order of nav tabs.
-const ALL_VIEWS: { key: View; label: string }[] = [
-  { key: 'dashboard',  label: 'Home' },
-  { key: 'students',   label: 'Students' },
-  { key: 'staff',      label: 'Staff' },
-  { key: 'attendance', label: 'Attendance' },
-  { key: 'fees',       label: 'Fees' },
-  { key: 'homework',   label: 'Homework' },
-  { key: 'timetable',  label: 'Timetable' },
-  { key: 'exams',      label: 'Exams' },
-  { key: 'cms',        label: 'CMS' },
-  { key: 'settings',   label: 'Settings' },
-  { key: 'superadmin', label: 'Superadmin' },
-]
-
-// Which roles may see each view. Mirrors the backend route guards in
-// backend/core/rbac.py — the backend is the real boundary; this only
-// controls what the staff app renders. superadmin is handled separately.
-const VIEW_ACCESS: Record<View, string[]> = {
-  dashboard:  ['principal', 'vice_principal'],
-  students:   ['principal', 'vice_principal'],
-  staff:      ['principal', 'vice_principal'],
-  attendance: ['principal', 'vice_principal', 'class_teacher', 'teacher'],
-  fees:       ['principal', 'vice_principal', 'accountant'],
-  homework:   ['principal', 'vice_principal', 'class_teacher', 'teacher'],
-  timetable:  ['principal', 'vice_principal', 'class_teacher', 'teacher'],
-  exams:      ['principal', 'vice_principal', 'class_teacher', 'teacher'],
-  cms:        ['principal'],
-  settings:   ['principal'],
-  superadmin: ['superadmin'],
-}
-
-function canSee(role: string, v: View): boolean {
-  if (role === 'superadmin') return v === 'superadmin'
-  return VIEW_ACCESS[v].includes(role)
-}
-
-// Views gated by a tenant module flag (GET /me/features). Everything else
-// (dashboard/students/staff/settings/superadmin) is always on. Until flags
-// load, treat all as on so nav never flickers off for the 4 live schools.
-function featureOn(flags: FeatureFlags | null, v: View): boolean {
-  if (!flags) return true
-  switch (v) {
-    case 'attendance': return flags.attendance
-    case 'fees':       return flags.fees
-    case 'homework':   return flags.homework
-    case 'timetable':  return flags.timetable
-    case 'exams':      return flags.exams
-    case 'cms':        return flags.cms
-    default:           return true
-  }
-}
-
-// ── Nav icon helper (small SVG) ───────────────────────────────────────────────
-const ICONS: Record<string, string> = {
-  dashboard:  '⊞',
-  students:   '🎓',
-  staff:      '👥',
-  attendance: '✓',
-  fees:       '₹',
-  homework:   '📚',
-  timetable:  '🗓',
-  exams:      '📝',
-  cms:        '🌐',
-  settings:   '⚙',
-  superadmin: '🛡',
-}
-
-// ── Staff App Shell ───────────────────────────────────────────────────────────
-
-function AppShell({ onLogout, role, schoolName }: { onLogout: () => void; role: string; schoolName: string }) {
+// ── Staff portal ──────────────────────────────────────────────────────────────
+// Resolves the role to its dedicated portal (section set + big-button home) on
+// the shared PortalShell. Module gating (GET /me/features) is applied while
+// building the principal config; the backend remains the real authorization gate.
+function StaffPortal({ role, schoolName, onLogout }: { role: string; schoolName: string; onLogout: () => void }) {
   const [features, setFeatures] = useState<FeatureFlags | null>(null)
   useEffect(() => { featuresApi.get().then(setFeatures).catch(() => {}) }, [])
-
-  const NAV_ITEMS = ALL_VIEWS.filter((item) => canSee(role, item.key) && featureOn(features, item.key))
-  const landing: View = NAV_ITEMS[0]?.key ?? 'dashboard'
-  const [view, setView] = useState<View>(landing)
-  const [menuOpen, setMenuOpen] = useState(false)
-
-  function navBtn(item: { key: View; label: string }) {
-    const active = view === item.key
-    return (
-      <button
-        key={item.key}
-        onClick={() => { setView(item.key); setMenuOpen(false) }}
-        style={{
-          display: 'flex', alignItems: 'center', gap: '.375rem',
-          padding: '.35rem .7rem',
-          background: active ? 'rgba(255,255,255,.18)' : 'transparent',
-          color: active ? '#fff' : 'rgba(255,255,255,.75)',
-          border: active ? '1px solid rgba(255,255,255,.25)' : '1px solid transparent',
-          borderRadius: 5,
-          cursor: 'pointer',
-          fontSize: '.8125rem',
-          fontWeight: active ? 600 : 400,
-          fontFamily: 'inherit',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        <span style={{ fontSize: '.875rem', lineHeight: 1 }}>{ICONS[item.key]}</span>
-        {item.label}
-      </button>
-    )
-  }
-
-  return (
-    <div style={{ minHeight: '100vh', background: 'var(--gray-50)', fontFamily: 'var(--font)' }}>
-      <header style={{
-        background: 'linear-gradient(135deg, #1a56db 0%, #1e40af 100%)',
-        color: '#fff',
-        padding: '0 1.25rem',
-        height: 54,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        boxShadow: '0 2px 8px rgba(26,86,219,.3)',
-        position: 'sticky', top: 0, zIndex: 100,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', minWidth: 0 }}>
-          {/* Logo mark */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', flexShrink: 0 }}>
-            <div style={{ width: 30, height: 30, background: 'rgba(255,255,255,.2)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '1rem' }}>T</div>
-            <div style={{ lineHeight: 1.15 }}>
-              <div style={{ fontWeight: 800, fontSize: '.9rem', letterSpacing: '-.01em' }}>Tulips.edu</div>
-              {schoolName && <div style={{ fontSize: '.65rem', opacity: .75, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>{schoolName}</div>}
-            </div>
-          </div>
-          {/* Nav */}
-          <nav style={{ display: 'flex', gap: '.2rem', flexWrap: 'nowrap', overflow: 'hidden' }}>
-            {NAV_ITEMS.map(navBtn)}
-          </nav>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', flexShrink: 0 }}>
-          <NotificationsBell />
-          <button
-            onClick={onLogout}
-            style={{ background: 'rgba(255,255,255,.12)', color: 'rgba(255,255,255,.9)', border: '1px solid rgba(255,255,255,.2)', borderRadius: 5, padding: '.3rem .75rem', cursor: 'pointer', fontSize: '.75rem', fontFamily: 'inherit' }}
-          >
-            Sign out
-          </button>
-        </div>
-      </header>
-
-      <main>
-        {view === 'dashboard'  && canSee(role, 'dashboard')  && <DashboardView schoolName={schoolName} />}
-        {view === 'students'   && canSee(role, 'students')   && <StudentsView />}
-        {view === 'staff'      && canSee(role, 'staff')      && <StaffView />}
-        {view === 'attendance' && canSee(role, 'attendance') && featureOn(features, 'attendance') && <AttendanceView />}
-        {view === 'fees'       && canSee(role, 'fees')       && featureOn(features, 'fees')       && <FeesAdminView />}
-        {view === 'homework'   && canSee(role, 'homework')   && featureOn(features, 'homework')   && <HomeworkView />}
-        {view === 'timetable'  && canSee(role, 'timetable')  && featureOn(features, 'timetable')  && <TimetableView />}
-        {view === 'exams'      && canSee(role, 'exams')      && featureOn(features, 'exams')      && <ExamView />}
-        {view === 'cms'        && canSee(role, 'cms')        && featureOn(features, 'cms')        && <CmsAdminView />}
-        {view === 'settings'   && canSee(role, 'settings')   && <SettingsView />}
-        {view === 'superadmin' && canSee(role, 'superadmin') && <SuperadminView />}
-      </main>
-    </div>
-  )
+  const config = buildPortalConfig({ role, schoolName, features, onLogout })
+  return <PortalShell config={config} />
 }
 
 // ── Parent Login (admission number) ──────────────────────────────────────────
@@ -210,8 +51,8 @@ function ParentLogin({
     <div style={LOGIN_PAGE}>
       <div style={LOGIN_CARD}>
         <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-          <div style={LOGO_MARK}>T</div>
-          <div style={{ fontWeight: 800, fontSize: '1.25rem', color: 'var(--gray-900)', marginTop: '.75rem' }}>Parent Login</div>
+          <div style={{ display: 'flex', justifyContent: 'center' }}><Brand /></div>
+          <div style={{ fontWeight: 700, fontSize: '1.25rem', color: 'var(--gray-900)', marginTop: '.75rem', fontFamily: 'var(--font-display)' }}>Parent Login</div>
           <div class="text-muted text-sm" style={{ marginTop: '.25rem' }}>Enter your child's admission number</div>
         </div>
 
@@ -249,17 +90,12 @@ function ParentLogin({
 const LOGIN_PAGE: preact.JSX.CSSProperties = {
   display: 'flex', justifyContent: 'center', alignItems: 'center',
   minHeight: '100vh', fontFamily: 'var(--font)',
-  background: 'linear-gradient(145deg, #eff6ff 0%, #f0fdf4 50%, #fafafa 100%)',
+  background: 'linear-gradient(160deg, #EDF3EE 0%, #F7F9F5 55%, #FBEFCF 140%)',
 }
 const LOGIN_CARD: preact.JSX.CSSProperties = {
   width: '100%', maxWidth: 380, background: '#fff', borderRadius: 14,
-  padding: '2rem 2rem 1.75rem', boxShadow: '0 8px 32px rgba(26,86,219,.1), 0 2px 8px rgba(0,0,0,.06)',
-  border: '1px solid rgba(26,86,219,.08)',
-}
-const LOGO_MARK: preact.JSX.CSSProperties = {
-  width: 52, height: 52, background: 'linear-gradient(135deg,#1a56db,#1e40af)',
-  borderRadius: 14, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-  color: '#fff', fontWeight: 900, fontSize: '1.4rem', boxShadow: '0 4px 12px rgba(26,86,219,.3)',
+  padding: '2rem 2rem 1.75rem', boxShadow: '0 18px 50px -18px rgba(13,51,42,.25)',
+  border: '1px solid var(--gray-200)',
 }
 
 type AppMode = 'public' | 'login' | 'parent-login' | 'staff-app' | 'parent-app'
@@ -363,12 +199,9 @@ export function App() {
   }
 
   if (mode === 'public') return <PublicSite onStaffLogin={goStaffLogin} onParentLogin={goParentLogin} />
-  if (mode === 'staff-app') {
-    // Portal resolution by role: teachers get their own app, not the admin shell.
-    if (userRole === 'teacher' || userRole === 'class_teacher')
-      return <TeacherShell onLogout={handleLogout} role={userRole} schoolName={schoolName} />
-    return <AppShell onLogout={handleLogout} role={userRole} schoolName={schoolName} />
-  }
+  if (mode === 'staff-app')
+    return <StaffPortal role={userRole} schoolName={schoolName} onLogout={handleLogout} />
+
   if (mode === 'parent-app') return <ParentPortalView onLogout={handleParentLogout} />
   if (mode === 'parent-login') return <ParentLogin onSuccess={handleParentSuccess} onBack={goPublic} />
 
@@ -378,8 +211,8 @@ export function App() {
       <div style={LOGIN_CARD}>
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
-          <div style={LOGO_MARK}>T</div>
-          <div style={{ fontWeight: 800, fontSize: '1.35rem', color: 'var(--gray-900)', marginTop: '.875rem', lineHeight: 1.2 }}>
+          <div style={{ display: 'flex', justifyContent: 'center' }}><Brand /></div>
+          <div style={{ fontWeight: 700, fontSize: '1.35rem', color: 'var(--gray-900)', marginTop: '.875rem', lineHeight: 1.2, fontFamily: 'var(--font-display)' }}>
             {schoolName || 'Tulips.edu'}
           </div>
           {schoolName && (

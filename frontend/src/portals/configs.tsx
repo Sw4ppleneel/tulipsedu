@@ -1,0 +1,84 @@
+/**
+ * Per-role portal definitions. Each role gets a dedicated app experience (its own
+ * section set + big-button home) on the shared PortalShell, so every screen still
+ * reads as one Tulips.edu product. The backend (require_roles + load_class_scope)
+ * is the real authorization boundary; this only shapes what each role's app loads.
+ */
+import type { PortalConfig, PortalSection } from './PortalShell'
+import type { FeatureFlags } from '../api/notifications'
+
+import { DashboardView } from '../views/Dashboard'
+import { StudentsView } from '../views/Students'
+import { StaffView } from '../views/Staff'
+import { AttendanceView } from '../views/Attendance'
+import { FeesAdminView } from '../views/FeesAdmin'
+import { HomeworkView } from '../views/Homework'
+import { TimetableView } from '../views/Timetable'
+import { ExamView } from '../views/Exam'
+import { CmsAdminView } from '../views/CmsAdmin'
+import { SettingsView } from '../views/Settings'
+import { SuperadminView } from '../views/Superadmin'
+import { TeacherDashboard } from '../views/TeacherDashboard'
+
+type Mod = 'attendance' | 'fees' | 'homework' | 'timetable' | 'exams' | 'cms'
+
+function flagOn(features: FeatureFlags | null, mod: Mod): boolean {
+  return features ? features[mod] : true // default-on until flags load (4 live schools)
+}
+
+interface BuildArgs {
+  role: string
+  schoolName: string
+  features: FeatureFlags | null
+  onLogout: () => void
+  logoUrl?: string | null
+}
+
+export function buildPortalConfig(args: BuildArgs): PortalConfig {
+  const { role, schoolName, features, onLogout, logoUrl } = args
+
+  const base = (name: string, sections: PortalSection[], showBell = true): PortalConfig =>
+    ({ name, schoolName, sections, showBell, logoUrl, onLogout })
+
+  // ── Super admin — platform only ──────────────────────────────────────────
+  if (role === 'superadmin') {
+    return base('Platform', [
+      { key: 'platform', label: 'Institutions', icon: '🏛', desc: 'Tenants, provisioning, platform administration', render: () => <SuperadminView /> },
+    ], false)
+  }
+
+  // ── Teacher / class teacher — daily classroom ops, assigned classes only ──
+  if (role === 'teacher' || role === 'class_teacher') {
+    return base('Teacher', [
+      { key: 'today',      label: 'Today',      icon: '⊞',  desc: 'Your classes, pending attendance, notices', render: nav => <TeacherDashboard onGoToAttendance={() => nav('attendance')} /> },
+      { key: 'attendance', label: 'Attendance', icon: '✓',  desc: 'Mark today’s attendance for your classes',    render: () => <AttendanceView /> },
+      { key: 'homework',   label: 'Homework',   icon: '📚', desc: 'Assign homework, notices and study material', render: () => <HomeworkView /> },
+      { key: 'timetable',  label: 'Timetable',  icon: '🗓', desc: 'Your weekly teaching schedule',               render: () => <TimetableView /> },
+      { key: 'exams',      label: 'Exams',      icon: '📝', desc: 'Enter marks for your subjects',               render: () => <ExamView /> },
+    ])
+  }
+
+  // ── Accountant — finance only ────────────────────────────────────────────
+  if (role === 'accountant') {
+    return base('Accountant', [
+      { key: 'fees', label: 'Fees & Collections', icon: '₹', desc: 'Fee ledger, receipts, collections, outstanding', render: () => <FeesAdminView /> },
+    ])
+  }
+
+  // ── Principal / vice-principal — full institution ────────────────────────
+  const isPrincipal = role === 'principal'
+  const sections: PortalSection[] = [
+    { key: 'dashboard', label: 'Dashboard', icon: '⊞',  desc: 'Counts, attendance and fee collection at a glance', render: () => <DashboardView schoolName={schoolName} /> },
+    { key: 'students',  label: 'Students',  icon: '🎓', desc: 'Enrolment, roster and student records',             render: () => <StudentsView /> },
+    { key: 'staff',     label: 'Staff',     icon: '👥', desc: 'Teachers, roles and class assignments',             render: () => <StaffView /> },
+  ]
+  if (flagOn(features, 'attendance')) sections.push({ key: 'attendance', label: 'Attendance', icon: '✓',  desc: 'Monitor and override attendance', render: () => <AttendanceView /> })
+  if (flagOn(features, 'fees'))       sections.push({ key: 'fees',       label: 'Fees',       icon: '₹',  desc: 'Structures, ledger and collections', render: () => <FeesAdminView /> })
+  if (flagOn(features, 'homework'))   sections.push({ key: 'homework',   label: 'Homework',   icon: '📚', desc: 'Classroom feed and announcements',   render: () => <HomeworkView /> })
+  if (flagOn(features, 'timetable'))  sections.push({ key: 'timetable',  label: 'Timetable',  icon: '🗓', desc: 'Weekly schedules and teachers',      render: () => <TimetableView /> })
+  if (flagOn(features, 'exams'))      sections.push({ key: 'exams',      label: 'Exams',      icon: '📝', desc: 'Terms, marks and results',           render: () => <ExamView /> })
+  if (isPrincipal && flagOn(features, 'cms')) sections.push({ key: 'cms', label: 'Website', icon: '🌐', desc: 'Public site pages and announcements', render: () => <CmsAdminView /> })
+  if (isPrincipal) sections.push({ key: 'settings', label: 'Settings', icon: '⚙', desc: 'School profile and payment settings', render: () => <SettingsView /> })
+
+  return base(isPrincipal ? 'Principal' : 'Vice-Principal', sections)
+}

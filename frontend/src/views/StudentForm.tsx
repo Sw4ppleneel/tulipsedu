@@ -166,7 +166,7 @@ export function StudentForm({ academicYears, classes, onCreated, onCancel }: Pro
           <button
             type="submit"
             disabled={loading}
-            style={{ padding: '0.625rem 1.25rem', background: '#1a56db', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem' }}
+            style={{ padding: '0.625rem 1.25rem', background: '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem' }}
           >
             {loading ? 'Saving…' : 'Save Student'}
           </button>
