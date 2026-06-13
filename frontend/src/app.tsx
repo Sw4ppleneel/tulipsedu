@@ -15,6 +15,7 @@ import { ParentPortalView } from './views/ParentPortal'
 import { CmsAdminView } from './views/CmsAdmin'
 import { SettingsView } from './views/Settings'
 import { PublicSite } from './views/PublicSite'
+import { TeacherShell } from './views/TeacherShell'
 import { NotificationsBell } from './views/NotificationsBell'
 import { featuresApi, type FeatureFlags } from './api/notifications'
 import type { TokenResponse } from './types/auth'
@@ -362,7 +363,12 @@ export function App() {
   }
 
   if (mode === 'public') return <PublicSite onStaffLogin={goStaffLogin} onParentLogin={goParentLogin} />
-  if (mode === 'staff-app') return <AppShell onLogout={handleLogout} role={userRole} schoolName={schoolName} />
+  if (mode === 'staff-app') {
+    // Portal resolution by role: teachers get their own app, not the admin shell.
+    if (userRole === 'teacher' || userRole === 'class_teacher')
+      return <TeacherShell onLogout={handleLogout} role={userRole} schoolName={schoolName} />
+    return <AppShell onLogout={handleLogout} role={userRole} schoolName={schoolName} />
+  }
   if (mode === 'parent-app') return <ParentPortalView onLogout={handleParentLogout} />
   if (mode === 'parent-login') return <ParentLogin onSuccess={handleParentSuccess} onBack={goPublic} />
 

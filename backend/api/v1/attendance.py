@@ -15,13 +15,28 @@ from models.attendance import (
 )
 from services.attendance import (
     AttendanceError,
+    AttendanceLocked,
     get_attendance_report,
     get_or_create_session,
     get_session_detail,
+    get_session_scope,
     list_sessions,
     mark_attendance,
     submit_session,
 )
+
+
+def _can_override(request: Request) -> bool:
+    """Admin-tier roles (unrestricted scope) may edit day-locked attendance."""
+    return getattr(request.state, "class_scope", None) is None
+
+
+async def _assert_session_in_scope(request, conn, session_id):
+    """404 if the session is absent, 403 if outside the caller's class scope."""
+    scope = await get_session_scope(conn, request.state.tenant_id, session_id)
+    if scope is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    assert_in_scope(request, scope[0], scope[1])
 
 # Teaching roles are restricted to their assigned classes (load_class_scope);
 # admin-tier roles are unrestricted.
@@ -74,6 +89,7 @@ async def get_sessions(
 async def get_session(session_id: UUID, request: Request):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
+        await _assert_session_in_scope(request, conn, session_id)
         detail = await get_session_detail(conn, request.state.tenant_id, session_id)
     if not detail:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -84,8 +100,14 @@ async def get_session(session_id: UUID, request: Request):
 async def mark(session_id: UUID, req: MarkRequest, request: Request):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
+        await _assert_session_in_scope(request, conn, session_id)
         try:
-            count = await mark_attendance(conn, request.state.tenant_id, session_id, req)
+            count = await mark_attendance(
+                conn, request.state.tenant_id, session_id, req,
+                can_override=_can_override(request),
+            )
+        except AttendanceLocked as e:
+            raise HTTPException(status_code=423, detail=str(e))
         except AttendanceError as e:
             raise HTTPException(status_code=404, detail=str(e))
     return {"marked": count}
@@ -95,7 +117,14 @@ async def mark(session_id: UUID, req: MarkRequest, request: Request):
 async def submit(session_id: UUID, request: Request):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
-        session = await submit_session(conn, request.state.tenant_id, session_id)
+        await _assert_session_in_scope(request, conn, session_id)
+        try:
+            session = await submit_session(
+                conn, request.state.tenant_id, session_id,
+                can_override=_can_override(request),
+            )
+        except AttendanceLocked as e:
+            raise HTTPException(status_code=423, detail=str(e))
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     return session

@@ -41,6 +41,41 @@ fee installment lifecycle + W10 admissions pipeline.
 
 ---
 
+# 🟡 IN PROGRESS 2026-06-13 — Role-portal framework + daily-attendance directive
+
+Directive: Tulips.edu = multiple role-specific apps over one backend, composed from
+permissions (see ARCHITECTURE.md + memory role-based-portal-framework). Attendance = strict
+DAILY model (one record/student/day, no period/subject attendance).
+
+## Attendance directive — DONE (backend, verified local)
+- [x] Core daily model already compliant (sessions unique per class/section/day; upsert mark;
+      accountant excluded from router). No schema change.
+- [x] **Scope holes closed** — mark/submit/get_session now `assert_in_scope` on the session's
+      class/section (was open to any session_id). Helper `get_session_scope`.
+- [x] **End-of-day lock** (IST): `is_locked(date) = today_IST > session.date`. Teacher edit/
+      submit on locked → **423**; principal/admin (class_scope is None) → allowed and emits
+      **ATTENDANCE_OVERRIDE** (worker maps it → absent_alert, dedup-safe). `AttendanceSession.locked`
+      computed field surfaces state to the UI. No migration (lock derived; zoneinfo stdlib).
+- [x] Verified vs dev DB (rolled back, zero drift): teacher-locked 423, admin override allowed +
+      event emitted, scope helper. Event documented in ARCHITECTURE.md catalog.
+
+## Teacher portal split — DONE (first slice)
+- [x] Backend `GET /teacher/dashboard` (api/v1/teacher.py; teacher/class_teacher only +
+      load_class_scope): assigned classes w/ today's attendance status, pending attendance,
+      recent homework, notices (class announcements + institution CMS), upcoming exams.
+      Exact (class,section) scope match via `unnest($cids,$sids)`. Additive, no schema.
+- [x] Frontend: **portal resolution by role** in app.tsx — teacher/class_teacher render a
+      dedicated **TeacherShell** (green-themed), NOT the admin AppShell with hidden menus.
+      Loads only Today/Attendance/Homework/Timetable/Exams (+ notifications bell); never
+      imports staff/finance/settings/CMS. New TeacherDashboard + api/teacher.ts.
+- [x] Verified: tsc clean; bundle 179.9 kB / 46.1 kB gzip (+1 kB). RBAC matrix —
+      /teacher/dashboard teacher-only (principal/accountant/parent 403); /attendance still
+      403 for accountant. 91 routes; app imports clean.
+- Next slices (not this pass): accountant portal shell, principal/admin portal polish,
+  full permission-driven module loading per role-based-portal-framework memory.
+
+---
+
 # ✅ CHECKPOINT 2026-06-13 — Workflow Spine BUILT + VERIFIED + DEPLOYED TO PROD
 
 Approved plan: `~/.claude/plans/elegant-jumping-widget.md` (scope: spine + first

@@ -70,7 +70,7 @@ async def get_or_create_session(
         tenant_id, data.academic_year_id, data.class_id, data.section_id, data.date,
     )
     if row:
-        return AttendanceSession(**dict(row)), False
+        return AttendanceSession(**_with_lock(dict(row))), False
 
     new_row = await conn.fetchrow(
         """
@@ -84,7 +84,18 @@ async def get_or_create_session(
     full = await conn.fetchrow(
         f"{_SESSION_JOIN} WHERE sess.id = $1", new_row["id"]
     )
-    return AttendanceSession(**dict(full)), True
+    return AttendanceSession(**_with_lock(dict(full))), True
+
+
+async def get_session_scope(
+    conn: asyncpg.Connection, tenant_id: uuid.UUID, session_id: uuid.UUID
+) -> Optional[tuple[uuid.UUID, uuid.UUID]]:
+    """(class_id, section_id) for scope checks, or None if the session is absent."""
+    row = await conn.fetchrow(
+        "SELECT class_id, section_id FROM attendance_sessions WHERE id = $1 AND tenant_id = $2",
+        session_id, tenant_id,
+    )
+    return (row["class_id"], row["section_id"]) if row else None
 
 
 async def get_session_detail(
@@ -102,7 +113,7 @@ async def get_session_detail(
         session_id, tenant_id,
     )
     return SessionDetail(
-        session=AttendanceSession(**dict(row)),
+        session=AttendanceSession(**_with_lock(dict(row))),
         records=[AttendanceRecord(**dict(r)) for r in records],
     )
 
@@ -130,7 +141,7 @@ async def list_sessions(
         f"{_SESSION_JOIN} {where} ORDER BY sess.date DESC LIMIT $7 OFFSET $8",
         tenant_id, academic_year_id, class_id, section_id, from_date, to_date, limit, offset,
     )
-    return [AttendanceSession(**dict(r)) for r in rows]
+    return [AttendanceSession(**_with_lock(dict(r))) for r in rows]
 
 
 async def mark_attendance(
@@ -138,13 +149,21 @@ async def mark_attendance(
     tenant_id: uuid.UUID,
     session_id: uuid.UUID,
     req: MarkRequest,
+    *,
+    can_override: bool = False,
 ) -> int:
     session = await conn.fetchrow(
-        "SELECT id, submitted FROM attendance_sessions WHERE id = $1 AND tenant_id = $2",
+        "SELECT id, submitted, date FROM attendance_sessions WHERE id = $1 AND tenant_id = $2",
         session_id, tenant_id,
     )
     if not session:
         raise AttendanceError("Session not found")
+
+    locked = is_locked(session["date"])
+    if locked and not can_override:
+        raise AttendanceLocked(
+            f"Attendance for {session['date']} is locked; only a principal can edit it."
+        )
 
     if not req.marks:
         return 0
@@ -164,8 +183,14 @@ async def mark_attendance(
             tenant_id, session_id, student_ids, statuses,
         )
 
-        # Editing an already-submitted session is a correction — audit it distinctly.
-        event = "ATTENDANCE_CORRECTED" if session["submitted"] else "ATTENDANCE_MARKED"
+        # A post-lock admin edit is an override (immutable audit); an edit to a
+        # submitted-but-unlocked session is a correction; otherwise a fresh mark.
+        if locked:
+            event = "ATTENDANCE_OVERRIDE"
+        elif session["submitted"]:
+            event = "ATTENDANCE_CORRECTED"
+        else:
+            event = "ATTENDANCE_MARKED"
         await emit(conn, event, tenant_id, {
             "session_id": str(session_id),
             "count": len(req.marks),
@@ -174,7 +199,11 @@ async def mark_attendance(
 
 
 async def submit_session(
-    conn: asyncpg.Connection, tenant_id: uuid.UUID, session_id: uuid.UUID
+    conn: asyncpg.Connection,
+    tenant_id: uuid.UUID,
+    session_id: uuid.UUID,
+    *,
+    can_override: bool = False,
 ) -> Optional[AttendanceSession]:
     row = await conn.fetchrow(
         f"{_SESSION_JOIN} WHERE sess.id = $1 AND sess.tenant_id = $2",
@@ -182,6 +211,11 @@ async def submit_session(
     )
     if not row:
         return None
+
+    if is_locked(row["date"]) and not can_override:
+        raise AttendanceLocked(
+            f"Attendance for {row['date']} is locked; only a principal can edit it."
+        )
 
     # Submit flag + event must land atomically — the event triggers absent alerts.
     async with conn.transaction():
@@ -192,7 +226,7 @@ async def submit_session(
         await emit(conn, "ATTENDANCE_SESSION_SUBMITTED", tenant_id, {
             "session_id": str(session_id),
         })
-    updated = dict(row)
+    updated = _with_lock(dict(row))
     updated["submitted"] = True
     return AttendanceSession(**updated)
 

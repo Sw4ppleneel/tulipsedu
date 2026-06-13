@@ -30,6 +30,7 @@ class AttendanceSession(BaseModel):
     date: date
     marked_by: UUID
     submitted: bool
+    locked: bool = False  # day-locked (past its IST calendar day) — admin-only edits
     created_at: datetime
     class_name: Optional[str] = None
     section_name: Optional[str] = None

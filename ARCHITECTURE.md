@@ -446,7 +446,7 @@ Grade scale (CBSE): A1≥91, A2≥81, B1≥71, B2≥61, C1≥51, C2≥41, D≥33
 >
 > | Event | Consumer handler | Status |
 > |---|---|---|
-> | ATTENDANCE_SESSION_SUBMITTED / ATTENDANCE_CORRECTED | `attendance.absent_alert` → parent ABSENT notif (ref=session_id) | ✅ live |
+> | ATTENDANCE_SESSION_SUBMITTED / ATTENDANCE_CORRECTED / ATTENDANCE_OVERRIDE | `attendance.absent_alert` → parent ABSENT notif (ref=session_id) | ✅ live |
 > | FEE_PAID | `fees.receipt_push` → parent FEE_RECEIPT + accountant FEE_RECONCILE (ref=payment_id) | ✅ live |
 > | REMINDER_SENT | `fees.manual_reminder` → parent FEE_OVERDUE w/ pending total (ref=reminder:{event_id}) | ✅ live |
 > | HOMEWORK_ASSIGNED | `homework.parent_ping` → section parents HOMEWORK notif (ref=post_id) | ✅ live |
@@ -629,6 +629,26 @@ Purpose: Online fee collection
 Status: Planned
 
 ---
+
+# Frontend Portal Topology
+
+Tulips.edu is composed as **role-specific portals over one backend**, not a single dashboard
+with CSS-hidden menus. After login the SPA resolves a portal from the JWT role and renders a
+dedicated shell that loads only that role's modules (smaller bundle + defense in depth; the
+backend remains the real authorization boundary via `require_roles` + `load_class_scope`).
+
+| Role | Portal / shell | Modules |
+|---|---|---|
+| principal / vice_principal | AppShell (admin) | full institution (students, staff, attendance, fees, timetable, exams, homework, CMS, settings) |
+| teacher / class_teacher | **TeacherShell** | Today (scoped dashboard), Attendance, Homework, Timetable, Exams — assigned classes only |
+| accountant | AppShell (fee-filtered) | fees only *(dedicated accountant shell = future slice)* |
+| superadmin | AppShell (superadmin-only) | platform admin |
+| parent | ParentPortalView | own children: attendance, fees, homework, results, Updates |
+
+Teacher attendance is the **daily** Indian K-12 model (one record/student/day; no
+period/subject attendance). Sessions lock at end of their IST calendar day; after lock only
+principal/admin may edit and each edit emits `ATTENDANCE_OVERRIDE` (→ absent_alert, dedup-safe).
+Full per-role portal split (accountant shell, permission-driven module loading) is in progress.
 
 # Deployment Topology
 

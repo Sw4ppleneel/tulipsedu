@@ -48,6 +48,8 @@ HANDLERS: dict[str, list[Handler]] = {
     "ATTENDANCE_SESSION_SUBMITTED": [attendance.absent_alert],
     # Post-submit corrections may flip P→A → re-run (dedup makes it safe).
     "ATTENDANCE_CORRECTED": [attendance.absent_alert],
+    # Principal edit to a day-locked session — same alert path, dedup-safe.
+    "ATTENDANCE_OVERRIDE": [attendance.absent_alert],
     # Any successful payment (gateway webhook or mock/cash flow).
     "FEE_PAID": [fees.receipt_push],
     # Accountant's manual "send reminder" button (was a dead log before).
