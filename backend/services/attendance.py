@@ -1,6 +1,7 @@
 import uuid
-from datetime import date
+from datetime import date, datetime
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 import asyncpg
 
@@ -19,6 +20,29 @@ from models.attendance import (
 
 class AttendanceError(Exception):
     pass
+
+
+class AttendanceLocked(AttendanceError):
+    """Edit attempted on a day-locked session by a non-override role."""
+
+
+# Indian K-12 daily attendance: a session is editable only on its own calendar
+# day (school-local time). It locks at the start of the next IST day; after that
+# only principal/admin may edit, and each such edit emits ATTENDANCE_OVERRIDE.
+_IST = ZoneInfo("Asia/Kolkata")
+
+
+def _today_ist() -> date:
+    return datetime.now(_IST).date()
+
+
+def is_locked(session_date: date) -> bool:
+    return _today_ist() > session_date
+
+
+def _with_lock(row: dict) -> dict:
+    row["locked"] = is_locked(row["date"])
+    return row
 
 
 _SESSION_JOIN = """
