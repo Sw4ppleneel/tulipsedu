@@ -42,6 +42,13 @@ class RejectRequest(BaseModel):
     reason: str = ""
 
 
+class OfflineCollectRequest(BaseModel):
+    student_id: UUID
+    ledger_ids: list[UUID] = Field(min_length=1)
+    method: Literal["cash", "cheque", "upi", "bank_transfer", "card"] = "cash"
+    reference_no: Optional[str] = None
+
+
 # ── Fee Heads ────────────────────────────────────────────────────────────────
 
 class FeeHeadCreate(BaseModel):

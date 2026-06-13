@@ -11,12 +11,13 @@ from models.finance import (
     FeeScheduleCreate,
     FeeScheduleResponse,
     GenerateLedgerRequest,
+    OfflineCollectRequest,
     OutstandingReport,
     PendingPaymentRow,
     RejectRequest,
     StudentLedger,
 )
-from services import parent_payment
+from services import fee_collection, parent_payment
 from services.finance import (
     FinanceError,
     create_fee_head,
@@ -72,6 +73,21 @@ async def reject_payment(payment_id: UUID, body: RejectRequest, request: Request
             await parent_payment.reject(conn, request.state.tenant_id, user_id, payment_id, body.reason)
         except parent_payment.ParentPaymentError as e:
             raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/collect", dependencies=[_collect])
+async def collect_offline(body: OfflineCollectRequest, request: Request):
+    """Record an office payment (cash/cheque/UPI/bank) → marks the fees paid + receipt."""
+    user_id = UUID(request.state.user_id)
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        try:
+            return await fee_collection.record_offline_payment(
+                conn, request.state.tenant_id, user_id,
+                body.student_id, body.ledger_ids, body.method, body.reference_no,
+            )
+        except fee_collection.CollectionError as e:
+            raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.post(
