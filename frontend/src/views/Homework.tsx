@@ -42,18 +42,19 @@ function PostCard({ post, onDelete }: { post: HomeworkPost; onDelete: () => void
 }
 
 function PostForm({
-  years, classes, onSubmit, onCancel,
+  years, classes, onSubmit, onCancel, lockedType,
 }: {
   years: AcademicYear[]
   classes: Class[]
   onSubmit: (d: HomeworkCreate) => Promise<void>
   onCancel: () => void
+  lockedType?: HomeworkCreate['post_type']
 }) {
   const [ay, setAy] = useState(years[0]?.id ?? '')
   const [cls, setCls] = useState('')
   const [sec, setSec] = useState('')
   const [subject, setSubject] = useState('')
-  const [type, setType] = useState<HomeworkCreate['post_type']>('homework')
+  const [type, setType] = useState<HomeworkCreate['post_type']>(lockedType ?? 'homework')
   const [title, setTitle] = useState('')
   const [desc, setDesc] = useState('')
   const [due, setDue] = useState('')
@@ -99,14 +100,16 @@ function PostForm({
             {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         </div>
-        <div>
-          <label style={LBL}>Type</label>
-          <select value={type} onChange={e => setType((e.target as HTMLSelectElement).value as HomeworkCreate['post_type'])} style={INP}>
-            <option value="homework">Homework</option>
-            <option value="announcement">Announcement</option>
-            <option value="resource">Resource</option>
-          </select>
-        </div>
+        {!lockedType && (
+          <div>
+            <label style={LBL}>Type</label>
+            <select value={type} onChange={e => setType((e.target as HTMLSelectElement).value as HomeworkCreate['post_type'])} style={INP}>
+              <option value="homework">Homework</option>
+              <option value="announcement">Announcement</option>
+              <option value="resource">Resource</option>
+            </select>
+          </div>
+        )}
         <div>
           <label style={LBL}>Subject *</label>
           <input value={subject} onInput={e => setSubject((e.target as HTMLInputElement).value)} style={INP} placeholder="e.g. Mathematics" />
@@ -137,20 +140,30 @@ function PostForm({
   )
 }
 
-export function HomeworkView() {
+// Each post_type is its own section now (Homework / Announcements / Study Material),
+// so they're no longer clubbed under one "Feed". defaultType locks the section.
+const TYPE_META: Record<string, { title: string; noun: string }> = {
+  homework:     { title: 'Homework',       noun: 'homework' },
+  announcement: { title: 'Announcements',  noun: 'announcement' },
+  resource:     { title: 'Study Material', noun: 'material' },
+}
+
+export function HomeworkView({ defaultType }: { defaultType?: 'homework' | 'announcement' | 'resource' } = {}) {
   const [posts, setPosts] = useState<HomeworkPost[]>([])
   const [years, setYears] = useState<AcademicYear[]>([])
   const [classes, setClasses] = useState<Class[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
-  const [filterType, setFilterType] = useState('')
+  const [filterType, setFilterType] = useState(defaultType ?? '')
   const [filterClass, setFilterClass] = useState('')
   const [err, setErr] = useState('')
+
+  const meta = defaultType ? TYPE_META[defaultType] : null
 
   async function load(classId?: string, type?: string) {
     setLoading(true); setErr('')
     try {
-      const data = await listHomework({ class_id: classId || undefined, post_type: type || undefined, limit: 100 })
+      const data = await listHomework({ class_id: classId || undefined, post_type: (type ?? defaultType) || undefined, limit: 100 })
       setPosts(data)
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Failed to load')
@@ -162,7 +175,7 @@ export function HomeworkView() {
       setYears(ay)
       setClasses(cls)
     })
-    load()
+    load(undefined, defaultType)
   }, [])
 
   function applyFilters(cls?: string, type?: string) {
@@ -188,17 +201,17 @@ export function HomeworkView() {
   return (
     <div style={{ maxWidth: 800, margin: '1.5rem auto', padding: '0 1rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-        <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#111827' }}>Homework & Feed</h2>
+        <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#111827' }}>{meta?.title ?? 'Homework & Feed'}</h2>
         <button
           onClick={() => setShowForm(s => !s)}
           style={{ padding: '0.4rem 1rem', background: '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem' }}
         >
-          {showForm ? 'Cancel' : '+ New Post'}
+          {showForm ? 'Cancel' : `+ New ${meta ? meta.title.replace(/s$/, '') : 'Post'}`}
         </button>
       </div>
 
       {showForm && (
-        <PostForm years={years} classes={classes} onSubmit={handleCreate} onCancel={() => setShowForm(false)} />
+        <PostForm years={years} classes={classes} onSubmit={handleCreate} onCancel={() => setShowForm(false)} lockedType={defaultType} />
       )}
 
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
@@ -210,17 +223,19 @@ export function HomeworkView() {
           <option value="">All classes</option>
           {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
-        <select
-          value={filterType}
-          onChange={e => { const v = (e.target as HTMLSelectElement).value; setFilterType(v); applyFilters(filterClass, v) }}
-          style={{ padding: '0.375rem 0.625rem', border: '1px solid #d1d5db', borderRadius: 4, fontSize: '0.8rem' }}
-        >
-          <option value="">All types</option>
-          <option value="homework">Homework</option>
-          <option value="announcement">Announcement</option>
-          <option value="resource">Resource</option>
-        </select>
-        <span style={{ fontSize: '0.8rem', color: '#6b7280', alignSelf: 'center' }}>{filtered.length} post{filtered.length !== 1 ? 's' : ''}</span>
+        {!defaultType && (
+          <select
+            value={filterType}
+            onChange={e => { const v = (e.target as HTMLSelectElement).value; setFilterType(v); applyFilters(filterClass, v) }}
+            style={{ padding: '0.375rem 0.625rem', border: '1px solid #d1d5db', borderRadius: 4, fontSize: '0.8rem' }}
+          >
+            <option value="">All types</option>
+            <option value="homework">Homework</option>
+            <option value="announcement">Announcement</option>
+            <option value="resource">Resource</option>
+          </select>
+        )}
+        <span style={{ fontSize: '0.8rem', color: '#6b7280', alignSelf: 'center' }}>{filtered.length} {meta?.noun ?? 'post'}{filtered.length !== 1 ? 's' : ''}</span>
       </div>
 
       {err && <p style={{ color: '#ef4444', fontSize: '0.875rem', marginBottom: '0.75rem' }}>{err}</p>}

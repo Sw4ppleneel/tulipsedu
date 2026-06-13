@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { notificationsApi, type AppNotification } from '../api/notifications'
+import { Icon } from '../ui'
 
 // Gentler than FeesAdmin's 3s precedent — staff alerts aren't time-critical.
 const POLL_MS = 45000
@@ -84,10 +85,10 @@ export function NotificationsBell() {
           position: 'relative', background: 'rgba(255,255,255,.12)',
           color: 'rgba(255,255,255,.9)', border: '1px solid rgba(255,255,255,.2)',
           borderRadius: 5, padding: '.3rem .55rem', cursor: 'pointer',
-          fontSize: '.95rem', fontFamily: 'inherit', lineHeight: 1,
+          fontSize: '.95rem', fontFamily: 'inherit', lineHeight: 0,
         }}
       >
-        🔔
+        <Icon name="bell" size={18} />
         {unread > 0 && (
           <span style={{
             position: 'absolute', top: -6, right: -6, minWidth: 16, height: 16,

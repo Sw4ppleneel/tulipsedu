@@ -6,6 +6,7 @@
  */
 import type { PortalConfig, PortalSection } from './PortalShell'
 import type { FeatureFlags } from '../api/notifications'
+import { Icon } from '../ui'
 
 import { DashboardView } from '../views/Dashboard'
 import { StudentsView } from '../views/Students'
@@ -40,45 +41,55 @@ export function buildPortalConfig(args: BuildArgs): PortalConfig {
   const base = (name: string, sections: PortalSection[], showBell = true): PortalConfig =>
     ({ name, schoolName, sections, showBell, logoUrl, onLogout })
 
+  const ic = (n: Parameters<typeof Icon>[0]['name']) => <Icon name={n} size={24} />
+
   // ── Super admin — platform only ──────────────────────────────────────────
   if (role === 'superadmin') {
     return base('Platform', [
-      { key: 'platform', label: 'Institutions', icon: '🏛', desc: 'Tenants, provisioning, platform administration', render: () => <SuperadminView /> },
+      { key: 'platform', label: 'Institutions', icon: ic('platform'), desc: 'Tenants, provisioning, platform administration', render: () => <SuperadminView /> },
     ], false)
   }
 
   // ── Teacher / class teacher — daily classroom ops, assigned classes only ──
+  // Homework, Announcements and Study Material are SEPARATE sections (no longer
+  // clubbed under one "feed").
   if (role === 'teacher' || role === 'class_teacher') {
     return base('Teacher', [
-      { key: 'today',      label: 'Today',      icon: '⊞',  desc: 'Your classes, pending attendance, notices', render: nav => <TeacherDashboard onGoToAttendance={() => nav('attendance')} /> },
-      { key: 'attendance', label: 'Attendance', icon: '✓',  desc: 'Mark today’s attendance for your classes',    render: () => <AttendanceView /> },
-      { key: 'homework',   label: 'Homework',   icon: '📚', desc: 'Assign homework, notices and study material', render: () => <HomeworkView /> },
-      { key: 'timetable',  label: 'Timetable',  icon: '🗓', desc: 'Your weekly teaching schedule',               render: () => <TimetableView /> },
-      { key: 'exams',      label: 'Exams',      icon: '📝', desc: 'Enter marks for your subjects',               render: () => <ExamView /> },
+      { key: 'today',        label: 'Today',         icon: ic('dashboard'),    desc: 'Your classes, pending attendance, notices', render: nav => <TeacherDashboard onGoToAttendance={() => nav('attendance')} /> },
+      { key: 'attendance',   label: 'Attendance',    icon: ic('attendance'),   desc: 'Mark today’s attendance for your classes',  render: () => <AttendanceView /> },
+      { key: 'homework',     label: 'Homework',      icon: ic('homework'),     desc: 'Assign and review homework',                render: () => <HomeworkView defaultType="homework" /> },
+      { key: 'announcements',label: 'Announcements', icon: ic('announcement'), desc: 'Post notices to your classes',              render: () => <HomeworkView defaultType="announcement" /> },
+      { key: 'material',     label: 'Study Material',icon: ic('material'),     desc: 'Share study resources',                     render: () => <HomeworkView defaultType="resource" /> },
+      { key: 'timetable',    label: 'Timetable',     icon: ic('timetable'),    desc: 'Your weekly teaching schedule',             render: () => <TimetableView /> },
+      { key: 'exams',        label: 'Exams',         icon: ic('exams'),        desc: 'Enter marks for your subjects',             render: () => <ExamView /> },
     ])
   }
 
   // ── Accountant — finance only ────────────────────────────────────────────
   if (role === 'accountant') {
     return base('Accountant', [
-      { key: 'fees', label: 'Fees & Collections', icon: '₹', desc: 'Fee ledger, receipts, collections, outstanding', render: () => <FeesAdminView /> },
+      { key: 'fees', label: 'Fees & Collections', icon: ic('fees'), desc: 'Fee ledger, receipts, collections, outstanding', render: () => <FeesAdminView /> },
     ])
   }
 
   // ── Principal / vice-principal — full institution ────────────────────────
   const isPrincipal = role === 'principal'
   const sections: PortalSection[] = [
-    { key: 'dashboard', label: 'Dashboard', icon: '⊞',  desc: 'Counts, attendance and fee collection at a glance', render: () => <DashboardView schoolName={schoolName} /> },
-    { key: 'students',  label: 'Students',  icon: '🎓', desc: 'Enrolment, roster and student records',             render: () => <StudentsView /> },
-    { key: 'staff',     label: 'Staff',     icon: '👥', desc: 'Teachers, roles and class assignments',             render: () => <StaffView /> },
+    { key: 'dashboard', label: 'Dashboard', icon: ic('dashboard'), desc: 'Counts, attendance and fee collection at a glance', render: () => <DashboardView schoolName={schoolName} /> },
+    { key: 'students',  label: 'Students',  icon: ic('students'),  desc: 'Enrolment, roster and student records',             render: () => <StudentsView /> },
+    { key: 'staff',     label: 'Staff',     icon: ic('staff'),     desc: 'Teachers, roles and class assignments',             render: () => <StaffView /> },
   ]
-  if (flagOn(features, 'attendance')) sections.push({ key: 'attendance', label: 'Attendance', icon: '✓',  desc: 'Monitor and override attendance', render: () => <AttendanceView /> })
-  if (flagOn(features, 'fees'))       sections.push({ key: 'fees',       label: 'Fees',       icon: '₹',  desc: 'Structures, ledger and collections', render: () => <FeesAdminView /> })
-  if (flagOn(features, 'homework'))   sections.push({ key: 'homework',   label: 'Homework',   icon: '📚', desc: 'Classroom feed and announcements',   render: () => <HomeworkView /> })
-  if (flagOn(features, 'timetable'))  sections.push({ key: 'timetable',  label: 'Timetable',  icon: '🗓', desc: 'Weekly schedules and teachers',      render: () => <TimetableView /> })
-  if (flagOn(features, 'exams'))      sections.push({ key: 'exams',      label: 'Exams',      icon: '📝', desc: 'Terms, marks and results',           render: () => <ExamView /> })
-  if (isPrincipal && flagOn(features, 'cms')) sections.push({ key: 'cms', label: 'Website', icon: '🌐', desc: 'Public site pages and announcements', render: () => <CmsAdminView /> })
-  if (isPrincipal) sections.push({ key: 'settings', label: 'Settings', icon: '⚙', desc: 'School profile and payment settings', render: () => <SettingsView /> })
+  if (flagOn(features, 'attendance')) sections.push({ key: 'attendance', label: 'Attendance', icon: ic('attendance'), desc: 'Monitor and override attendance', render: () => <AttendanceView /> })
+  if (flagOn(features, 'fees'))       sections.push({ key: 'fees',       label: 'Fees',       icon: ic('fees'),       desc: 'Structures, ledger and collections', render: () => <FeesAdminView /> })
+  if (flagOn(features, 'homework')) {
+    sections.push({ key: 'homework',      label: 'Homework',      icon: ic('homework'),     desc: 'Classroom homework',            render: () => <HomeworkView defaultType="homework" /> })
+    sections.push({ key: 'announcements', label: 'Announcements', icon: ic('announcement'), desc: 'Notices to classes',            render: () => <HomeworkView defaultType="announcement" /> })
+    sections.push({ key: 'material',      label: 'Study Material',icon: ic('material'),     desc: 'Shared study resources',        render: () => <HomeworkView defaultType="resource" /> })
+  }
+  if (flagOn(features, 'timetable'))  sections.push({ key: 'timetable',  label: 'Timetable',  icon: ic('timetable'), desc: 'Weekly schedules and teachers',      render: () => <TimetableView /> })
+  if (flagOn(features, 'exams'))      sections.push({ key: 'exams',      label: 'Exams',      icon: ic('exams'),     desc: 'Terms, marks and results',           render: () => <ExamView /> })
+  if (isPrincipal && flagOn(features, 'cms')) sections.push({ key: 'cms', label: 'Website', icon: ic('website'), desc: 'Public site pages and announcements', render: () => <CmsAdminView /> })
+  if (isPrincipal) sections.push({ key: 'settings', label: 'Settings', icon: ic('settings'), desc: 'School profile and payment settings', render: () => <SettingsView /> })
 
   return base(isPrincipal ? 'Principal' : 'Vice-Principal', sections)
 }

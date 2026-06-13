@@ -6,6 +6,7 @@
  * Ant/shadcn/Daisy. Reuse these instead of re-implementing visual variations.
  */
 import type { ComponentChildren, JSX } from 'preact'
+export { Icon, type IconName } from './icons'
 
 // ── Brand wordmark ───────────────────────────────────────────────────────────
 // Logo policy: no placeholder image and no generated logo. Render a text wordmark
