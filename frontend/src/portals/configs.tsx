@@ -20,6 +20,7 @@ import { CmsAdminView } from '../views/CmsAdmin'
 import { SettingsView } from '../views/Settings'
 import { SuperadminView } from '../views/Superadmin'
 import { TeacherDashboard } from '../views/TeacherDashboard'
+import { PaymentVerificationView } from '../views/PaymentVerification'
 
 type Mod = 'attendance' | 'fees' | 'homework' | 'timetable' | 'exams' | 'cms'
 
@@ -68,7 +69,8 @@ export function buildPortalConfig(args: BuildArgs): PortalConfig {
   // ── Accountant — finance only ────────────────────────────────────────────
   if (role === 'accountant') {
     return base('Accountant', [
-      { key: 'fees', label: 'Fees & Collections', icon: ic('fees'), desc: 'Fee ledger, receipts, collections, outstanding', render: () => <FeesAdminView /> },
+      { key: 'fees',   label: 'Fees & Collections', icon: ic('fees'),    desc: 'Fee ledger, receipts, collections, outstanding', render: () => <FeesAdminView /> },
+      { key: 'verify', label: 'Verify Payments',    icon: ic('results'), desc: 'Approve parent-reported UPI payments',           render: () => <PaymentVerificationView /> },
     ])
   }
 
@@ -80,7 +82,10 @@ export function buildPortalConfig(args: BuildArgs): PortalConfig {
     { key: 'staff',     label: 'Staff',     icon: ic('staff'),     desc: 'Teachers, roles and class assignments',             render: () => <StaffView /> },
   ]
   if (flagOn(features, 'attendance')) sections.push({ key: 'attendance', label: 'Attendance', icon: ic('attendance'), desc: 'Monitor and override attendance', render: () => <AttendanceView /> })
-  if (flagOn(features, 'fees'))       sections.push({ key: 'fees',       label: 'Fees',       icon: ic('fees'),       desc: 'Structures, ledger and collections', render: () => <FeesAdminView /> })
+  if (flagOn(features, 'fees')) {
+    sections.push({ key: 'fees',   label: 'Fees',            icon: ic('fees'),    desc: 'Structures, ledger and collections', render: () => <FeesAdminView /> })
+    sections.push({ key: 'verify', label: 'Verify Payments', icon: ic('results'), desc: 'Approve parent-reported UPI payments', render: () => <PaymentVerificationView /> })
+  }
   if (flagOn(features, 'homework')) {
     sections.push({ key: 'homework',      label: 'Homework',      icon: ic('homework'),     desc: 'Classroom homework',            render: () => <HomeworkView defaultType="homework" /> })
     sections.push({ key: 'announcements', label: 'Announcements', icon: ic('announcement'), desc: 'Notices to classes',            render: () => <HomeworkView defaultType="announcement" /> })

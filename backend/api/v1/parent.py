@@ -2,6 +2,7 @@ import uuid
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
+from models.finance import ParentPaymentClaim, ParentPaymentRow
 from models.notification import NotificationResponse, UnreadCount
 from models.parent import FeeLedgerEntry, LinkedStudent, StudentSummary
 from services.notification import (
@@ -11,6 +12,7 @@ from services.notification import (
     unread_count,
 )
 from services.parent import get_fee_ledger_entries, get_student_basic, get_student_summary_by_id
+from services import parent_payment
 
 router = APIRouter(prefix="/parent", tags=["Parent Portal"])
 
@@ -39,6 +41,29 @@ async def student_ledger(student_id: uuid.UUID, request: Request):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
         return await get_fee_ledger_entries(conn, request.state.tenant_id, student_id)
+
+
+@router.post("/payments", status_code=201)
+async def claim_payment(body: ParentPaymentClaim, request: Request):
+    """Parent marks selected pending fees as paid via UPI (awaiting verification)."""
+    student_id = _require_parent(request)
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        try:
+            pid = await parent_payment.submit_claim(
+                conn, request.state.tenant_id, student_id, body.ledger_ids, body.reference_no,
+            )
+        except parent_payment.ParentPaymentError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+    return {"payment_id": str(pid), "status": "pending_verification"}
+
+
+@router.get("/payments", response_model=list[ParentPaymentRow])
+async def my_payments(request: Request):
+    student_id = _require_parent(request)
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        return await parent_payment.list_for_student(conn, request.state.tenant_id, student_id)
 
 
 @router.get("/students/{student_id}/summary", response_model=StudentSummary)

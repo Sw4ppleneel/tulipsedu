@@ -54,6 +54,10 @@ HANDLERS: dict[str, list[Handler]] = {
     "FEE_PAID": [fees.receipt_push],
     # Accountant's manual "send reminder" button (was a dead log before).
     "REMINDER_SENT": [fees.manual_reminder],
+    # Parent self-reported a UPI payment → accountants get a verify notice.
+    "FEE_PAYMENT_CLAIMED": [fees.payment_claimed],
+    # Accountant rejected a claimed payment → parent is told.
+    "FEE_PAYMENT_REJECTED": [fees.payment_rejected],
     "HOMEWORK_ASSIGNED": [homework.parent_ping],
     "EXAM_PUBLISHED": [exams.publish_notify],
 }

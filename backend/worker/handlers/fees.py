@@ -57,6 +57,45 @@ async def receipt_push(conn: asyncpg.Connection, event: "Event") -> None:
     )
 
 
+async def payment_claimed(conn: asyncpg.Connection, event: "Event") -> None:
+    """Parent self-reported a UPI payment → every accountant gets a 'verify' notice."""
+    amount = event.payload.get("amount", "")
+    await conn.execute(
+        """
+        INSERT INTO notifications
+            (tenant_id, recipient_type, recipient_id, type, title, body, ref)
+        SELECT $1, 'user', u.id, 'FEE_VERIFY',
+               'Payment to verify',
+               'A parent reported a UPI payment of ₹' || $2 || '. Check the bank and approve or reject.',
+               $3
+        FROM users u
+        WHERE u.tenant_id = $1 AND u.role = 'accountant'
+        ON CONFLICT DO NOTHING
+        """,
+        event.tenant_id, amount, event.payload["payment_id"],
+    )
+
+
+async def payment_rejected(conn: asyncpg.Connection, event: "Event") -> None:
+    """Accountant could not verify a claimed payment → tell the parent."""
+    reason = (event.payload.get("reason") or "").strip()
+    await conn.execute(
+        """
+        INSERT INTO notifications
+            (tenant_id, recipient_type, recipient_id, type, title, body, ref)
+        VALUES ($1, 'parent_of_student', $2, 'FEE_REJECTED',
+                'Payment not verified',
+                'Your reported fee payment could not be verified'
+                    || CASE WHEN $3 = '' THEN '.' ELSE ': ' || $3 END
+                    || ' Please check with the school office.',
+                $4)
+        ON CONFLICT DO NOTHING
+        """,
+        event.tenant_id, uuid.UUID(event.payload["student_id"]), reason,
+        event.payload["payment_id"],
+    )
+
+
 async def manual_reminder(conn: asyncpg.Connection, event: "Event") -> None:
     student_id = uuid.UUID(event.payload["student_id"])
 

@@ -42,15 +42,21 @@ type BtnVariant = 'primary' | 'accent' | 'ghost' | 'danger'
 type BtnSize = 'sm' | 'md' | 'lg'
 
 export function Button({
-  variant = 'primary', size = 'md', children, ...rest
+  variant = 'primary', size = 'md', children, class: cls, ...rest
 }: {
   variant?: BtnVariant
   size?: BtnSize
   children: ComponentChildren
-} & JSX.HTMLAttributes<HTMLButtonElement>) {
-  const cls = ['btn', `btn-${variant}`, size !== 'md' ? `btn-${size}` : '']
+  class?: string
+  disabled?: boolean
+  title?: string
+  type?: 'button' | 'submit' | 'reset'
+  style?: JSX.CSSProperties
+  onClick?: JSX.MouseEventHandler<HTMLButtonElement>
+}) {
+  const base = ['btn', `btn-${variant}`, size !== 'md' ? `btn-${size}` : '']
     .filter(Boolean).join(' ')
-  return <button {...rest} class={`${cls} ${rest.class ?? ''}`.trim()}>{children}</button>
+  return <button {...rest} class={`${base} ${cls ?? ''}`.trim()}>{children}</button>
 }
 
 // ── Card ─────────────────────────────────────────────────────────────────────

@@ -6,6 +6,42 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 
+# ── Parent self-reported UPI payments (migration 025) ────────────────────────
+
+class ParentPaymentClaim(BaseModel):
+    ledger_ids: list[UUID] = Field(min_length=1)
+    reference_no: Optional[str] = None  # UPI UTR, optional
+
+
+class ParentPaymentRow(BaseModel):
+    id: UUID
+    amount: Decimal
+    status: str
+    reference_no: Optional[str] = None
+    receipt_number: Optional[str] = None
+    rejection_reason: Optional[str] = None
+    periods: str = ""
+    created_at: datetime
+    paid_at: Optional[datetime] = None
+
+
+class PendingPaymentRow(BaseModel):
+    id: UUID
+    amount: Decimal
+    reference_no: Optional[str] = None
+    first_name: str
+    last_name: str
+    admission_no: str
+    class_name: str
+    section_name: str
+    periods: str = ""
+    created_at: datetime
+
+
+class RejectRequest(BaseModel):
+    reason: str = ""
+
+
 # ── Fee Heads ────────────────────────────────────────────────────────────────
 
 class FeeHeadCreate(BaseModel):

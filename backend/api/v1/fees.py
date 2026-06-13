@@ -12,8 +12,11 @@ from models.finance import (
     FeeScheduleResponse,
     GenerateLedgerRequest,
     OutstandingReport,
+    PendingPaymentRow,
+    RejectRequest,
     StudentLedger,
 )
+from services import parent_payment
 from services.finance import (
     FinanceError,
     create_fee_head,
@@ -37,6 +40,38 @@ router = APIRouter(
 )
 
 _collect = Depends(require_roles("principal", "accountant"))
+
+
+# ── UPI payment verification queue (parent self-reported claims) ──────────────
+
+@router.get("/payments/pending", response_model=list[PendingPaymentRow], dependencies=[_collect])
+async def pending_payments(request: Request):
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        return await parent_payment.list_pending(conn, request.state.tenant_id)
+
+
+@router.post("/payments/{payment_id}/approve", dependencies=[_collect])
+async def approve_payment(payment_id: UUID, request: Request):
+    user_id = UUID(request.state.user_id)
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        try:
+            result = await parent_payment.approve(conn, request.state.tenant_id, user_id, payment_id)
+        except parent_payment.ParentPaymentError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+    return {"status": "paid", "receipt_number": result.receipt_number}
+
+
+@router.post("/payments/{payment_id}/reject", status_code=204, dependencies=[_collect])
+async def reject_payment(payment_id: UUID, body: RejectRequest, request: Request):
+    user_id = UUID(request.state.user_id)
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        try:
+            await parent_payment.reject(conn, request.state.tenant_id, user_id, payment_id, body.reason)
+        except parent_payment.ParentPaymentError as e:
+            raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.post(

@@ -177,3 +177,28 @@ export function markParentNotificationRead(id: string): Promise<void> {
 export function markAllParentNotificationsRead(): Promise<{ unread: number }> {
   return parentRequest<{ unread: number }>('/parent/notifications/read-all', { method: 'POST' })
 }
+
+// ── Self-reported UPI payments (parent claims → accountant verifies) ──────────
+
+export interface ParentPayment {
+  id: string
+  amount: number
+  status: 'pending_verification' | 'paid' | 'rejected' | string
+  reference_no: string | null
+  receipt_number: string | null
+  rejection_reason: string | null
+  periods: string
+  created_at: string
+  paid_at: string | null
+}
+
+export function submitParentPayment(ledgerIds: string[], referenceNo?: string): Promise<{ payment_id: string; status: string }> {
+  return parentRequest('/parent/payments', {
+    method: 'POST',
+    body: JSON.stringify({ ledger_ids: ledgerIds, reference_no: referenceNo || null }),
+  })
+}
+
+export function listParentPayments(): Promise<ParentPayment[]> {
+  return parentRequest<ParentPayment[]>('/parent/payments')
+}

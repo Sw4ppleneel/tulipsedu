@@ -83,3 +83,29 @@ export function getSuperadminRevenue(): Promise<TenantRevenue[]> {
 export function getSuperadminPayments(limit = 200): Promise<Record<string, unknown>[]> {
   return request<Record<string, unknown>[]>(`/superadmin/payments?limit=${limit}`)
 }
+
+// ── Parent payment verification (accountant) ─────────────────────────────────
+export interface PendingPayment {
+  id: string
+  amount: number
+  reference_no: string | null
+  first_name: string
+  last_name: string
+  admission_no: string
+  class_name: string
+  section_name: string
+  periods: string
+  created_at: string
+}
+
+export function listPendingPayments(): Promise<PendingPayment[]> {
+  return request<PendingPayment[]>('/fees/payments/pending')
+}
+
+export function approvePayment(id: string): Promise<{ status: string; receipt_number: string }> {
+  return request(`/fees/payments/${id}/approve`, { method: 'POST' })
+}
+
+export function rejectPayment(id: string, reason: string): Promise<void> {
+  return request<void>(`/fees/payments/${id}/reject`, { method: 'POST', body: JSON.stringify({ reason }) })
+}
