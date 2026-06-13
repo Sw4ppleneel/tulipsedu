@@ -31,6 +31,28 @@ services:
     networks:
       - internal
 
+  # Event-consumer + scheduled scans. Same image as backend; overrides the
+  # entrypoint to skip migrations/gunicorn (backend owns migrations — the worker
+  # blocks on wait_for_migrations('024_worker_spine.sql')). Single instance by
+  # design: the cursor needs no row locking. Safe to stop anytime — events
+  # accumulate in audit_events and the cursor resumes on restart.
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.prod
+    restart: unless-stopped
+    env_file: backend/.env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-tulips}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-tulipsedu}
+    entrypoint: ["python", "-m", "worker.main"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    networks:
+      - internal
+
   nginx:
     image: nginx:alpine
     restart: unless-stopped
