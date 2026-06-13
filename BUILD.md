@@ -28,27 +28,30 @@ Completed (Phase 1, all deployed to *.tulipsedu.in, 4 schools seeded):
 - Apex marketing landing page at tulipsedu.in / www (2026-06-12)
 - R2 upload endpoint (501 until credentials added)
 
-In Progress: Phase 1 is feature-complete and shipped. The product is now a competent
-**CRUD amalgamation** — see the assessment in ARCHITECTURE.md "Current Reality". The next
-work is the **Workflow ERP Transformation** (final TODO below), which adds the connective
-tissue: an event-bus worker, notifications, lifecycle state machines, and cross-module
-orchestration. North-star write-up: top of ROADMAP.md. Decision: ADR-010 in ARCHITECTURE.md.
+In Progress: **Workflow spine is built and verified locally** (event-consumer worker,
+in-app notifications, 5 event-driven workflows + fee-overdue scheduler, feature-flag nav).
+Events now *do something*: ATTENDANCE_SESSION_SUBMITTED → parent absent alerts, FEE_PAID →
+receipts + accountant reconcile, HOMEWORK_ASSIGNED → parent pings, EXAM_PUBLISHED → results
+notices, plus a daily fee-overdue scan. ADR-010 realised as cursor+DLQ (audit_events stays
+immutable). See "✅ CHECKPOINT 2026-06-13" below + ARCHITECTURE.md. Lifecycle state machines
+(W9+) and delivery adapters (SMS/WhatsApp/PDF, W12–W13) remain.
 
-Next Task: Get approval for ADR-010 (worker + outbox schema), then Sprint 3 item W1.
+Next Task: Deploy the spine to production (task 8, gated on approval), then Sprint 5 — W9
+fee installment lifecycle + W10 admissions pipeline.
 
 ---
 
-# ⏸ CHECKPOINT 2026-06-13 — Workflow Spine IN PROGRESS (resume here)
+# ✅ CHECKPOINT 2026-06-13 — Workflow Spine BUILT + VERIFIED (deploy pending approval)
 
 Approved plan: `~/.claude/plans/elegant-jumping-widget.md` (scope: spine + first
 workflows). ADR-010 amended during planning: audit_events stays immutable; worker uses
 a **cursor table + DLQ** (NOT outbox columns). `tenants.feature_flags` already exists
 (migration 001, holds gateway SECRETS — never expose wholesale; use allowlist).
 
-## Done (committed, NOT yet verified or deployed)
+## Done + verified locally (tasks 1–7)
 - [x] W0 — working tree committed (cda2776, 61 files)
 - [x] Migration `024_worker_spine.sql` — worker_cursors (bootstraps at head, no replay),
-      worker_dlq, notifications (+dedup unique index), fee_ledger.reminded_at. NOT applied yet.
+      worker_dlq, notifications (+dedup unique index), fee_ledger.reminded_at. Applied to dev DB.
 - [x] Emit fixes — exam.py publish_term: EXAM_PUBLISHED on false→true in txn w/ FOR UPDATE;
       attendance.py mark_attendance + submit_session wrapped in transactions.
 - [x] Notifications service/API — services/notification.py, models/notification.py,
@@ -56,17 +59,24 @@ a **cursor table + DLQ** (NOT outbox columns). `tenants.feature_flags` already e
 - [x] Worker — backend/worker/{main,registry,scheduler}.py + handlers/{attendance,fees,
       homework,exams}.py. 6 events wired incl. REMINDER_SENT (makes the existing dead
       /fees/reminders button real). config.py: worker_poll_seconds/worker_batch_size.
-      Imports verified clean (.venv).
+- [x] Task 5: docker-compose.prod.yml `worker` service (same image, entrypoint
+      `python -m worker.main`, depends postgres healthy + backend started); `GET /me/features`
+      (api/v1/me.py — allowlist attendance,fees,homework,timetable,exams,cms; absent=true).
+- [x] Task 6: frontend — api/notifications.ts, NotificationsBell.tsx (🔔 badge, 45s poll +
+      focus/visibility refetch, mounted in AppShell header), ParentPortal "Updates" card,
+      feature-flag nav gating in app.tsx. `tsc` clean; bundle 173 kB / 45 kB gzip.
+- [x] Task 7: LOCAL VERIFICATION — scripts/verify_worker_spine.py drives the real worker
+      code paths against the dev DB (11/11 checks, self-cleaning, zero drift):
+      flow1 cursor@head no-replay · flow2 absent fan-out+dedup (rolled back) · flow3 receipt
+      push+dedup · flow4 homework ping+idempotent-replay · flow5 exam publish+no-double ·
+      flow6 overdue scan+no-repeat · flow7 DLQ poison parks & stream advances · flow8 tenant
+      isolation. Plus RBAC matrix (parent/none→403, staff/superadmin→ALLOW) + app imports + 90 routes.
 
-## Remaining (tasks 5–8)
-- [ ] Task 5: docker-compose.prod.yml `worker` service (same image,
-      `entrypoint: ["python","-m","worker.main"]`, depends postgres healthy + backend) +
-      `GET /me/features` (allowlist: attendance,fees,homework,timetable,exams,cms; absent=true)
-- [ ] Task 6: frontend — api/notifications.ts, NotificationsBell.tsx (45s poll + focus
-      refetch, mount in AppShell header), ParentPortal "Updates" card, feature-flag nav gating
-- [ ] Task 7: LOCAL VERIFICATION (plan §Verification, flows 1–9) — nothing verified yet
-- [ ] Task 8: deploy (build backend+worker → up backend (applies 024) → up worker →
-      frontend_build → nginx) + final doc updates (ARCHITECTURE event catalog/topology/ADR-010)
+## Remaining (task 8 — gated)
+- [ ] Task 8 (⛔ outward-facing): deploy to prod — scp/rsync → `compose build backend worker`
+      → `up -d backend` (applies 024) → verify schema_migrations → `up -d worker` (watch logs:
+      cursor at head, no replay) → `run --rm frontend_build` → `up -d nginx` → spot-check
+      flows 2–5 on a pilot school. Awaiting user go-ahead.
 
 ---
 

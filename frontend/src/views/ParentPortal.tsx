@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'preact/hooks'
 import qrcode from 'qrcode-generator'
-import { getStudentLedger, getStudentSummary, listMyStudents } from '../api/parent'
-import type { FeeLedgerEntry, LinkedStudent, StudentSummary } from '../api/parent'
+import {
+  getStudentLedger, getStudentSummary, listMyStudents,
+  listParentNotifications, markAllParentNotificationsRead, markParentNotificationRead,
+} from '../api/parent'
+import type { FeeLedgerEntry, LinkedStudent, ParentNotification, StudentSummary } from '../api/parent'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -379,6 +382,105 @@ function SummaryCard({ summary }: { summary: StudentSummary }) {
   )
 }
 
+// ── Updates Card (notifications) ──────────────────────────────────────────────
+
+const NOTIF_ICON: Record<string, string> = {
+  ABSENT:         '⚠️',
+  FEE_RECEIPT:    '🧾',
+  FEE_OVERDUE:    '₹',
+  HOMEWORK:       '📚',
+  EXAM_PUBLISHED: '📝',
+}
+
+function notifAgo(iso: string): string {
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000)
+  if (s < 60) return 'just now'
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`
+  return `${Math.floor(s / 86400)}d ago`
+}
+
+const UPDATES_POLL_MS = 45000
+
+function UpdatesCard() {
+  const [items, setItems] = useState<ParentNotification[]>([])
+  const [loaded, setLoaded] = useState(false)
+
+  async function load() {
+    try { setItems(await listParentNotifications()) } catch { /* keep last */ } finally { setLoaded(true) }
+  }
+
+  useEffect(() => {
+    load()
+    const t = setInterval(load, UPDATES_POLL_MS)
+    const onVis = () => { if (!document.hidden) load() }
+    window.addEventListener('focus', load)
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      clearInterval(t)
+      window.removeEventListener('focus', load)
+      document.removeEventListener('visibilitychange', onVis)
+    }
+  }, [])
+
+  const unread = items.filter(i => !i.read_at).length
+
+  async function tap(n: ParentNotification) {
+    if (n.read_at) return
+    try { await markParentNotificationRead(n.id) } catch { /* ignore */ }
+    const now = new Date().toISOString()
+    setItems(prev => prev.map(i => (i.id === n.id ? { ...i, read_at: now } : i)))
+  }
+
+  async function markAll() {
+    try { await markAllParentNotificationsRead() } catch { /* ignore */ }
+    const now = new Date().toISOString()
+    setItems(prev => prev.map(i => ({ ...i, read_at: i.read_at ?? now })))
+  }
+
+  if (!loaded || items.length === 0) return null
+
+  return (
+    <div style={{ background: '#fff', borderRadius: 12, boxShadow: '0 1px 4px rgba(0,0,0,.08)', overflow: 'hidden', marginBottom: '1rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '.75rem 1rem', borderBottom: '1px solid #f3f4f6' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem' }}>
+          <span style={{ fontSize: '.7rem', color: '#6b7280', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em' }}>Updates</span>
+          {unread > 0 && (
+            <span style={{ background: '#ef4444', color: '#fff', borderRadius: 9999, fontSize: '.62rem', fontWeight: 700, padding: '1px 6px' }}>{unread}</span>
+          )}
+        </div>
+        {unread > 0 && (
+          <button onClick={markAll} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#1a56db', fontSize: '.72rem', fontFamily: 'inherit', padding: 0 }}>
+            Mark all read
+          </button>
+        )}
+      </div>
+      {items.slice(0, 15).map(n => (
+        <div
+          key={n.id}
+          onClick={() => tap(n)}
+          style={{
+            display: 'flex', gap: '.6rem', padding: '.6rem 1rem',
+            borderBottom: '1px solid #f9fafb', alignItems: 'flex-start',
+            cursor: n.read_at ? 'default' : 'pointer',
+            background: n.read_at ? '#fff' : 'rgba(26,86,219,.04)',
+          }}
+        >
+          <span style={{ fontSize: '1rem', flexShrink: 0, marginTop: 1 }}>{NOTIF_ICON[n.type] ?? '🔔'}</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '.5rem' }}>
+              <span style={{ fontWeight: 600, fontSize: '.82rem', color: '#111827', flex: 1 }}>{n.title}</span>
+              <span style={{ fontSize: '.64rem', color: '#9ca3af', flexShrink: 0 }}>{notifAgo(n.created_at)}</span>
+            </div>
+            {n.body && <div style={{ fontSize: '.74rem', color: '#6b7280', marginTop: 1 }}>{n.body}</div>}
+          </div>
+          {!n.read_at && <span style={{ width: 7, height: 7, borderRadius: 4, background: '#1a56db', flexShrink: 0, marginTop: 6 }} />}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ── Parent Portal View ────────────────────────────────────────────────────────
 
 export function ParentPortalView({ onLogout }: { onLogout: () => void }) {
@@ -421,6 +523,7 @@ export function ParentPortalView({ onLogout }: { onLogout: () => void }) {
             <p style={{ fontSize: '.8rem' }}>Contact the school administration.</p>
           </div>
         )}
+        {!loading && !err && <UpdatesCard />}
         {students.map(s =>
           summaries[s.id]
             ? <SummaryCard key={s.id} summary={summaries[s.id]} />

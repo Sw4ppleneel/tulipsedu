@@ -149,3 +149,31 @@ export function getStudentSummary(studentId: string): Promise<StudentSummary> {
 export function getStudentLedger(studentId: string): Promise<FeeLedgerEntry[]> {
   return parentRequest<FeeLedgerEntry[]>(`/parent/students/${studentId}/ledger`)
 }
+
+// ── Notifications (parent recipient = student_id; see backend /parent/notifications) ──
+
+export interface ParentNotification {
+  id: string
+  type: string
+  title: string
+  body: string
+  ref: string | null
+  read_at: string | null
+  created_at: string
+}
+
+export function listParentNotifications(): Promise<ParentNotification[]> {
+  return parentRequest<ParentNotification[]>('/parent/notifications?limit=20')
+}
+
+export function parentUnreadCount(): Promise<{ unread: number }> {
+  return parentRequest<{ unread: number }>('/parent/notifications/unread-count')
+}
+
+export function markParentNotificationRead(id: string): Promise<void> {
+  return parentRequest<void>(`/parent/notifications/${id}/read`, { method: 'POST' })
+}
+
+export function markAllParentNotificationsRead(): Promise<{ unread: number }> {
+  return parentRequest<{ unread: number }>('/parent/notifications/read-all', { method: 'POST' })
+}

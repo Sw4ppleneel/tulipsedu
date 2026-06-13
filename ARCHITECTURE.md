@@ -15,24 +15,31 @@ Deployed to production on the VPS (Cloudflare-proxied, `*.tulipsedu.in`, 4 schoo
 - CMS (pages + announcements) + per-tenant public website at the subdomain root
 - **Apex marketing site** — static `index.html` served at `tulipsedu.in` / `www` (2026-06-12)
 
+> **Update 2026-06-13 — the spine now exists.** The event-bus worker, notifications table,
+> and the first five event-driven workflows + fee-overdue scheduler are built and verified
+> locally (ADR-010, realised as cursor+DLQ). The assessment below describes the *pre-spine*
+> state and what it diagnosed; the ✅ items are now resolved. Remaining gaps: lifecycle/state
+> machines, cross-module orchestration (admissions, year rollover), and delivery adapters
+> (SMS/WhatsApp/PDF). Deploy to prod is the next step.
+
 ## Honest assessment: this is a CRUD amalgamation, not yet a workflow ERP
 
 Every module is a competent set of forms over its own tables, but the modules do not
-drive processes across each other. The connective tissue is missing:
+drive processes across each other. The connective tissue was missing:
 
-- **Events are write-only.** `core/events.py::emit()` only INSERTs into `audit_events`.
-  Producers fire (ATTENDANCE_MARKED, FEE_COLLECTED, EXAM_PUBLISHED, …) but **nothing
-  consumes them** — there is no event bus and no worker. The "event-driven architecture"
-  in CLAUDE.md has producers and no subscribers.
-- **No background worker** ("Background Jobs: TBD"). The 202/async mandate for SMS, email,
-  and PDF is therefore unfulfilled — those features simply don't exist (no absent alerts,
-  no fee reminders, no report-card PDFs).
+- ✅ **Events are write-only.** *(Resolved.)* `emit()` still INSERTs into `audit_events`
+  (immutable), but the worker (`backend/worker/`) now consumes the stream via a cursor and
+  dispatches to handlers. Producers finally have subscribers.
+- ✅ **No background worker.** *(Resolved.)* `backend/worker/main.py` (compose `worker`
+  service) polls the event stream and runs an hourly fee-overdue scan. Absent alerts, fee
+  receipts/reminders, homework pings and exam-results notices now fire. (PDF/SMS still pending.)
 - **No lifecycle/state machines.** Records are flat. There is no admission pipeline, no
-  exam-term lifecycle (draft→open→locked→published), no fee escalation (due→overdue).
+  exam-term lifecycle (draft→open→locked→published), no fee escalation (due→overdue). *(Still open.)*
 - **No cross-module orchestration.** Creating a student doesn't assign fees or provision
   parent access; there is no academic-year rollover (the flagship multi-step transaction
-  named in CLAUDE.md); approving an admission doesn't exist.
-- **No notifications table.** Parents must pull (log in and check); nothing is pushed.
+  named in CLAUDE.md); approving an admission doesn't exist. *(Still open.)*
+- ✅ **No notifications table.** *(Resolved.)* `notifications` (migration 024) + staff/parent
+  APIs + 🔔 bell / parent Updates card. Events are now pushed, not just pull-on-login.
 
 The transformation plan that closes this gap is the north-star section at the top of
 ROADMAP.md; the ordered work is the "Workflow ERP Transformation" TODO in BUILD.md, and
@@ -66,8 +73,11 @@ Driver: asyncpg
 Authentication: JWT (python-jose, HS256)
 Password Hashing: bcrypt (passlib)
 Config: pydantic-settings
-Background Jobs: NOT YET BUILT — see ADR-010 (event-bus worker). Until it exists, every
-SMS/email/PDF feature is blocked and domain events are audit-only (see Event Catalog note).
+Background Jobs: Event-consumer worker — `backend/worker/` (compose `worker` service,
+`python -m worker.main`). Single instance, cursor-polls `audit_events` (at-least-once,
+idempotent handlers via `notifications_dedup_idx`, dead-letter queue with capped exponential
+backoff), plus an hourly fee-overdue scan. See ADR-010. SMS/email/PDF delivery adapters are
+still TBD (paid-service + R2 gates).
 
 ## Frontend
 
@@ -429,20 +439,26 @@ Grade scale (CBSE): A1≥91, A2≥81, B1≥71, B2≥61, C1≥51, C2≥41, D≥33
 
 # Event Catalog
 
-> **Current state: producers only.** `core/events.py::emit()` writes each event to
-> `audit_events` inside the state-changing transaction and stops there. No consumer reads
-> them, so today this is an audit log, not a bus. **Target (ADR-010):** a background worker
-> consumes events and dispatches to handlers (the "Producer → Triggers" column below is the
-> intended wiring, none of which is built yet).
+> **State (2026-06-13): producers + a real consumer.** `core/events.py::emit()` writes each
+> event to `audit_events` (immutable, append-only) inside the state-changing transaction; the
+> worker (`backend/worker/`) cursor-polls the stream and dispatches to handlers. The wiring
+> below is now live (✅) except the delivery-dependent rows.
 >
-> | Event | Should trigger (target) |
-> |---|---|
-> | ATTENDANCE_MARKED / _CORRECTED (absent) | parent absent-alert notification |
-> | FEE_COLLECTED | receipt notification to parent + reconciliation entry |
-> | EXAM_PUBLISHED *(new)* | report-card PDF generation + parent notification |
-> | HOMEWORK_ASSIGNED | parent "new homework" notification |
-> | FEE_INSTALLMENT_OVERDUE *(new, scheduled)* | fee reminder to parent |
-> | ADMISSION_APPROVED *(new)* | create student + assign fees + provision parent access |
+> | Event | Consumer handler | Status |
+> |---|---|---|
+> | ATTENDANCE_SESSION_SUBMITTED / ATTENDANCE_CORRECTED | `attendance.absent_alert` → parent ABSENT notif (ref=session_id) | ✅ live |
+> | FEE_PAID | `fees.receipt_push` → parent FEE_RECEIPT + accountant FEE_RECONCILE (ref=payment_id) | ✅ live |
+> | REMINDER_SENT | `fees.manual_reminder` → parent FEE_OVERDUE w/ pending total (ref=reminder:{event_id}) | ✅ live |
+> | HOMEWORK_ASSIGNED | `homework.parent_ping` → section parents HOMEWORK notif (ref=post_id) | ✅ live |
+> | EXAM_PUBLISHED | `exams.publish_notify` → parents w/ marks EXAM_PUBLISHED notif (ref=term_id) | ✅ live |
+> | *(scheduled, hourly)* `scheduler.fee_overdue_scan` | overdue monthly ledger → parent FEE_OVERDUE; emits FEE_OVERDUE_REMINDED | ✅ live |
+> | EXAM_PUBLISHED | report-card **PDF** generation | ⏳ blocked (R2 + PDF dep) |
+> | ADMISSION_APPROVED *(new)* | create student + assign fees + provision parent access | ⏳ not built |
+>
+> Idempotency: every notification insert is `ON CONFLICT DO NOTHING` against
+> `notifications_dedup_idx (tenant_id, recipient_type, recipient_id, type, ref)`, so
+> at-least-once delivery (cursor advances after handlers run) is safe. Failed handlers land in
+> `worker_dlq` and retry with capped exponential backoff; a poison event never blocks the stream.
 
 ## STAFF_AUTHENTICATED
 Producer: services/auth.py
@@ -625,14 +641,18 @@ Nginx (origin, host-based routing)
   ├─ tulipsedu.in / www.tulipsedu.in  → static marketing landing page (index.html)
   └─ <slug>.tulipsedu.in              → Preact SPA + /api proxy → FastAPI
   ↓
-FastAPI (port 8000)
-  ↓
-PostgreSQL (port 5432)
-  ↓
-Background Workers (TBD)
-  ↓
-Cloudflare R2
+FastAPI (port 8000)  ──────┐
+  ↓                        │ (same image, internal network)
+PostgreSQL (port 5432) ←── Worker (python -m worker.main)
+  ↓                          event consumer + hourly fee-overdue scan
+Cloudflare R2                single instance, restart: unless-stopped
 ```
+
+The `worker` compose service shares the backend image and env but overrides the entrypoint
+to `python -m worker.main` (skips migrations + gunicorn — the backend owns migrations; the
+worker blocks on `wait_for_migrations('024_worker_spine.sql')`). It holds its own small pool
+(max 3) and is safe to stop anytime: events accumulate in `audit_events` and the cursor
+resumes where it left off. Single instance by design (no row locking on the cursor).
 
 Apex marketing site: a single self-contained `index.html` (inline CSS/JS, Google-CDN
 fonts) bind-mounted into the nginx container at `/usr/share/nginx/landing` and served by
@@ -670,32 +690,37 @@ API: Async only (no blocking I/O in request handlers)
 
 # Major Architectural Decisions
 
-## ADR-010 — Event-bus worker via transactional outbox (PROPOSED — needs approval)
+## ADR-010 — Event-consumer worker over immutable audit_events (ACCEPTED — built 2026-06-13)
 
 **Context:** `audit_events` is written by every state change but read by nothing. The
 event-driven architecture mandated by CLAUDE.md has producers and no subscribers, so no
 cross-module workflow, notification, or async (202) feature can exist.
 
-**Decision (proposed):** Adopt the **transactional outbox** pattern over the existing
-table — the producer already writes the event in the same transaction as the state change,
-which is exactly the outbox guarantee. Add dispatch bookkeeping (`status`,`attempts`,
-`processed_at`,`available_at`) and run a **single in-repo background worker** that claims
-unprocessed rows (`FOR UPDATE SKIP LOCKED`), dispatches to a handler registry, and marks
-them done/failed with retry/backoff. Start with Postgres polling (no new infra); add
-`LISTEN/NOTIFY` only if latency demands it. The same worker runs the **scheduler** for
-time-based triggers (fee due/overdue, daily digests).
+**Decision (as built):** Run a **single in-repo background worker** that consumes the
+`audit_events` stream and dispatches to a handler registry. The original sketch added outbox
+status columns *to* `audit_events`; that was rejected because **`audit_events` is documented
+immutable** (Security Rules). Instead the worker keeps its position in a separate
+`worker_cursors` table (bootstrapped at `MAX(id)` so first deploy replays no history) and
+parks failed handler runs in `worker_dlq` (capped exponential backoff). Delivery is
+**at-least-once** — the cursor advances after an event's handlers run — made safe by
+idempotent handlers (`ON CONFLICT DO NOTHING` against `notifications_dedup_idx`). Single
+instance, so no `FOR UPDATE SKIP LOCKED` needed. Postgres polling (no new infra). The same
+worker runs the **scheduler** for time-based triggers (hourly fee-overdue scan; digests later).
 
 **Why not a queue broker (Redis/RabbitMQ/Celery):** violates the ₹2,000/month and
 single-codebase constraints; Postgres-as-queue is sufficient at 500–5,000 students/tenant.
 
-**Approval gates this trips (do NOT implement until cleared):**
-- Deployment topology — adds a `worker` service to `docker-compose.prod.yml`.
-- Schema change — outbox columns + `notifications` table (+ later admissions / lifecycle).
-- Dependencies — none required for the poller; PDF (report cards) and SMS/WhatsApp adapters
-  are separate gates (PDF lib = dependency; SMS = paid service).
+**Approval gates tripped (cleared by plan approval 2026-06-13):**
+- Deployment topology — `worker` service added to `docker-compose.prod.yml`.
+- Schema change — migration `024_worker_spine.sql` (worker_cursors, worker_dlq,
+  notifications, fee_ledger.reminded_at). No columns added to audit_events.
+- Dependencies — none (worker ships in the existing backend image). PDF (report cards) and
+  SMS/WhatsApp adapters remain separate, *un-cleared* gates (PDF lib = dependency; SMS = paid).
 
-**Consequence:** unblocks every Phase-2 workflow (absent alerts, fee reminders, report
-cards, admissions orchestration, year rollover) on one shared mechanism.
+**Consequence:** unblocks every Phase-2 workflow on one shared mechanism. Live as of
+2026-06-13: absent alerts, fee receipts + reconcile, manual reminders, homework pings, exam
+publish notices, fee-overdue scan. Still to build on it: lifecycle state machines, admissions
+orchestration, year rollover, and the PDF/SMS delivery adapters.
 
 ---
 

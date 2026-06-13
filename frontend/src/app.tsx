@@ -15,6 +15,8 @@ import { ParentPortalView } from './views/ParentPortal'
 import { CmsAdminView } from './views/CmsAdmin'
 import { SettingsView } from './views/Settings'
 import { PublicSite } from './views/PublicSite'
+import { NotificationsBell } from './views/NotificationsBell'
+import { featuresApi, type FeatureFlags } from './api/notifications'
 import type { TokenResponse } from './types/auth'
 
 function getSubdomain(): string {
@@ -61,6 +63,22 @@ function canSee(role: string, v: View): boolean {
   return VIEW_ACCESS[v].includes(role)
 }
 
+// Views gated by a tenant module flag (GET /me/features). Everything else
+// (dashboard/students/staff/settings/superadmin) is always on. Until flags
+// load, treat all as on so nav never flickers off for the 4 live schools.
+function featureOn(flags: FeatureFlags | null, v: View): boolean {
+  if (!flags) return true
+  switch (v) {
+    case 'attendance': return flags.attendance
+    case 'fees':       return flags.fees
+    case 'homework':   return flags.homework
+    case 'timetable':  return flags.timetable
+    case 'exams':      return flags.exams
+    case 'cms':        return flags.cms
+    default:           return true
+  }
+}
+
 // ── Nav icon helper (small SVG) ───────────────────────────────────────────────
 const ICONS: Record<string, string> = {
   dashboard:  '⊞',
@@ -79,7 +97,10 @@ const ICONS: Record<string, string> = {
 // ── Staff App Shell ───────────────────────────────────────────────────────────
 
 function AppShell({ onLogout, role, schoolName }: { onLogout: () => void; role: string; schoolName: string }) {
-  const NAV_ITEMS = ALL_VIEWS.filter((item) => canSee(role, item.key))
+  const [features, setFeatures] = useState<FeatureFlags | null>(null)
+  useEffect(() => { featuresApi.get().then(setFeatures).catch(() => {}) }, [])
+
+  const NAV_ITEMS = ALL_VIEWS.filter((item) => canSee(role, item.key) && featureOn(features, item.key))
   const landing: View = NAV_ITEMS[0]?.key ?? 'dashboard'
   const [view, setView] = useState<View>(landing)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -135,24 +156,27 @@ function AppShell({ onLogout, role, schoolName }: { onLogout: () => void; role: 
             {NAV_ITEMS.map(navBtn)}
           </nav>
         </div>
-        <button
-          onClick={onLogout}
-          style={{ background: 'rgba(255,255,255,.12)', color: 'rgba(255,255,255,.9)', border: '1px solid rgba(255,255,255,.2)', borderRadius: 5, padding: '.3rem .75rem', cursor: 'pointer', fontSize: '.75rem', fontFamily: 'inherit', flexShrink: 0 }}
-        >
-          Sign out
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', flexShrink: 0 }}>
+          <NotificationsBell />
+          <button
+            onClick={onLogout}
+            style={{ background: 'rgba(255,255,255,.12)', color: 'rgba(255,255,255,.9)', border: '1px solid rgba(255,255,255,.2)', borderRadius: 5, padding: '.3rem .75rem', cursor: 'pointer', fontSize: '.75rem', fontFamily: 'inherit' }}
+          >
+            Sign out
+          </button>
+        </div>
       </header>
 
       <main>
         {view === 'dashboard'  && canSee(role, 'dashboard')  && <DashboardView schoolName={schoolName} />}
         {view === 'students'   && canSee(role, 'students')   && <StudentsView />}
         {view === 'staff'      && canSee(role, 'staff')      && <StaffView />}
-        {view === 'attendance' && canSee(role, 'attendance') && <AttendanceView />}
-        {view === 'fees'       && canSee(role, 'fees')       && <FeesAdminView />}
-        {view === 'homework'   && canSee(role, 'homework')   && <HomeworkView />}
-        {view === 'timetable'  && canSee(role, 'timetable')  && <TimetableView />}
-        {view === 'exams'      && canSee(role, 'exams')      && <ExamView />}
-        {view === 'cms'        && canSee(role, 'cms')        && <CmsAdminView />}
+        {view === 'attendance' && canSee(role, 'attendance') && featureOn(features, 'attendance') && <AttendanceView />}
+        {view === 'fees'       && canSee(role, 'fees')       && featureOn(features, 'fees')       && <FeesAdminView />}
+        {view === 'homework'   && canSee(role, 'homework')   && featureOn(features, 'homework')   && <HomeworkView />}
+        {view === 'timetable'  && canSee(role, 'timetable')  && featureOn(features, 'timetable')  && <TimetableView />}
+        {view === 'exams'      && canSee(role, 'exams')      && featureOn(features, 'exams')      && <ExamView />}
+        {view === 'cms'        && canSee(role, 'cms')        && featureOn(features, 'cms')        && <CmsAdminView />}
         {view === 'settings'   && canSee(role, 'settings')   && <SettingsView />}
         {view === 'superadmin' && canSee(role, 'superadmin') && <SuperadminView />}
       </main>

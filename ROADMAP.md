@@ -364,9 +364,9 @@ Each school can have different modules enabled. Frontend nav renders only enable
 | 021 | tenants.upi_id (discount/installment_label deferred) | **Applied 2026-06-05** |
 | 022 | exam_components + exam_component_marks | **Applied 2026-06-05** |
 | 023 | **transport/hosteler fee filter** (students.is_transport + fee_schedules.student_filter) | **Applied 2026-06-07** |
-| 024 | outbox columns on audit_events (status/attempts/processed_at/available_at) | Planned — W1 |
-| 025 | notifications table | Planned — W3 |
-| 026 | tenants.features JSONB (feature flags — still unbuilt) | Planned — W4 |
+| 024 | **worker spine** — worker_cursors + worker_dlq + notifications (+dedup idx) + fee_ledger.reminded_at | **Applied to dev 2026-06-13; prod pending** |
+| ~~025~~ | ~~notifications table~~ | FOLDED INTO 024 (cursor+DLQ approach; audit_events stays immutable, no outbox columns) |
+| ~~026~~ | ~~tenants.features JSONB~~ | REDUNDANT — `tenants.feature_flags` already exists (migration 001); `GET /me/features` allowlists module flags |
 | 027 | exam_terms.status lifecycle | Planned — W8 |
 | 028 | fee installment lifecycle status | Planned — W9 |
 | 029 | admissions pipeline tables | Planned — W10 |
