@@ -207,20 +207,25 @@ function OutstandingTab({ years, classes }: { years: AcademicYear[]; classes: Cl
 }
 
 // ── Collect Fee Tab ───────────────────────────────────────────────────────────
+const PAY_METHODS = [
+  { v: 'cash', label: 'Cash' }, { v: 'upi', label: 'UPI' },
+  { v: 'cheque', label: 'Cheque' }, { v: 'bank_transfer', label: 'Bank transfer' },
+] as const
+type PayMethod = typeof PAY_METHODS[number]['v']
+
 function CollectTab() {
   const [admNo, setAdmNo] = useState('')
   const [ledger, setLedger] = useState<import('../types/finance').StudentLedger | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [gateway, setGateway] = useState<'razorpay' | 'phonepe' | 'mock'>('mock')
-  const [order, setOrder] = useState<import('../types/finance').PaymentOrder | null>(null)
+  const [method, setMethod] = useState<PayMethod>('cash')
+  const [reference, setReference] = useState('')
   const [status, setStatus] = useState('')
   const [loading, setLoading] = useState(false)
-  const [pollingId, setPollingId] = useState<ReturnType<typeof setInterval> | null>(null)
   const [receiptUrl, setReceiptUrl] = useState('')
 
   async function loadStudent(e: Event) {
     e.preventDefault()
-    setLoading(true); setLedger(null); setOrder(null); setSelected(new Set()); setReceiptUrl('')
+    setLoading(true); setLedger(null); setSelected(new Set()); setReceiptUrl(''); setStatus('')
     try {
       const { listStudents } = await import('../api/students')
       const res = await listStudents({ limit: 500 })
@@ -233,13 +238,13 @@ function CollectTab() {
   }
 
   // Reset after a completed collection so the next payment can start cleanly:
-  // clear the selection (paid rows can't be re-submitted), drop the order (re-enables
-  // Pay), and reload the ledger so the paid months leave the pending list.
+  // clear the selection (paid rows can't be re-submitted) and reload the ledger
+  // so the paid months leave the pending list.
   async function finishCollection(paymentId: string, studentId: string) {
     setReceiptUrl(`/api/v1/payments/${paymentId}/receipt`)
     setStatus('paid')
     setSelected(new Set())
-    setOrder(null)
+    setReference('')
     setLedger(await getStudentLedger(studentId))
   }
 
@@ -247,23 +252,13 @@ function CollectTab() {
     if (!ledger || selected.size === 0) return
     setLoading(true)
     try {
-      const o = await createOrder({ student_id: ledger.student_id, ledger_ids: Array.from(selected), gateway })
-      if (gateway === 'mock') {
-        const paid = await mockComplete(o.payment_id)
-        if (paid.status === 'paid') await finishCollection(o.payment_id, ledger.student_id)
-        else { setOrder(o); setStatus(paid.status) }
-      } else {
-        setOrder(o); setStatus('processing')
-        const id = setInterval(async () => {
-          const p = await pollPayment(o.payment_id)
-          setStatus(p.status)
-          if (p.status === 'paid') {
-            clearInterval(id); setPollingId(null)
-            await finishCollection(o.payment_id, ledger.student_id)
-          }
-        }, 3000)
-        setPollingId(id)
-      }
+      const res = await collectOffline({
+        student_id: ledger.student_id,
+        ledger_ids: Array.from(selected),
+        method,
+        reference_no: reference.trim() || undefined,
+      })
+      await finishCollection(res.payment_id, ledger.student_id)
     } catch (e) { alert(e instanceof Error ? e.message : 'Error') }
     finally { setLoading(false) }
   }
@@ -286,7 +281,7 @@ function CollectTab() {
           {ledger.pending.map((e) => (
             <label key={e.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0', borderBottom: '1px solid #f3f4f6', fontSize: '0.8rem', cursor: 'pointer' }}>
               <input type="checkbox" checked={selected.has(e.id)} onChange={(ev) => {
-                if (status === 'paid') { setStatus(''); setReceiptUrl(''); setOrder(null) }
+                if (status === 'paid') { setStatus(''); setReceiptUrl('') }
                 const checked = (ev.target as HTMLInputElement).checked
                 setSelected((p) => { const n = new Set(p); checked ? n.add(e.id) : n.delete(e.id); return n })
               }} />
@@ -296,23 +291,22 @@ function CollectTab() {
           ))}
           {selected.size > 0 && (
             <div style={{ marginTop: '1rem' }}>
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.75rem' }}>
-                <span style={{ fontSize: '0.875rem' }}>Gateway:</span>
-                {(['razorpay', 'phonepe', 'mock'] as const).map((g) => (
-                  <button key={g} onClick={() => setGateway(g)} style={{ padding: '0.25rem 0.75rem', background: gateway === g ? '#14463A' : '#f3f4f6', color: gateway === g ? '#fff' : '#374151', border: '1px solid #d1d5db', borderRadius: 4, cursor: 'pointer', fontSize: '0.8rem' }}>
-                    {g === 'mock' ? 'Test (Mock)' : g.charAt(0).toUpperCase() + g.slice(1)}
+              <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', marginBottom: '0.6rem', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '0.875rem' }}>Method:</span>
+                {PAY_METHODS.map((m) => (
+                  <button key={m.v} onClick={() => setMethod(m.v)} style={{ padding: '0.25rem 0.75rem', background: method === m.v ? '#14463A' : '#f3f4f6', color: method === m.v ? '#fff' : '#374151', border: '1px solid #d1d5db', borderRadius: 4, cursor: 'pointer', fontSize: '0.8rem' }}>
+                    {m.label}
                   </button>
                 ))}
               </div>
-              <button onClick={pay} disabled={loading || !!pollingId} style={{ padding: '0.625rem 1.25rem', background: '#1F8A5D', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600 }}>
-                {pollingId ? 'Waiting for payment…' : `Pay ${fmt(totalSelected)} (${selected.size} item${selected.size !== 1 ? 's' : ''})`}
+              {method !== 'cash' && (
+                <input value={reference} onInput={(e) => setReference((e.target as HTMLInputElement).value)}
+                  placeholder={method === 'cheque' ? 'Cheque no. (optional)' : method === 'upi' ? 'UPI ref / UTR (optional)' : 'Reference no. (optional)'}
+                  style={{ ...INP, width: '100%', marginBottom: '0.6rem' }} />
+              )}
+              <button onClick={pay} disabled={loading} style={{ padding: '0.625rem 1.25rem', background: '#1F8A5D', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600 }}>
+                {loading ? 'Recording…' : `Collect ${fmt(totalSelected)} (${selected.size} item${selected.size !== 1 ? 's' : ''})`}
               </button>
-            </div>
-          )}
-          {order && status !== 'paid' && order.payment_url && gateway !== 'mock' && (
-            <div style={{ marginTop: '1rem', padding: '1rem', background: '#f5f7ff', borderRadius: 6, fontSize: '0.85rem' }}>
-              <a href={order.payment_url} target="_blank" rel="noreferrer" style={{ color: '#14463A', fontWeight: 600 }}>Open Payment Page ↗</a>
-              {pollingId && <span style={{ color: '#9ca3af', marginLeft: '0.5rem' }}>Waiting for payment…</span>}
             </div>
           )}
           {status === 'paid' && receiptUrl && (
