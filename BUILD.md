@@ -41,6 +41,21 @@ fee installment lifecycle + W10 admissions pipeline.
 
 ---
 
+# ✅ DEPLOYED 2026-06-13 — UPI payment verification + vector icons + section split
+
+- **UPI payment verification loop** (migration 025, applied to prod): static UPI QR has no
+  payee callback, so parent **self-reports** a payment (QR / Open UPI app / "I've paid" + UTR)
+  → `pending_verification` → accountant **Verify Payments** queue → approve (ledger paid +
+  receipt via FEE_PAID) or reject (reason → parent notified). Events FEE_PAYMENT_CLAIMED /
+  FEE_PAYMENT_REJECTED. The ONLY automatic verification remains the (dormant) gateway webhook;
+  this closes the loop for the free static-UPI schools.
+- **Parent portal** rebuilt as a big-button launcher (Fees/Attendance/Homework/Announcements/
+  Timetable/Results); Fees = Due (month groups) + Paid tabs. *(Timetable/Results are graceful
+  stubs pending parent read endpoints.)*
+- **Vector icons** (ui/icons.tsx, inline SVG) replaced emojis; **Homework / Announcements /
+  Study Material** split into separate sections (were clubbed).
+- Verified vs dev DB (claim/approve/reject/dedup, zero drift); deployed; smoke 200/401 green.
+
 # ✅ DEPLOYED 2026-06-13 — Role portals + design system + daily attendance
 
 Directive: Tulips.edu = multiple role-specific apps over one backend, composed from

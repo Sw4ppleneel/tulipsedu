@@ -449,6 +449,8 @@ Grade scale (CBSE): A1≥91, A2≥81, B1≥71, B2≥61, C1≥51, C2≥41, D≥33
 > | ATTENDANCE_SESSION_SUBMITTED / ATTENDANCE_CORRECTED / ATTENDANCE_OVERRIDE | `attendance.absent_alert` → parent ABSENT notif (ref=session_id) | ✅ live |
 > | FEE_PAID | `fees.receipt_push` → parent FEE_RECEIPT + accountant FEE_RECONCILE (ref=payment_id) | ✅ live |
 > | REMINDER_SENT | `fees.manual_reminder` → parent FEE_OVERDUE w/ pending total (ref=reminder:{event_id}) | ✅ live |
+> | FEE_PAYMENT_CLAIMED | `fees.payment_claimed` → accountants FEE_VERIFY (parent self-reported UPI; ref=payment_id) | ✅ live |
+> | FEE_PAYMENT_REJECTED | `fees.payment_rejected` → parent FEE_REJECTED w/ reason (ref=payment_id) | ✅ live |
 > | HOMEWORK_ASSIGNED | `homework.parent_ping` → section parents HOMEWORK notif (ref=post_id) | ✅ live |
 > | EXAM_PUBLISHED | `exams.publish_notify` → parents w/ marks EXAM_PUBLISHED notif (ref=term_id) | ✅ live |
 > | *(scheduled, hourly)* `scheduler.fee_overdue_scan` | overdue monthly ledger → parent FEE_OVERDUE; emits FEE_OVERDUE_REMINDED | ✅ live |
