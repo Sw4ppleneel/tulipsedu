@@ -232,28 +232,34 @@ function CollectTab() {
     finally { setLoading(false) }
   }
 
+  // Reset after a completed collection so the next payment can start cleanly:
+  // clear the selection (paid rows can't be re-submitted), drop the order (re-enables
+  // Pay), and reload the ledger so the paid months leave the pending list.
+  async function finishCollection(paymentId: string, studentId: string) {
+    setReceiptUrl(`/api/v1/payments/${paymentId}/receipt`)
+    setStatus('paid')
+    setSelected(new Set())
+    setOrder(null)
+    setLedger(await getStudentLedger(studentId))
+  }
+
   async function pay() {
     if (!ledger || selected.size === 0) return
     setLoading(true)
     try {
       const o = await createOrder({ student_id: ledger.student_id, ledger_ids: Array.from(selected), gateway })
-      setOrder(o)
       if (gateway === 'mock') {
         const paid = await mockComplete(o.payment_id)
-        setStatus(paid.status)
-        setReceiptUrl(`/api/v1/payments/${o.payment_id}/receipt`)
-        if (ledger) {
-          const updated = await getStudentLedger(ledger.student_id)
-          setLedger(updated)
-        }
+        if (paid.status === 'paid') await finishCollection(o.payment_id, ledger.student_id)
+        else { setOrder(o); setStatus(paid.status) }
       } else {
+        setOrder(o); setStatus('processing')
         const id = setInterval(async () => {
           const p = await pollPayment(o.payment_id)
           setStatus(p.status)
           if (p.status === 'paid') {
             clearInterval(id); setPollingId(null)
-            setReceiptUrl(`/api/v1/payments/${o.payment_id}/receipt`)
-            if (ledger) setLedger(await getStudentLedger(ledger.student_id))
+            await finishCollection(o.payment_id, ledger.student_id)
           }
         }, 3000)
         setPollingId(id)
@@ -279,7 +285,11 @@ function CollectTab() {
           {ledger.pending.length === 0 && <p style={{ fontSize: '0.8rem', color: '#1F8A5D' }}>✓ No pending dues</p>}
           {ledger.pending.map((e) => (
             <label key={e.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0', borderBottom: '1px solid #f3f4f6', fontSize: '0.8rem', cursor: 'pointer' }}>
-              <input type="checkbox" checked={selected.has(e.id)} onChange={(ev) => setSelected((p) => { const n = new Set(p); (ev.target as HTMLInputElement).checked ? n.add(e.id) : n.delete(e.id); return n })} />
+              <input type="checkbox" checked={selected.has(e.id)} onChange={(ev) => {
+                if (status === 'paid') { setStatus(''); setReceiptUrl(''); setOrder(null) }
+                const checked = (ev.target as HTMLInputElement).checked
+                setSelected((p) => { const n = new Set(p); checked ? n.add(e.id) : n.delete(e.id); return n })
+              }} />
               <span style={{ flex: 1 }}>{periodLabel(e.period_month, e.period_year)} — {e.fee_head_name}</span>
               <span style={{ fontWeight: 700, color: '#14463A' }}>{fmt(e.amount_due)}</span>
             </label>
@@ -294,25 +304,21 @@ function CollectTab() {
                   </button>
                 ))}
               </div>
-              <button onClick={pay} disabled={loading || !!order} style={{ padding: '0.625rem 1.25rem', background: '#1F8A5D', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600 }}>
-                Pay {fmt(totalSelected)} ({selected.size} item{selected.size !== 1 ? 's' : ''})
+              <button onClick={pay} disabled={loading || !!pollingId} style={{ padding: '0.625rem 1.25rem', background: '#1F8A5D', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600 }}>
+                {pollingId ? 'Waiting for payment…' : `Pay ${fmt(totalSelected)} (${selected.size} item${selected.size !== 1 ? 's' : ''})`}
               </button>
             </div>
           )}
-          {order && (
+          {order && status !== 'paid' && order.payment_url && gateway !== 'mock' && (
             <div style={{ marginTop: '1rem', padding: '1rem', background: '#f5f7ff', borderRadius: 6, fontSize: '0.85rem' }}>
-              {order.payment_url && gateway !== 'mock' && (
-                <p>
-                  <a href={order.payment_url} target="_blank" rel="noreferrer" style={{ color: '#14463A', fontWeight: 600 }}>Open Payment Page ↗</a>
-                  {pollingId && <span style={{ color: '#9ca3af', marginLeft: '0.5rem' }}>Waiting for payment…</span>}
-                </p>
-              )}
-              {status === 'paid' && (
-                <div style={{ color: '#0D332A', fontWeight: 600, marginTop: '0.5rem' }}>
-                  ✓ Payment successful!{' '}
-                  <a href={receiptUrl} target="_blank" rel="noreferrer" style={{ color: '#14463A' }}>View Receipt ↗</a>
-                </div>
-              )}
+              <a href={order.payment_url} target="_blank" rel="noreferrer" style={{ color: '#14463A', fontWeight: 600 }}>Open Payment Page ↗</a>
+              {pollingId && <span style={{ color: '#9ca3af', marginLeft: '0.5rem' }}>Waiting for payment…</span>}
+            </div>
+          )}
+          {status === 'paid' && receiptUrl && (
+            <div style={{ marginTop: '1rem', padding: '1rem', background: 'var(--c-success-lt)', borderRadius: 6, fontSize: '0.85rem', color: '#0D332A', fontWeight: 600 }}>
+              ✓ Payment recorded. The dues below are updated and it now shows in the parent's Paid section.{' '}
+              <a href={receiptUrl} target="_blank" rel="noreferrer" style={{ color: '#14463A' }}>View Receipt ↗</a>
             </div>
           )}
         </div>
