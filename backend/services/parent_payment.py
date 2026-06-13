@@ -92,7 +92,13 @@ async def submit_claim(
 async def list_for_student(
     conn: asyncpg.Connection, tenant_id: uuid.UUID, student_id: uuid.UUID
 ) -> list[dict]:
-    """Parent's own payment history with the months each one covers."""
+    """Parent's payment history with the months each one covers.
+
+    Covers EVERY payment for the child — parent-claimed UPI (pending/paid/rejected)
+    AND office-recorded payments (cash/gateway) — so a fee the accountant collects
+    and marks paid also shows in the parent's Paid section. Failed/abandoned
+    gateway attempts are hidden.
+    """
     rows = await conn.fetch(
         """
         SELECT fp.id, fp.amount, fp.status, fp.reference_no, fp.receipt_number,
@@ -104,7 +110,8 @@ async def list_for_student(
         FROM fee_payments fp
         LEFT JOIN fee_payment_items fpi ON fpi.payment_id = fp.id
         LEFT JOIN fee_ledger fl ON fl.id = fpi.ledger_id
-        WHERE fp.tenant_id = $1 AND fp.student_id = $2 AND fp.gateway = 'upi'
+        WHERE fp.tenant_id = $1 AND fp.student_id = $2
+          AND fp.status IN ('pending_verification', 'paid', 'rejected')
         GROUP BY fp.id
         ORDER BY fp.created_at DESC
         LIMIT 50

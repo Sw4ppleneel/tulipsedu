@@ -179,7 +179,7 @@ function FeesSection({ student, schoolName, upi }: { student: LinkedStudent; sch
 }
 
 function PaymentRow({ p }: { p: ParentPayment }) {
-  const tone = p.status === 'paid' ? { bg: 'var(--c-success-lt)', fg: 'var(--c-success)', label: 'Approved' }
+  const tone = p.status === 'paid' ? { bg: 'var(--c-success-lt)', fg: 'var(--c-success)', label: 'Paid' }
     : p.status === 'rejected' ? { bg: 'var(--c-accent-lt)', fg: 'var(--c-accent-dk)', label: 'Not verified' }
     : { bg: 'var(--c-warn-lt)', fg: 'var(--c-warn)', label: 'Pending approval' }
   return (
