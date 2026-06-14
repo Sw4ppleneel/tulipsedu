@@ -790,6 +790,18 @@ OUT OF SCOPE** in CLAUDE.md.
 `GET /payments/{id}/receipt.pdf` for fee receipts. All payroll routes are **principal-only**;
 receipt PDF is principal/vice_principal/accountant.
 
+**Report-card PDF (W13, 2026-06-15):** generation is free (reportlab) — only *auto-delivery*
+(W12, WhatsApp/SMS) needs paid creds. `services/report_card.py::build_report_card_context`
+reuses `exam.compute_term_results` (PDF can't drift from the UI grade sheet); rendered by
+`services/report_card_pdf.py`. Endpoints: `GET /exams/results/report-card.pdf` (staff, any
+publish state) and `GET /parent/students/{id}/results/report-card.pdf` (parent, **published
+terms only**). Download-and-forward — no R2, no migration, no new dependency.
+
+**R2 usage:** credentials are live on prod. Current PDF flows do **not** use R2 (generated
+on-demand, served as downloads). R2 is reserved for the **public-website photo gallery**
+(planned) and, later, persisted/auto-delivered report cards. Object metadata/URLs in Postgres;
+no binaries in app containers (File Upload Rules).
+
 **Events:** SALARY_STRUCTURE_SET, PAYROLL_RUN_CREATED, PAYROLL_FINALIZED (audit-only, no
 worker consumer yet).
 

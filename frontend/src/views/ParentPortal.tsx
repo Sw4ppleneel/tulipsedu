@@ -326,11 +326,15 @@ function ResultsSection({ studentId }: { studentId: string }) {
               ))}
             </div>
 
-            {/* Pass/fail footer */}
-            <div style={{ padding: '.5rem 1rem', background: me.passed ? 'var(--c-success-lt)' : 'var(--c-accent-lt)', borderRadius: '0 0 var(--r-lg) var(--r-lg)', textAlign: 'center' }}>
+            {/* Pass/fail footer + report-card download */}
+            <div style={{ padding: '.5rem 1rem', background: me.passed ? 'var(--c-success-lt)' : 'var(--c-accent-lt)', borderRadius: '0 0 var(--r-lg) var(--r-lg)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '.5rem' }}>
               <span style={{ fontSize: '.78rem', fontWeight: 700, color: me.passed ? 'var(--c-success)' : 'var(--c-accent-dk)' }}>
                 {me.passed ? 'PASS' : 'NEEDS IMPROVEMENT'}
               </span>
+              <button
+                class="btn btn-ghost btn-sm"
+                onClick={() => downloadReportCard(studentId, sheet.exam_term_id, `${me.admission_no}-${sheet.exam_term_name}`).catch(() => alert('Could not download report card'))}
+              >Download PDF</button>
             </div>
           </Card>
         )

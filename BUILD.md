@@ -30,7 +30,8 @@ Completed (Phase 1, all deployed to *.tulipsedu.in, 4 schools seeded):
 
 Completed this session: **W9** (fee lifecycle) · **W14** (analytics) · **W11** (rollover) · **W10** (admissions pipeline)
 
-Remaining: **W12/W13** (SMS/WhatsApp + PDF report cards — BLOCKED on credentials).
+Remaining: **W12** (SMS/WhatsApp *auto-delivery* — BLOCKED on paid creds). **W13 report-card
+PDF generation is DONE** (reportlab, free, download-and-forward) — only auto-delivery is blocked.
 
 ## ⚠️ NOT YET DEPLOYED (local-verified, batched for one push) — 2026-06-15
 
@@ -55,6 +56,26 @@ to the backend image.
   class assignments + recent payslips); *Monthly Payroll* tab → runs, editable payslips,
   finalize, PDF. End-to-end verified vs dev DB (net math, update, finalize-lock, dup-run guard,
   zero drift). Events: SALARY_STRUCTURE_SET, PAYROLL_RUN_CREATED, PAYROLL_FINALIZED.
+
+## ✅ DEPLOYED 2026-06-15 — payroll + fee-PDF batch (migration 031, reportlab)
+
+The above payroll + fee-receipt-PDF batch was deployed to prod: migration 031 auto-applied via
+entrypoint, reportlab in the image, frontend rebuilt, nginx restarted. All 4 containers healthy;
+apex + tenant SPA 200; payroll routes 400-without-tenant (wired); payroll tables present.
+
+## ⚠️ NOT YET DEPLOYED — report-card PDF (2026-06-15)
+
+W13 (report cards) reframed: **PDF generation is free** (reportlab, already on prod) — only
+*auto-delivery* over WhatsApp/SMS (W12) needs paid creds. Built the download-and-forward path,
+**no migration, no new dependency**:
+- `services/report_card.py` (`build_report_card_context` reuses `exam.compute_term_results` so
+  the PDF can't drift from the on-screen sheet) + `services/report_card_pdf.py` (reportlab).
+- Staff: `GET /exams/results/report-card.pdf?exam_term_id=&student_id=` (any publish state).
+  Exam → Results table gains a per-student **Card → PDF** button.
+- Parent: `GET /parent/students/{id}/results/report-card.pdf?exam_term_id=` (published only).
+  Parent portal Results gains a **Download PDF** button per term.
+- Verified: all three PDFs render (`%PDF-`); frontend tsc+build clean. Ready to deploy
+  (code + frontend only — `up -d backend` + frontend_build + nginx; no migration step).
 
 ## ✅ 2026-06-14 — W10 Admissions pipeline
 
