@@ -110,7 +110,7 @@ function FeesSection({ student, schoolName, upi }: { student: LinkedStudent; sch
     if (!ledger) return []
     const map = new Map<string, FeeLedgerEntry[]>()
     for (const e of ledger) {
-      if (e.status !== 'pending') continue
+      if (e.status === 'paid' || e.status === 'waived') continue
       const key = e.period_month ? `${e.period_year}-${String(e.period_month).padStart(2, '0')}` : `${e.period_year}-00`
       if (!map.has(key)) map.set(key, [])
       map.get(key)!.push(e)

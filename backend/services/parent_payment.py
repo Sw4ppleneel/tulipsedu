@@ -43,7 +43,7 @@ async def submit_claim(
             """
             SELECT id, amount_due FROM fee_ledger
             WHERE tenant_id = $1 AND student_id = $2 AND id = ANY($3::uuid[])
-              AND status = 'pending'
+              AND status IN ('pending', 'due', 'overdue')
             FOR UPDATE
             """,
             tenant_id, student_id, ledger_ids,

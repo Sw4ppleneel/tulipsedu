@@ -242,7 +242,7 @@ async def _fee_summary(
         SELECT
             COALESCE(SUM(CASE WHEN status != 'waived' THEN amount_due ELSE 0 END), 0) AS total_due,
             COALESCE(SUM(CASE WHEN status = 'paid'    THEN amount_due ELSE 0 END), 0) AS total_paid,
-            COALESCE(SUM(CASE WHEN status IN ('pending', 'overdue') THEN amount_due ELSE 0 END), 0) AS balance
+            COALESCE(SUM(CASE WHEN status IN ('pending', 'due', 'overdue') THEN amount_due ELSE 0 END), 0) AS balance
         FROM fee_ledger
         WHERE tenant_id = $1 AND student_id = $2
         """,

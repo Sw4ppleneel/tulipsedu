@@ -420,6 +420,64 @@ Never start future modules before the current slice is functional.
 
 ---
 
+# Production Deployment
+
+Server: `swap@62.72.13.103`, repo lives at `~/tulips/`.
+
+## rsync inode warning — DO NOT ignore
+
+`rsync` creates a **new inode** when it overwrites a file, even if the content is identical.
+Docker bind-mounted files (e.g. `nginx.prod.conf`, `index.html`) are attached to the
+**original inode**. After an rsync overwrite the container still sees the old file; the
+new one is orphaned on disk.
+
+**Rule**: After any rsync push, always run:
+
+```bash
+docker compose -f docker-compose.prod.yml restart nginx
+```
+
+For config files that are bind-mounted, prefer writing in-place on the server:
+
+```bash
+ssh swap@62.72.13.103 "cat > ~/tulips/nginx.prod.conf" < nginx.prod.conf
+```
+
+This overwrites the same inode and Docker picks it up without a restart.
+
+## Standard deploy sequence (backend-only change, no migration, no frontend)
+
+```bash
+rsync -az --exclude='backend/.env' --exclude='backend/.venv' \
+  --exclude='__pycache__' --exclude='*.pyc' \
+  --exclude='frontend/node_modules' --exclude='frontend/dist' \
+  ~/Tulips.edu/ swap@62.72.13.103:~/tulips/
+
+ssh swap@62.72.13.103 "cd ~/tulips && \
+  docker compose -f docker-compose.prod.yml build backend && \
+  docker compose -f docker-compose.prod.yml up -d backend"
+```
+
+## Full deploy (migration + backend + frontend)
+
+```bash
+# rsync (same exclusions as above)
+ssh swap@62.72.13.103 "cd ~/tulips && \
+  docker compose -f docker-compose.prod.yml build backend worker && \
+  docker compose -f docker-compose.prod.yml up -d backend && \
+  docker compose -f docker-compose.prod.yml run --rm frontend_build && \
+  docker compose -f docker-compose.prod.yml restart nginx"
+```
+
+## Health check (no curl in slim image)
+
+```bash
+ssh swap@62.72.13.103 "docker exec tulips-backend-1 \
+  python -c \"import urllib.request; print(urllib.request.urlopen('http://localhost:8000/health').read().decode())\""
+```
+
+---
+
 # Success Criteria
 
 The goal is not to generate the most code.

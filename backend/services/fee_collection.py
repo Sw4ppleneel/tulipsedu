@@ -45,7 +45,7 @@ async def record_offline_payment(
             FROM fee_ledger fl
             JOIN fee_heads fh ON fh.id = fl.fee_head_id
             WHERE fl.tenant_id = $1 AND fl.student_id = $2 AND fl.id = ANY($3::uuid[])
-              AND fl.status = 'pending'
+              AND fl.status IN ('pending', 'due', 'overdue')
             FOR UPDATE
             """,
             tenant_id, student_id, ledger_ids,

@@ -373,7 +373,7 @@ async def get_student_ledger(
     )
 
     entries = [LedgerEntry(**dict(r)) for r in rows]
-    pending = [e for e in entries if e.status == "pending"]
+    pending = [e for e in entries if e.status in ("pending", "due", "overdue")]
     paid    = [e for e in entries if e.status == "paid"]
 
     return StudentLedger(
@@ -412,7 +412,7 @@ async def get_outstanding_dues(
         JOIN students s   ON s.id = fl.student_id
         JOIN classes c    ON c.id = s.class_id
         JOIN sections sec ON sec.id = s.section_id
-        WHERE fl.tenant_id = $1 AND fl.status = 'pending'
+        WHERE fl.tenant_id = $1 AND fl.status IN ('pending', 'due', 'overdue')
           AND ($2::uuid IS NULL OR s.class_id = $2::uuid)
           AND ($3::uuid IS NULL OR s.section_id = $3::uuid)
           AND ($4::uuid IS NULL OR fl.academic_year_id = $4::uuid)
