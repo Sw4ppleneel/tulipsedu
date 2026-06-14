@@ -44,4 +44,7 @@ export interface Assignment {
   class_name: string | null
   section_name: string | null
   academic_year_name: string | null
+  // present only in the all-assignments endpoint
+  staff_name?: string
+  designation?: string | null
 }

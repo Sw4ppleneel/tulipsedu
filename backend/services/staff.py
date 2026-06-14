@@ -178,6 +178,50 @@ async def list_assignments(
     return [AssignmentResponse(**dict(r)) for r in rows]
 
 
+async def list_all_assignments(
+    conn: asyncpg.Connection, tenant_id: uuid.UUID, academic_year_id: Optional[uuid.UUID] = None
+) -> list[dict]:
+    """Return all assignments for the tenant with staff name info — for the principal panel."""
+    rows = await conn.fetch(
+        f"""
+        {_ASSIGNMENT_JOIN}
+        JOIN staff st ON st.id = a.staff_id
+        WHERE a.tenant_id = $1
+          AND ($2::uuid IS NULL OR a.academic_year_id = $2::uuid)
+        ORDER BY c.name, s.name, ay.name, st.first_name, st.last_name
+        """,
+        tenant_id, academic_year_id,
+    )
+    result = []
+    for r in rows:
+        d = dict(r)
+        result.append({
+            "id": str(d["id"]),
+            "staff_id": str(d["staff_id"]),
+            "academic_year_id": str(d["academic_year_id"]),
+            "class_id": str(d["class_id"]),
+            "section_id": str(d["section_id"]),
+            "subject": d["subject"],
+            "is_class_teacher": d["is_class_teacher"],
+            "class_name": d["class_name"],
+            "section_name": d["section_name"],
+            "academic_year_name": d["academic_year_name"],
+            "staff_name": d["first_name"] + " " + d["last_name"],
+            "designation": d.get("designation"),
+        })
+    return result
+
+
+async def delete_assignment(
+    conn: asyncpg.Connection, tenant_id: uuid.UUID, staff_id: uuid.UUID, assignment_id: uuid.UUID
+) -> bool:
+    result = await conn.execute(
+        "DELETE FROM staff_class_assignments WHERE id = $1 AND staff_id = $2 AND tenant_id = $3",
+        assignment_id, staff_id, tenant_id,
+    )
+    return result == "DELETE 1"
+
+
 async def export_all_staff(
     conn: asyncpg.Connection, tenant_id: uuid.UUID
 ) -> list[StaffResponse]:

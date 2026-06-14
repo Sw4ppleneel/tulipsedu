@@ -453,6 +453,9 @@ Grade scale (CBSE): A1≥91, A2≥81, B1≥71, B2≥61, C1≥51, C2≥41, D≥33
 > | FEE_PAYMENT_REJECTED | `fees.payment_rejected` → parent FEE_REJECTED w/ reason (ref=payment_id) | ✅ live |
 > | HOMEWORK_ASSIGNED | `homework.parent_ping` → section parents HOMEWORK notif (ref=post_id) | ✅ live |
 > | EXAM_PUBLISHED | `exams.publish_notify` → parents w/ marks EXAM_PUBLISHED notif (ref=term_id) | ✅ live |
+> | EXAM_MARKS_OPENED | no consumer (internal lifecycle signal) | ✅ emitted |
+> | EXAM_MARKS_LOCKED | no consumer (internal lifecycle signal) | ✅ emitted |
+> | EXAM_REOPENED | no consumer (principal override; internal audit) | ✅ emitted |
 > | *(scheduled, hourly)* `scheduler.fee_overdue_scan` | overdue monthly ledger → parent FEE_OVERDUE; emits FEE_OVERDUE_REMINDED | ✅ live |
 > | EXAM_PUBLISHED | report-card **PDF** generation | ⏳ blocked (R2 + PDF dep) |
 > | ADMISSION_APPROVED *(new)* | create student + assign fees + provision parent access | ⏳ not built |

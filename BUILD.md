@@ -3,16 +3,16 @@
 # Project Status
 
 Project: Tulips.edu
-Phase: Phase 1 MVP shipped → pivoting to Phase 2 "Workflow ERP"
-Current Sprint: Sprint 3 — Workflow Spine (event bus + worker + notifications)
-Last Updated: 2026-06-12
+Phase: Phase 2 — Workflow ERP (lifecycle state machines)
+Current Sprint: Sprint 4 — Exam lifecycle (W8 done), Fee lifecycle (W9 in progress)
+Last Updated: 2026-06-14
 
 ---
 
 # PROJECT STATE
 
-Current Phase: Phase 1 MVP deployed to production; Phase 2 transformation starting
-Current Sprint: Sprint 3 — turn the CRUD modules into driven workflows
+Current Phase: Phase 2 Workflow ERP — lifecycle state machines in progress
+Current Sprint: Sprint 4 — W8 Exam lifecycle ✅, W9 Fee lifecycle (next)
 
 Completed (Phase 1, all deployed to *.tulipsedu.in, 4 schools seeded):
 - Auth + Tenant Isolation + RBAC (6 staff roles + parent, migration 018)
@@ -27,6 +27,26 @@ Completed (Phase 1, all deployed to *.tulipsedu.in, 4 schools seeded):
 - Dashboard
 - Apex marketing landing page at tulipsedu.in / www (2026-06-12)
 - R2 upload endpoint (501 until credentials added)
+
+In Progress: **W9 — Fee lifecycle** (migration 028 + scheduler + defaulter report). Next after that: W14 Analytics, W11 Rollover, W10 Admissions.
+
+## ✅ 2026-06-14 — W8 Exam lifecycle + Class Assignment Panel
+
+**W8 — Exam term lifecycle (migration 027, verified 7/7, tsc+build clean):**
+- `exam_terms.status` VARCHAR `draft|marks_open|locked|published` added; existing published terms synced.
+- `transition_term_status()` service enforces valid transitions, emits events (EXAM_MARKS_OPENED, EXAM_MARKS_LOCKED, EXAM_PUBLISHED, EXAM_REOPENED).
+- Mark entry guards: `_assert_marks_open()` called in `save_marks` + `save_component_marks` → 409 when not open.
+- API: `POST /exams/terms/{id}/status` (principal/VP only).
+- Frontend Exam.tsx: new **Manage Terms** tab (principal/VP only) with status chips + lifecycle action buttons; marks entry shows lock banner + disabled Save when term is not open.
+- Worker registry: EXAM_MARKS_OPENED / EXAM_MARKS_LOCKED / EXAM_REOPENED registered (no push — internal signals; EXAM_PUBLISHED → parent notify already wired).
+
+**Class Assignment Panel:**
+- New `GET /staff/assignments` (tenant-wide, principal/VP) + `DELETE /staff/{id}/assignments/{aid}`.
+- New `ClassAssignmentsView` (`frontend/src/views/ClassAssignments.tsx`): assign teachers to class/section/subject, set class-teacher flag, remove assignments — grouped by class-section.
+- Wired into principal/VP portal as "Assignments" tile (uses timetable icon).
+
+**Phase 0b — Transport fee fix script:**
+- `scripts/fix_transport_fee_data.py` — dry-run + apply; fixes `student_filter='all'` on transport schedules + deletes wrongly-generated pending ledger rows for non-transport students. Run on prod once.
 
 In Progress: **Workflow spine is built and verified locally** (event-consumer worker,
 in-app notifications, 5 event-driven workflows + fee-overdue scheduler, feature-flag nav).

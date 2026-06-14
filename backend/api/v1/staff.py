@@ -11,9 +11,11 @@ from services.staff import (
     create_assignment,
     create_staff,
     deactivate_staff,
+    delete_assignment,
     export_all_staff,
     get_staff_member,
     import_staff,
+    list_all_assignments,
     list_assignments,
     list_staff,
     update_staff,
@@ -134,6 +136,29 @@ async def get_assignments(staff_id: UUID, request: Request):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
         return await list_assignments(conn, request.state.tenant_id, staff_id)
+
+
+@router.get("/assignments", dependencies=[Depends(require_roles("principal", "vice_principal"))])
+async def all_assignments(
+    request: Request,
+    academic_year_id: Optional[UUID] = Query(None),
+):
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        return await list_all_assignments(conn, request.state.tenant_id, academic_year_id)
+
+
+@router.delete(
+    "/{staff_id}/assignments/{assignment_id}",
+    status_code=204,
+    dependencies=[_principal_only],
+)
+async def remove_assignment(staff_id: UUID, assignment_id: UUID, request: Request):
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        ok = await delete_assignment(conn, request.state.tenant_id, staff_id, assignment_id)
+    if not ok:
+        raise HTTPException(404, "Assignment not found")
 
 
 @router.post("/import", dependencies=[_principal_only])

@@ -42,3 +42,13 @@ export function assignClass(staffId: string, data: {
 export function listAssignments(staffId: string): Promise<Assignment[]> {
   return request<Assignment[]>(`/staff/${staffId}/assignments`)
 }
+
+export function listAllAssignments(params?: { academic_year_id?: string }): Promise<Assignment[]> {
+  const p = new URLSearchParams()
+  if (params?.academic_year_id) p.set('academic_year_id', params.academic_year_id)
+  return request<Assignment[]>(`/staff/assignments?${p}`)
+}
+
+export async function removeAssignment(staffId: string, assignmentId: string): Promise<void> {
+  await request(`/staff/${staffId}/assignments/${assignmentId}`, { method: 'DELETE' })
+}
