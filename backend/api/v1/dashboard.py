@@ -63,18 +63,19 @@ async def stats(request: Request):
             tid,
         )
 
-        # 30-day attendance trend
+        # 30-day attendance trend — join sessions for date, use P/A status codes
         att_trend = await conn.fetch(
             """
-            SELECT date::text,
-                   COUNT(*) FILTER (WHERE status = 'present') AS present,
-                   COUNT(*) FILTER (WHERE status = 'absent')  AS absent,
+            SELECT s.date::text,
+                   COUNT(*) FILTER (WHERE ar.status = 'P') AS present,
+                   COUNT(*) FILTER (WHERE ar.status = 'A') AS absent,
                    COUNT(*) AS total
-            FROM attendance_records
-            WHERE tenant_id = $1
-              AND date >= CURRENT_DATE - INTERVAL '30 days'
-            GROUP BY date
-            ORDER BY date
+            FROM attendance_records ar
+            JOIN attendance_sessions s ON s.id = ar.session_id
+            WHERE ar.tenant_id = $1
+              AND s.date >= CURRENT_DATE - INTERVAL '30 days'
+            GROUP BY s.date
+            ORDER BY s.date
             """,
             tid,
         )
@@ -89,13 +90,14 @@ async def stats(request: Request):
             low_att = await conn.fetch(
                 """
                 WITH sa AS (
-                  SELECT student_id,
-                         COUNT(*) FILTER (WHERE status = 'present') AS present_count,
+                  SELECT ar.student_id,
+                         COUNT(*) FILTER (WHERE ar.status = 'P') AS present_count,
                          COUNT(*) AS total_days
-                  FROM attendance_records
-                  WHERE tenant_id = $1
-                    AND date >= $2
-                  GROUP BY student_id
+                  FROM attendance_records ar
+                  JOIN attendance_sessions s ON s.id = ar.session_id
+                  WHERE ar.tenant_id = $1
+                    AND s.date >= $2
+                  GROUP BY ar.student_id
                   HAVING COUNT(*) >= 5
                 )
                 SELECT s.id::text AS student_id,
