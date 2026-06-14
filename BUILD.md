@@ -4,7 +4,7 @@
 
 Project: Tulips.edu
 Phase: Phase 2 — Workflow ERP (lifecycle state machines)
-Current Sprint: Sprint 4 — Exam lifecycle (W8 done), Fee lifecycle (W9 in progress)
+Current Sprint: Sprint 5 — W14 Analytics, W11 Rollover, W10 Admissions
 Last Updated: 2026-06-14
 
 ---
@@ -12,7 +12,7 @@ Last Updated: 2026-06-14
 # PROJECT STATE
 
 Current Phase: Phase 2 Workflow ERP — lifecycle state machines in progress
-Current Sprint: Sprint 4 — W8 Exam lifecycle ✅, W9 Fee lifecycle (next)
+Current Sprint: Sprint 5 — W14 Analytics (next), W11 Rollover, W10 Admissions
 
 Completed (Phase 1, all deployed to *.tulipsedu.in, 4 schools seeded):
 - Auth + Tenant Isolation + RBAC (6 staff roles + parent, migration 018)
@@ -28,7 +28,42 @@ Completed (Phase 1, all deployed to *.tulipsedu.in, 4 schools seeded):
 - Apex marketing landing page at tulipsedu.in / www (2026-06-12)
 - R2 upload endpoint (501 until credentials added)
 
-In Progress: **W9 — Fee lifecycle** (migration 028 + scheduler + defaulter report). Next after that: W14 Analytics, W11 Rollover, W10 Admissions.
+Completed this session: **W9** (fee lifecycle) · **W14** (analytics) · **W11** (rollover) · **W10** (admissions pipeline)
+
+Remaining: **W12/W13** (SMS/WhatsApp + PDF report cards — BLOCKED on credentials). Production deploy needed for migrations 027–030.
+
+## ✅ 2026-06-14 — W10 Admissions pipeline
+
+**W10 — Admissions pipeline (migration 030, tsc+build clean, bundle 221 kB / 56 kB gzip):**
+- `admissions` table: `enquiry→application→docs_pending→approved→enrolled/rejected` state machine.
+- `POST /admissions/enquiry` — JWT-exempt public web form endpoint.
+- `GET/PATCH /admissions` — pipeline list + state advance with guard (409 on invalid transition).
+- `POST /admissions/{id}/enrol` — principal-only orchestrated transaction: auto-generate adm_no, create student, generate fee ledger, mark enrolled, emit ADMISSION_APPROVED.
+- Frontend: kanban board with 5 status columns, card-level advance/reject/enrol actions, EnrolModal with year+class+section dropdowns. Wired into principal portal as "Admissions" tile.
+
+## ✅ 2026-06-14 — W11 Academic-year rollover
+
+**W11 — Academic-year rollover (migration 029):**
+- `academic_years.status` column (active/archived).
+- `rollover_academic_year()` single transaction: validate, carry forward pending/due/overdue fees into new year, clone timetable slots, archive old year, set new as current, emit ACADEMIC_YEAR_ROLLED_OVER.
+- `POST /academic-years/{id}/rollover` (principal only) → 409 on invalid state.
+- Settings.tsx: UpiPanel extracted + RolloverPanel (create-or-select next year, 2-step confirmation dialog, result summary).
+
+## ✅ 2026-06-14 — W14 Analytics dashboard
+
+**W14 — Analytics aggregates:**
+- Dashboard endpoint: fee recovery % (school-wide + per-class), 30-day attendance trend by day, <75% low-attendance alert list. Role-gated: principal/VP gets all; accountant gets fee summary only.
+- Stat cards: replaced homework count with defaulter count (overdue payment students).
+- DashboardView: fee recovery progress bars per class, attendance sparkline (colour-coded by %), low-attendance list with pct badge. Accountant portal now has a dashboard tile.
+
+## ✅ 2026-06-14 — W9 Fee lifecycle + defaulter report
+
+**W9 — Fee lifecycle (migration 028, tsc+build clean):**
+- `fee_ledger.status` extended to `pending|due|overdue|paid|waived`; `due_date` column added; backfilled 5th-of-month (monthly) / June-30 (annual).
+- `scheduler.fee_lifecycle_advance()`: daily job advances `pending→due` (on/after due_date), `pending/due→overdue` (past grace window), re-sends FEE_OVERDUE notifications every 7 days.
+- Dashboard bug fixed: `fee_outstanding` now counts `pending+due+overdue` (was only `pending`; `overdue` was never set).
+- API: `GET /fees/defaulters` (json + csv) + `GET /fees/recovery` (per-class collection rate).
+- Frontend: **Defaulters** tab in FeesAdmin — filter by year/class, expand per-student to see overdue entries, Export CSV button. `getDefaulters` + `getFeeRecovery` added to `finance.ts`.
 
 ## ✅ 2026-06-14 — W8 Exam lifecycle + Class Assignment Panel
 
