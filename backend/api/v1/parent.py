@@ -2,9 +2,11 @@ import uuid
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
+from models.exam import TermResultSheet
 from models.finance import ParentPaymentClaim, ParentPaymentRow
 from models.notification import NotificationResponse, UnreadCount
 from models.parent import FeeLedgerEntry, LinkedStudent, StudentSummary
+from services.exam import ExamError, compute_term_results
 from services.notification import (
     list_for_recipient,
     mark_all_read,
@@ -132,3 +134,65 @@ async def parent_read_one(notification_id: uuid.UUID, request: Request):
         )
     if not ok:
         raise HTTPException(status_code=404, detail="Notification not found")
+
+
+# ── Results / Report Card ─────────────────────────────────────────────────────
+
+@router.get("/students/{student_id}/results", response_model=list[TermResultSheet])
+async def student_results(student_id: uuid.UUID, request: Request):
+    """
+    Returns the grade sheet for every published exam term for this student.
+    Only the student's own parent session may call this.
+    """
+    session_student = _require_parent(request)
+    if student_id != session_student:
+        raise HTTPException(status_code=403, detail="Not permitted for this student")
+
+    tid = request.state.tenant_id
+    pool = request.app.state.pool
+
+    async with pool.acquire() as conn:
+        # Get student's class + section so we can fetch the right marks grid
+        row = await conn.fetchrow(
+            "SELECT class_id, section_id FROM students WHERE id = $1 AND tenant_id = $2",
+            student_id, tid,
+        )
+        if not row:
+            raise HTTPException(status_code=404, detail="Student not found")
+
+        # All published terms for this academic year (scoped to the student's tenant)
+        terms = await conn.fetch(
+            """
+            SELECT et.id, et.name
+            FROM exam_terms et
+            WHERE et.tenant_id = $1
+              AND et.is_published = TRUE
+            ORDER BY et.created_at
+            """,
+            tid,
+        )
+
+        sheets: list[TermResultSheet] = []
+        for term in terms:
+            try:
+                sheet = await compute_term_results(
+                    conn, tid, term["id"],
+                    row["class_id"], row["section_id"],
+                )
+                # Only include if this student actually has marks in this term
+                this_student = next(
+                    (r for r in sheet.results if r.student_id == student_id), None
+                )
+                if this_student is not None:
+                    # Return a sheet with only this student's row
+                    sheets.append(TermResultSheet(
+                        exam_term_id=sheet.exam_term_id,
+                        exam_term_name=sheet.exam_term_name,
+                        class_id=sheet.class_id,
+                        section_id=sheet.section_id,
+                        results=[this_student],
+                    ))
+            except ExamError:
+                pass  # term not configured for this class yet
+
+    return sheets

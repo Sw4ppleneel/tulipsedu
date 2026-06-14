@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'preact/hooks'
 import qrcode from 'qrcode-generator'
 import {
-  getStudentLedger, getStudentSummary, listMyStudents,
+  getStudentLedger, getStudentResults, getStudentSummary, listMyStudents,
   listParentNotifications, submitParentPayment, listParentPayments,
 } from '../api/parent'
 import type {
   FeeLedgerEntry, LinkedStudent, ParentNotification, ParentPayment, StudentSummary,
+  TermResultSheet,
 } from '../api/parent'
 import { Brand, Card, Icon, SectionTile, Spinner, EmptyState, type IconName } from '../ui'
 

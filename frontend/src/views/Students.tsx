@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'preact/hooks'
 import { VirtualList } from '../components/VirtualList'
+import { useIsMobile } from '../hooks/useIsMobile'
 import { listAcademicYears, listClasses, listStudents, updateStudent } from '../api/students'
 import { StudentForm } from './StudentForm'
 import { ExcelImport } from '../ui'
@@ -26,13 +27,47 @@ function FlagChip({ on, label, busy, onClick }: { on: boolean; label: string; bu
 }
 
 const ROW_HEIGHT = 56
+const ROW_HEIGHT_MOBILE = 104
 const LIST_HEIGHT = 520
 
-function StudentRow({ student, busy, onToggle }: {
+function StudentRow({ student, busy, onToggle, mobile }: {
   student: Student
   busy: boolean
   onToggle: (id: string, field: FlagField, value: boolean) => void
+  mobile: boolean
 }) {
+  const chips = (
+    <>
+      <FlagChip on={student.is_transport} label="Transport" busy={busy} onClick={() => onToggle(student.id, 'is_transport', !student.is_transport)} />
+      <FlagChip on={student.is_hosteler} label="Hosteler" busy={busy} onClick={() => onToggle(student.id, 'is_hosteler', !student.is_hosteler)} />
+    </>
+  )
+
+  // Phone: stacked card — name line, muted detail line, then chips. No fixed
+  // column widths, so nothing overflows a narrow screen.
+  if (mobile) {
+    return (
+      <div style={{
+        height: ROW_HEIGHT_MOBILE, display: 'flex', flexDirection: 'column',
+        justifyContent: 'center', gap: '0.35rem', padding: '0.5rem 0.9rem',
+        borderBottom: '1px solid #f3f4f6', background: '#fff', fontSize: '0.8rem',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', minWidth: 0 }}>
+          <span style={{ fontWeight: 700, color: '#14463A', flexShrink: 0 }}>#{student.roll_number}</span>
+          <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {student.first_name} {student.last_name}
+          </span>
+        </div>
+        <div style={{ color: '#6b7280', fontSize: '0.72rem', display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+          <span>{student.admission_no}</span><span aria-hidden>·</span>
+          <span>{student.gender}</span><span aria-hidden>·</span>
+          <span>{student.parent_phone}</span>
+        </div>
+        <div style={{ display: 'flex', gap: '0.35rem' }}>{chips}</div>
+      </div>
+    )
+  }
+
   return (
     <div style={{
       height: ROW_HEIGHT,
@@ -54,8 +89,7 @@ function StudentRow({ student, busy, onToggle }: {
       <span style={{ width: 70, color: '#6b7280', flexShrink: 0 }}>{student.gender}</span>
       <span style={{ width: 110, color: '#6b7280', flexShrink: 0 }}>{student.parent_phone}</span>
       <span style={{ width: 168, display: 'flex', gap: '0.35rem', justifyContent: 'flex-end', flexShrink: 0 }}>
-        <FlagChip on={student.is_transport} label="Transport" busy={busy} onClick={() => onToggle(student.id, 'is_transport', !student.is_transport)} />
-        <FlagChip on={student.is_hosteler} label="Hosteler" busy={busy} onClick={() => onToggle(student.id, 'is_hosteler', !student.is_hosteler)} />
+        {chips}
       </span>
     </div>
   )
@@ -107,6 +141,9 @@ export function StudentsView() {
       .finally(() => setLoading(false))
   }, [filters])
 
+  const isMobile = useIsMobile()
+  const rowHeight = isMobile ? ROW_HEIGHT_MOBILE : ROW_HEIGHT
+  const listHeight = isMobile ? 600 : LIST_HEIGHT
   const [togglingId, setTogglingId] = useState('')
 
   // Flip a student flag (transport/hosteler) inline. Optimistic, reverts on error.
@@ -142,9 +179,9 @@ export function StudentsView() {
   }
 
   return (
-    <div style={{ padding: '1.5rem', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ padding: isMobile ? '1rem 0.75rem' : '1.5rem', fontFamily: 'system-ui, sans-serif' }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', gap: '.5rem', flexWrap: 'wrap' }}>
         <div>
           <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>Students</h2>
           {!loading && (
@@ -211,18 +248,18 @@ export function StudentsView() {
         </div>
       ) : (
         <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
-          <TableHeader />
+          {!isMobile && <TableHeader />}
           {students.length > 50 ? (
             <VirtualList
               items={students}
-              rowHeight={ROW_HEIGHT}
-              containerHeight={LIST_HEIGHT}
+              rowHeight={rowHeight}
+              containerHeight={listHeight}
               keyFn={(s) => s.id}
-              renderRow={(s) => <StudentRow student={s} busy={togglingId === s.id} onToggle={onToggleFlag} />}
+              renderRow={(s) => <StudentRow student={s} busy={togglingId === s.id} onToggle={onToggleFlag} mobile={isMobile} />}
             />
           ) : (
             <div>
-              {students.map((s) => <StudentRow key={s.id} student={s} busy={togglingId === s.id} onToggle={onToggleFlag} />)}
+              {students.map((s) => <StudentRow key={s.id} student={s} busy={togglingId === s.id} onToggle={onToggleFlag} mobile={isMobile} />)}
             </div>
           )}
         </div>

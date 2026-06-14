@@ -5,10 +5,21 @@ import {
 } from '../api/finance'
 import type { Defaulter } from '../api/finance'
 import { listAcademicYears, listClasses } from '../api/students'
+import { useIsMobile } from '../hooks/useIsMobile'
 import type { AcademicYear, Class } from '../types/student'
 import type { FeeHead, FeeSchedule, OutstandingStudent } from '../types/finance'
 
 type Tab = 'structure' | 'outstanding' | 'defaulters' | 'logs' | 'collect'
+
+// Dense fee tables keep all columns; on a phone they scroll sideways inside this
+// wrapper instead of crushing the layout. minWidth holds the columns legible.
+function ScrollX({ minWidth, children }: { minWidth: number; children: preact.ComponentChildren }) {
+  return (
+    <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+      <div style={{ minWidth }}>{children}</div>
+    </div>
+  )
+}
 
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
@@ -23,6 +34,7 @@ function periodLabel(month: number | null, year: number) {
 
 // ── Fee Structure Tab (Excel-only setup + read-only view) ─────────────────────
 function StructureTab({ years }: { years: AcademicYear[] }) {
+  const isMobile = useIsMobile()
   const [heads, setHeads] = useState<FeeHead[]>([])
   const [schedules, setSchedules] = useState<FeeSchedule[]>([])
   const [yearId, setYearId] = useState(years.find((y) => y.is_current)?.id ?? '')
@@ -97,7 +109,7 @@ function StructureTab({ years }: { years: AcademicYear[] }) {
       </div>
 
       {/* Read-only view of what is configured */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1.5rem' }}>
         <div>
           <h4 style={{ margin: '0 0 0.625rem', fontSize: '0.9rem' }}>Fee Heads</h4>
           <div style={{ border: '1px solid #e5e7eb', borderRadius: 6, overflow: 'hidden' }}>
@@ -162,7 +174,7 @@ function OutstandingTab({ years, classes }: { years: AcademicYear[]; classes: Cl
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.875rem', alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.875rem', alignItems: 'center', flexWrap: 'wrap' }}>
         <select value={yearId} onChange={(e) => setYearId((e.target as HTMLSelectElement).value)} style={SEL}>
           <option value="">All years</option>
           {years.map((y) => <option key={y.id} value={y.id}>{y.name}{y.is_current ? ' ★' : ''}</option>)}
@@ -181,6 +193,7 @@ function OutstandingTab({ years, classes }: { years: AcademicYear[]; classes: Cl
         </span>
       </div>
       {loading ? <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>Loading…</p> : (
+        <ScrollX minWidth={560}>
         <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
           <div style={{ display: 'flex', padding: '0 1rem', height: 36, background: '#f9fafb', borderBottom: '1px solid #e5e7eb', fontSize: '0.75rem', fontWeight: 600, color: '#6b7280', alignItems: 'center', gap: '0.75rem' }}>
             <span style={{ width: 24 }}></span>
@@ -202,6 +215,7 @@ function OutstandingTab({ years, classes }: { years: AcademicYear[]; classes: Cl
             </div>
           ))}
         </div>
+        </ScrollX>
       )}
     </div>
   )
@@ -268,6 +282,7 @@ function DefaultersTab({ years, classes }: { years: AcademicYear[]; classes: Cla
         <p style={{ textAlign: 'center', color: '#1F8A5D', padding: '2rem', fontSize: '0.875rem' }}>No overdue fees. All caught up!</p>
       )}
       {!loading && data && data.defaulters.length > 0 && (
+        <ScrollX minWidth={560}>
         <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
           <div style={{ display: 'flex', padding: '0 1rem', height: 36, background: '#fef2f2', borderBottom: '1px solid #fecaca', fontSize: '0.75rem', fontWeight: 600, color: '#991b1b', alignItems: 'center', gap: '0.75rem' }}>
             <span style={{ flex: 1 }}>NAME</span>
@@ -302,6 +317,7 @@ function DefaultersTab({ years, classes }: { years: AcademicYear[]; classes: Cla
             </div>
           ))}
         </div>
+        </ScrollX>
       )}
     </div>
   )
@@ -437,6 +453,7 @@ function LogsTab() {
   return (
     <div>
       {loading ? <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>Loading…</p> : (
+        <ScrollX minWidth={620}>
         <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
           <div style={{ display: 'flex', padding: '0 1rem', height: 36, background: '#f9fafb', borderBottom: '1px solid #e5e7eb', fontSize: '0.75rem', fontWeight: 600, color: '#6b7280', alignItems: 'center', gap: '0.75rem' }}>
             <span style={{ width: 120 }}>RECEIPT NO</span>
@@ -464,6 +481,7 @@ function LogsTab() {
             </div>
           ))}
         </div>
+        </ScrollX>
       )}
     </div>
   )
@@ -471,6 +489,7 @@ function LogsTab() {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 export function FeesAdminView() {
+  const isMobile = useIsMobile()
   const [tab, setTab] = useState<Tab>('outstanding')
   const [years, setYears] = useState<AcademicYear[]>([])
   const [classes, setClasses] = useState<Class[]>([])
@@ -493,10 +512,10 @@ export function FeesAdminView() {
   })
 
   return (
-    <div style={{ padding: '1.5rem', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ padding: isMobile ? '1rem 0.75rem' : '1.5rem', fontFamily: 'system-ui, sans-serif' }}>
       <h2 style={{ margin: '0 0 1rem', fontSize: '1.25rem', fontWeight: 700 }}>Fees & Payments</h2>
-      <div style={{ display: 'flex', gap: '0.25rem', borderBottom: '1px solid #e5e7eb', marginBottom: '1.25rem' }}>
-        {tabs.map((t) => <button key={t.id} onClick={() => setTab(t.id)} style={TAB_BTN(tab === t.id)}>{t.label}</button>)}
+      <div style={{ display: 'flex', gap: '0.25rem', borderBottom: '1px solid #e5e7eb', marginBottom: '1.25rem', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        {tabs.map((t) => <button key={t.id} onClick={() => setTab(t.id)} style={{ ...TAB_BTN(tab === t.id), whiteSpace: 'nowrap', flexShrink: 0 }}>{t.label}</button>)}
       </div>
       {tab === 'structure'   && <StructureTab years={years} />}
       {tab === 'outstanding' && <OutstandingTab years={years} classes={classes} />}

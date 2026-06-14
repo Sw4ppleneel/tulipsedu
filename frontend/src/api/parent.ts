@@ -202,3 +202,41 @@ export function submitParentPayment(ledgerIds: string[], referenceNo?: string): 
 export function listParentPayments(): Promise<ParentPayment[]> {
   return parentRequest<ParentPayment[]>('/parent/payments')
 }
+
+// ── Exam results (grade sheet) ────────────────────────────────────────────────
+
+export interface SubjectResult {
+  subject_id: string
+  subject_name: string
+  max_marks: number
+  marks_obtained: number | null
+  is_absent: boolean
+  percentage: number | null
+  grade: string
+  passed: boolean
+}
+
+export interface StudentTermResult {
+  student_id: string
+  roll_number: string
+  admission_no: string
+  student_name: string
+  subjects: SubjectResult[]
+  total_obtained: number
+  total_max: number
+  percentage: number | null
+  grade: string
+  passed: boolean
+}
+
+export interface TermResultSheet {
+  exam_term_id: string
+  exam_term_name: string
+  class_id: string
+  section_id: string
+  results: StudentTermResult[]
+}
+
+export function getStudentResults(studentId: string): Promise<TermResultSheet[]> {
+  return parentRequest<TermResultSheet[]>(`/parent/students/${studentId}/results`)
+}

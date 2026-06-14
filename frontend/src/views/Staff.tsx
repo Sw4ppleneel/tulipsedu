@@ -1,14 +1,47 @@
 import { useEffect, useState } from 'preact/hooks'
 import { VirtualList } from '../components/VirtualList'
+import { useIsMobile } from '../hooks/useIsMobile'
 import { listStaff } from '../api/staff'
 import { StaffForm } from './StaffForm'
 import { ExcelImport } from '../ui'
 import type { Staff } from '../types/staff'
 
 const ROW_H = 52
+const ROW_H_MOBILE = 92
 const LIST_H = 520
 
-function StaffRow({ member }: { member: Staff }) {
+function LoginPill() {
+  return (
+    <span style={{ padding: '2px 7px', background: '#d1fae5', color: '#0D332A', borderRadius: 9999, fontSize: '0.7rem', fontWeight: 600 }}>
+      Login
+    </span>
+  )
+}
+
+function StaffRow({ member, mobile }: { member: Staff; mobile: boolean }) {
+  if (mobile) {
+    return (
+      <div style={{
+        height: ROW_H_MOBILE, display: 'flex', flexDirection: 'column',
+        justifyContent: 'center', gap: '0.3rem', padding: '0.5rem 0.9rem',
+        borderBottom: '1px solid #f3f4f6', background: '#fff', fontSize: '0.8rem',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', minWidth: 0 }}>
+          <span style={{ fontWeight: 700, color: '#14463A', flexShrink: 0 }}>{member.employee_no}</span>
+          <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {member.first_name} {member.last_name}
+          </span>
+          {member.user_id && <span style={{ marginLeft: 'auto', flexShrink: 0 }}><LoginPill /></span>}
+        </div>
+        <div style={{ color: '#6b7280', fontSize: '0.72rem', display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+          <span>{member.designation}</span><span aria-hidden>·</span>
+          <span>{member.department ?? '—'}</span><span aria-hidden>·</span>
+          <span>{member.phone_number}</span>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div style={{
       height: ROW_H, display: 'flex', alignItems: 'center',
@@ -23,11 +56,7 @@ function StaffRow({ member }: { member: Staff }) {
       <span style={{ width: 130, color: '#6b7280', flexShrink: 0 }}>{member.department ?? '—'}</span>
       <span style={{ width: 110, color: '#6b7280', flexShrink: 0 }}>{member.phone_number}</span>
       <span style={{ width: 80, textAlign: 'right', flexShrink: 0 }}>
-        {member.user_id && (
-          <span style={{ padding: '2px 7px', background: '#d1fae5', color: '#0D332A', borderRadius: 9999, fontSize: '0.7rem', fontWeight: 600 }}>
-            Login
-          </span>
-        )}
+        {member.user_id && <LoginPill />}
       </span>
     </div>
   )
@@ -51,6 +80,9 @@ function TableHeader() {
 }
 
 export function StaffView() {
+  const isMobile = useIsMobile()
+  const rowHeight = isMobile ? ROW_H_MOBILE : ROW_H
+  const listHeight = isMobile ? 600 : LIST_H
   const [staff, setStaff] = useState<Staff[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -79,8 +111,8 @@ export function StaffView() {
   const SEL: preact.JSX.CSSProperties = { padding: '0.375rem 0.625rem', border: '1px solid #d1d5db', borderRadius: 4, fontSize: '0.8rem' }
 
   return (
-    <div style={{ padding: '1.5rem', fontFamily: 'system-ui, sans-serif' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+    <div style={{ padding: isMobile ? '1rem 0.75rem' : '1.5rem', fontFamily: 'system-ui, sans-serif' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', gap: '.5rem', flexWrap: 'wrap' }}>
         <div>
           <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>Staff</h2>
           {!loading && <p style={{ margin: '0.25rem 0 0', fontSize: '0.8rem', color: '#6b7280' }}>{total} member{total !== 1 ? 's' : ''}</p>}
@@ -126,17 +158,17 @@ export function StaffView() {
         </div>
       ) : (
         <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
-          <TableHeader />
+          {!isMobile && <TableHeader />}
           {visible.length > 50 ? (
             <VirtualList
               items={visible}
-              rowHeight={ROW_H}
-              containerHeight={LIST_H}
+              rowHeight={rowHeight}
+              containerHeight={listHeight}
               keyFn={(s) => s.id}
-              renderRow={(s) => <StaffRow member={s} />}
+              renderRow={(s) => <StaffRow member={s} mobile={isMobile} />}
             />
           ) : (
-            <div>{visible.map((s) => <StaffRow key={s.id} member={s} />)}</div>
+            <div>{visible.map((s) => <StaffRow key={s.id} member={s} mobile={isMobile} />)}</div>
           )}
         </div>
       )}
