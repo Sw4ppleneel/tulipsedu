@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'preact/hooks'
 import {
-  collectOffline, getOutstanding, getPaymentLogs, getStudentLedger,
+  collectOffline, getDefaulters, getOutstanding, getPaymentLogs, getStudentLedger,
   listFeeHeads, listSchedules, sendReminders,
 } from '../api/finance'
+import type { Defaulter } from '../api/finance'
 import { listAcademicYears, listClasses } from '../api/students'
 import type { AcademicYear, Class } from '../types/student'
 import type { FeeHead, FeeSchedule, OutstandingStudent } from '../types/finance'
 
-type Tab = 'structure' | 'outstanding' | 'logs' | 'collect'
+type Tab = 'structure' | 'outstanding' | 'defaulters' | 'logs' | 'collect'
 
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
@@ -206,6 +207,106 @@ function OutstandingTab({ years, classes }: { years: AcademicYear[]; classes: Cl
   )
 }
 
+// ── Defaulters Tab ────────────────────────────────────────────────────────────
+function DefaultersTab({ years, classes }: { years: AcademicYear[]; classes: Class[] }) {
+  const [yearId, setYearId] = useState(years.find((y) => y.is_current)?.id ?? '')
+  const [classId, setClassId] = useState('')
+  const [data, setData] = useState<{ total_students: number; defaulters: Defaulter[] } | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+
+  async function load() {
+    setLoading(true)
+    try {
+      const r = await getDefaulters({
+        academic_year_id: yearId || undefined,
+        class_id: classId || undefined,
+      })
+      setData(r)
+    } finally { setLoading(false) }
+  }
+
+  useEffect(() => { load() }, [yearId, classId])
+
+  function toggleRow(id: string) {
+    setExpanded((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n })
+  }
+
+  function exportCsv() {
+    const p = new URLSearchParams()
+    if (yearId) p.set('academic_year_id', yearId)
+    if (classId) p.set('class_id', classId)
+    p.set('format', 'csv')
+    window.open(`/api/v1/fees/defaulters?${p}`, '_blank')
+  }
+
+  const SEL: preact.JSX.CSSProperties = { padding: '0.375rem 0.625rem', border: '1px solid #d1d5db', borderRadius: 4, fontSize: '0.8rem' }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.875rem', alignItems: 'center', flexWrap: 'wrap' }}>
+        <select value={yearId} onChange={(e) => setYearId((e.target as HTMLSelectElement).value)} style={SEL}>
+          <option value="">All years</option>
+          {years.map((y) => <option key={y.id} value={y.id}>{y.name}{y.is_current ? ' ★' : ''}</option>)}
+        </select>
+        <select value={classId} onChange={(e) => setClassId((e.target as HTMLSelectElement).value)} style={SEL}>
+          <option value="">All classes</option>
+          {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+        <button onClick={exportCsv} style={{ padding: '0.375rem 0.875rem', background: '#1F8A5D', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.8rem' }}>
+          Export CSV
+        </button>
+        {data && (
+          <span style={{ marginLeft: 'auto', fontSize: '0.875rem', fontWeight: 700, color: data.total_students > 0 ? '#dc2626' : '#1F8A5D' }}>
+            {data.total_students} defaulter{data.total_students !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
+
+      {loading && <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>Loading…</p>}
+      {!loading && data && data.defaulters.length === 0 && (
+        <p style={{ textAlign: 'center', color: '#1F8A5D', padding: '2rem', fontSize: '0.875rem' }}>No overdue fees. All caught up!</p>
+      )}
+      {!loading && data && data.defaulters.length > 0 && (
+        <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', padding: '0 1rem', height: 36, background: '#fef2f2', borderBottom: '1px solid #fecaca', fontSize: '0.75rem', fontWeight: 600, color: '#991b1b', alignItems: 'center', gap: '0.75rem' }}>
+            <span style={{ flex: 1 }}>NAME</span>
+            <span style={{ width: 90 }}>ADM NO</span>
+            <span style={{ width: 110 }}>CLASS</span>
+            <span style={{ width: 110, textAlign: 'right' }}>OVERDUE TOTAL</span>
+            <span style={{ width: 24 }}></span>
+          </div>
+          {data.defaulters.map((d) => (
+            <div key={d.student_id}>
+              <div
+                onClick={() => toggleRow(d.student_id)}
+                style={{ display: 'flex', padding: '0.5rem 1rem', borderBottom: '1px solid #f3f4f6', gap: '0.75rem', fontSize: '0.8rem', alignItems: 'center', cursor: 'pointer', background: expanded.has(d.student_id) ? '#fff7f7' : '#fff' }}
+              >
+                <span style={{ flex: 1, fontWeight: 500 }}>{d.student_name}</span>
+                <span style={{ width: 90, color: '#6b7280' }}>{d.admission_no}</span>
+                <span style={{ width: 110, color: '#6b7280' }}>{d.class_name} {d.section_name}</span>
+                <span style={{ width: 110, textAlign: 'right', fontWeight: 700, color: '#dc2626' }}>{fmt(d.total_overdue)}</span>
+                <span style={{ width: 24, textAlign: 'center', color: '#9ca3af' }}>{expanded.has(d.student_id) ? '▲' : '▼'}</span>
+              </div>
+              {expanded.has(d.student_id) && (
+                <div style={{ background: '#fef9f9', borderBottom: '1px solid #f3f4f6', padding: '0.5rem 1rem 0.75rem 2rem' }}>
+                  {d.entries.map((e) => (
+                    <div key={e.id} style={{ display: 'flex', gap: '0.75rem', fontSize: '0.78rem', padding: '0.25rem 0', color: '#6b7280' }}>
+                      <span style={{ flex: 1 }}>{e.fee_head_name} — {e.period}</span>
+                      <span style={{ color: '#dc2626', fontWeight: 600 }}>{fmt(e.amount_due)}</span>
+                      <span style={{ width: 100 }}>{e.due_date ? `Due ${e.due_date}` : ''}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Collect Fee Tab ───────────────────────────────────────────────────────────
 const PAY_METHODS = [
   { v: 'cash', label: 'Cash' }, { v: 'upi', label: 'UPI' },
@@ -380,6 +481,7 @@ export function FeesAdminView() {
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'outstanding', label: 'Outstanding Dues' },
+    { id: 'defaulters', label: 'Defaulters' },
     { id: 'collect', label: 'Collect Fee' },
     { id: 'logs', label: 'Payment Logs' },
     { id: 'structure', label: 'Fee Structure' },
@@ -398,6 +500,7 @@ export function FeesAdminView() {
       </div>
       {tab === 'structure'   && <StructureTab years={years} />}
       {tab === 'outstanding' && <OutstandingTab years={years} classes={classes} />}
+      {tab === 'defaulters'  && <DefaultersTab years={years} classes={classes} />}
       {tab === 'collect'     && <CollectTab />}
       {tab === 'logs'        && <LogsTab />}
     </div>

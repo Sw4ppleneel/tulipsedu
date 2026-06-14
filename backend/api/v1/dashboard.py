@@ -21,7 +21,7 @@ async def stats(request: Request):
             "SELECT COUNT(*) FROM staff WHERE tenant_id=$1 AND is_active=TRUE", tid
         )
         fee_outstanding = await conn.fetchval(
-            "SELECT COALESCE(SUM(amount_due),0) FROM fee_ledger WHERE tenant_id=$1 AND status IN ('pending','overdue')",
+            "SELECT COALESCE(SUM(amount_due),0) FROM fee_ledger WHERE tenant_id=$1 AND status IN ('pending','due','overdue')",
             tid,
         )
         recent_hw = await conn.fetch(

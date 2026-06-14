@@ -212,6 +212,131 @@ async def send_reminders(student_ids: list[UUID], request: Request):
     return {"queued": len(student_ids)}
 
 
+@router.get("/defaulters")
+async def defaulters(
+    request: Request,
+    class_id: Optional[UUID] = Query(None),
+    section_id: Optional[UUID] = Query(None),
+    academic_year_id: Optional[UUID] = Query(None),
+    format: str = Query("json"),
+):
+    """Overdue fee ledger rows, grouped by student. format=csv returns a downloadable file."""
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT fl.id, fl.student_id, fl.fee_head_id, fl.amount_due,
+                   fl.period_month, fl.period_year, fl.status, fl.due_date,
+                   st.adm_no AS admission_no, st.first_name || ' ' || st.last_name AS student_name,
+                   st.roll_number,
+                   c.name AS class_name, sec.name AS section_name,
+                   fh.name AS fee_head_name
+            FROM fee_ledger fl
+            JOIN students st ON st.id = fl.student_id
+            JOIN classes c ON c.id = st.class_id
+            JOIN sections sec ON sec.id = st.section_id
+            JOIN fee_heads fh ON fh.id = fl.fee_head_id
+            WHERE fl.tenant_id = $1
+              AND fl.status = 'overdue'
+              AND st.is_active = TRUE
+              AND ($2::uuid IS NULL OR st.class_id = $2::uuid)
+              AND ($3::uuid IS NULL OR st.section_id = $3::uuid)
+              AND ($4::uuid IS NULL OR fl.academic_year_id = $4::uuid)
+            ORDER BY c.name, sec.name, st.roll_number, fl.due_date
+            """,
+            request.state.tenant_id, class_id, section_id, academic_year_id,
+        )
+
+    if format == "csv":
+        require_export_role(request)
+        headers = ["Admission No", "Name", "Roll", "Class", "Section", "Fee Head", "Period", "Amount Due", "Due Date"]
+        csv_rows = []
+        for r in rows:
+            period = (
+                f"{r['period_year']}-{r['period_month']:02d}" if r["period_month"]
+                else f"{r['period_year']} (Annual)"
+            )
+            csv_rows.append([
+                r["admission_no"], r["student_name"], r["roll_number"],
+                r["class_name"], r["section_name"], r["fee_head_name"],
+                period, str(r["amount_due"]), str(r["due_date"] or ""),
+            ])
+        return csv_response(headers, csv_rows, "defaulters.csv")
+
+    # Group by student for JSON response
+    from collections import defaultdict
+    grouped: dict = defaultdict(lambda: {"student_id": None, "admission_no": None, "student_name": None,
+                                          "class_name": None, "section_name": None, "total_overdue": 0,
+                                          "entries": []})
+    for r in rows:
+        sid = str(r["student_id"])
+        g = grouped[sid]
+        g["student_id"] = sid
+        g["admission_no"] = r["admission_no"]
+        g["student_name"] = r["student_name"]
+        g["roll_number"] = r["roll_number"]
+        g["class_name"] = r["class_name"]
+        g["section_name"] = r["section_name"]
+        g["total_overdue"] = float(g["total_overdue"]) + float(r["amount_due"])
+        period = (
+            f"{r['period_year']}-{r['period_month']:02d}" if r["period_month"]
+            else f"{r['period_year']} (Annual)"
+        )
+        g["entries"].append({
+            "id": str(r["id"]),
+            "fee_head_name": r["fee_head_name"],
+            "period": period,
+            "amount_due": float(r["amount_due"]),
+            "due_date": r["due_date"].isoformat() if r["due_date"] else None,
+        })
+    return {"total_students": len(grouped), "defaulters": list(grouped.values())}
+
+
+@router.get("/recovery")
+async def fee_recovery(
+    request: Request,
+    academic_year_id: Optional[UUID] = Query(None),
+):
+    """Fee recovery rate per class + school-wide. Used by the analytics dashboard."""
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT c.name AS class_name, c.id AS class_id,
+                   COALESCE(SUM(fl.amount_due) FILTER (WHERE fl.status = 'paid'), 0)   AS collected,
+                   COALESCE(SUM(fl.amount_due) FILTER (WHERE fl.status != 'waived'), 0) AS expected
+            FROM fee_ledger fl
+            JOIN students st ON st.id = fl.student_id AND st.tenant_id = fl.tenant_id
+            JOIN classes c ON c.id = st.class_id
+            WHERE fl.tenant_id = $1
+              AND ($2::uuid IS NULL OR fl.academic_year_id = $2::uuid)
+              AND st.is_active = TRUE
+            GROUP BY c.id, c.name
+            ORDER BY c.name
+            """,
+            request.state.tenant_id, academic_year_id,
+        )
+    total_collected = sum(float(r["collected"]) for r in rows)
+    total_expected = sum(float(r["expected"]) for r in rows)
+    return {
+        "school_wide": {
+            "collected": total_collected,
+            "expected": total_expected,
+            "rate_pct": round(total_collected / total_expected * 100, 1) if total_expected else 0,
+        },
+        "by_class": [
+            {
+                "class_id": str(r["class_id"]),
+                "class_name": r["class_name"],
+                "collected": float(r["collected"]),
+                "expected": float(r["expected"]),
+                "rate_pct": round(float(r["collected"]) / float(r["expected"]) * 100, 1) if r["expected"] else 0,
+            }
+            for r in rows
+        ],
+    }
+
+
 @router.get("/export.csv")
 async def export_fees_csv(
     request: Request,

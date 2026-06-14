@@ -119,3 +119,24 @@ export function collectOffline(data: {
 }): Promise<{ payment_id: string; receipt_number: string }> {
   return request('/fees/collect', { method: 'POST', body: JSON.stringify(data) })
 }
+
+
+export interface DefaulterEntry { id: string; fee_head_name: string; period: string; amount_due: number; due_date: string | null }
+export interface Defaulter { student_id: string; admission_no: string; student_name: string; roll_number: string; class_name: string; section_name: string; total_overdue: number; entries: DefaulterEntry[] }
+export interface DefaultersResponse { total_students: number; defaulters: Defaulter[] }
+export interface RecoveryClass { class_id: string; class_name: string; collected: number; expected: number; rate_pct: number }
+export interface RecoveryResponse { school_wide: { collected: number; expected: number; rate_pct: number }; by_class: RecoveryClass[] }
+
+export function getDefaulters(params?: { class_id?: string; section_id?: string; academic_year_id?: string }): Promise<DefaultersResponse> {
+  const p = new URLSearchParams()
+  if (params?.class_id) p.set('class_id', params.class_id)
+  if (params?.section_id) p.set('section_id', params.section_id)
+  if (params?.academic_year_id) p.set('academic_year_id', params.academic_year_id)
+  return request<DefaultersResponse>(`/fees/defaulters?${p}`)
+}
+
+export function getFeeRecovery(params?: { academic_year_id?: string }): Promise<RecoveryResponse> {
+  const p = new URLSearchParams()
+  if (params?.academic_year_id) p.set('academic_year_id', params.academic_year_id)
+  return request<RecoveryResponse>(`/fees/recovery?${p}`)
+}
