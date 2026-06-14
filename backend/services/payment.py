@@ -119,7 +119,7 @@ async def create_payment_order(
         FROM fee_ledger fl
         JOIN fee_heads fh ON fh.id = fl.fee_head_id
         WHERE fl.tenant_id = $1 AND fl.student_id = $2
-          AND fl.id IN ({placeholders}) AND fl.status = 'pending'
+          AND fl.id IN ({placeholders}) AND fl.status IN ('pending', 'due', 'overdue')
         """,
         tenant_id, data.student_id, *data.ledger_ids,
     )
@@ -494,7 +494,7 @@ async def get_superadmin_revenue(conn: asyncpg.Connection) -> list[dict]:
             t.name          AS school_name,
             t.slug,
             COALESCE(SUM(fp.amount) FILTER (WHERE fp.status = 'paid'), 0)::numeric    AS total_collected,
-            COALESCE(SUM(fl.amount_due) FILTER (WHERE fl.status = 'pending'), 0)::numeric AS total_outstanding,
+            COALESCE(SUM(fl.amount_due) FILTER (WHERE fl.status IN ('pending', 'due', 'overdue')), 0)::numeric AS total_outstanding,
             COUNT(fp.id) FILTER (WHERE fp.status = 'paid')::int                       AS payment_count
         FROM tenants t
         LEFT JOIN fee_payments fp ON fp.tenant_id = t.id

@@ -33,7 +33,7 @@ export interface LedgerEntry {
   period_month: number | null
   period_year: number
   amount_due: string
-  status: 'pending' | 'paid' | 'waived'
+  status: 'pending' | 'due' | 'overdue' | 'paid' | 'waived'
   payment_id: string | null
   created_at: string
 }

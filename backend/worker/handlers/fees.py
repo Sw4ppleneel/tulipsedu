@@ -112,7 +112,7 @@ async def manual_reminder(conn: asyncpg.Connection, event: "Event") -> None:
         FROM students st
         LEFT JOIN fee_ledger fl
                ON fl.student_id = st.id AND fl.tenant_id = st.tenant_id
-              AND fl.status = 'pending'
+              AND fl.status IN ('pending', 'due', 'overdue')
         WHERE st.id = $2 AND st.tenant_id = $1
         GROUP BY st.first_name, st.last_name
         ON CONFLICT DO NOTHING
