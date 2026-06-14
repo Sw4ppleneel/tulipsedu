@@ -191,7 +191,7 @@ async def enrol_student(admission_id: UUID, body: EnrolRequest, request: Request
                 adm_no = body.adm_no.strip()
             else:
                 seq = await conn.fetchval(
-                    "SELECT COALESCE(MAX(CAST(REGEXP_REPLACE(adm_no,'[^0-9]','','g') AS INTEGER)),0)+1 FROM students WHERE tenant_id=$1",
+                    "SELECT COALESCE(MAX(CAST(REGEXP_REPLACE(admission_no,'[^0-9]','','g') AS INTEGER)),0)+1 FROM students WHERE tenant_id=$1",
                     tid,
                 )
                 adm_no = str(seq).zfill(4)
@@ -200,10 +200,10 @@ async def enrol_student(admission_id: UUID, body: EnrolRequest, request: Request
             student = await conn.fetchrow(
                 """
                 INSERT INTO students
-                  (tenant_id, adm_no, first_name, last_name, date_of_birth,
+                  (tenant_id, admission_no, first_name, last_name, date_of_birth,
                    academic_year_id, class_id, section_id, roll_number)
                 VALUES ($1, $2, $3, '', $4::date, $5, $6, $7, $8)
-                RETURNING id, adm_no
+                RETURNING id, admission_no
                 """,
                 tid, adm_no,
                 adm["applicant_name"],  # first_name = full name for now
@@ -234,7 +234,7 @@ async def enrol_student(admission_id: UUID, body: EnrolRequest, request: Request
             await emit(conn, "ADMISSION_APPROVED", tid, {
                 "admission_id": str(admission_id),
                 "student_id": str(student["id"]),
-                "adm_no": adm_no,
+                "admission_no": adm_no,
                 "applicant_name": adm["applicant_name"],
                 "enrolled_by": str(user_id),
             })

@@ -100,7 +100,7 @@ async def stats(request: Request):
                 )
                 SELECT s.id::text AS student_id,
                        s.first_name || ' ' || s.last_name AS student_name,
-                       s.adm_no AS admission_no,
+                       s.admission_no,
                        c.name AS class_name, sec.name AS section_name,
                        sa.present_count, sa.total_days,
                        ROUND(sa.present_count::numeric / sa.total_days * 100, 1) AS pct

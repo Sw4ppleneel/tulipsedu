@@ -227,7 +227,7 @@ async def defaulters(
             """
             SELECT fl.id, fl.student_id, fl.fee_head_id, fl.amount_due,
                    fl.period_month, fl.period_year, fl.status, fl.due_date,
-                   st.adm_no AS admission_no, st.first_name || ' ' || st.last_name AS student_name,
+                   st.admission_no, st.first_name || ' ' || st.last_name AS student_name,
                    st.roll_number,
                    c.name AS class_name, sec.name AS section_name,
                    fh.name AS fee_head_name
