@@ -1,11 +1,13 @@
 import uuid
 
 from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import Response
 
 from models.exam import TermResultSheet
 from models.finance import ParentPaymentClaim, ParentPaymentRow
 from models.notification import NotificationResponse, UnreadCount
 from models.parent import FeeLedgerEntry, LinkedStudent, StudentSummary
+from services import parent_payment
 from services.exam import ExamError, compute_term_results
 from services.notification import (
     list_for_recipient,
@@ -14,7 +16,8 @@ from services.notification import (
     unread_count,
 )
 from services.parent import get_fee_ledger_entries, get_student_basic, get_student_summary_by_id
-from services import parent_payment
+from services.report_card import build_report_card_context
+from services.report_card_pdf import render_report_card_pdf
 
 router = APIRouter(prefix="/parent", tags=["Parent Portal"])
 
@@ -196,3 +199,26 @@ async def student_results(student_id: uuid.UUID, request: Request):
                 pass  # term not configured for this class yet
 
     return sheets
+
+
+@router.get("/students/{student_id}/results/report-card.pdf")
+async def student_report_card_pdf(
+    student_id: uuid.UUID, request: Request, exam_term_id: uuid.UUID = Query(...)
+):
+    """Downloadable report-card PDF for the parent's own child — published terms only."""
+    session_student = _require_parent(request)
+    if student_id != session_student:
+        raise HTTPException(status_code=403, detail="Not permitted for this student")
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        ctx = await build_report_card_context(
+            conn, request.state.tenant_id, exam_term_id, student_id, require_published=True
+        )
+    if not ctx:
+        raise HTTPException(404, "Report card not available")
+    pdf = render_report_card_pdf(ctx)
+    filename = f"report-card-{ctx['admission_no']}-{ctx['term_name']}.pdf".replace(" ", "_")
+    return Response(
+        content=pdf, media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

@@ -456,6 +456,9 @@ Grade scale (CBSE): A1≥91, A2≥81, B1≥71, B2≥61, C1≥51, C2≥41, D≥33
 > | EXAM_MARKS_OPENED | no consumer (internal lifecycle signal) | ✅ emitted |
 > | EXAM_MARKS_LOCKED | no consumer (internal lifecycle signal) | ✅ emitted |
 > | EXAM_REOPENED | no consumer (principal override; internal audit) | ✅ emitted |
+> | SALARY_STRUCTURE_SET | no consumer (payroll audit signal; payload staff_id, gross_salary) | ✅ emitted |
+> | PAYROLL_RUN_CREATED | no consumer (payroll audit signal; payload run_id, period, payslips) | ✅ emitted |
+> | PAYROLL_FINALIZED | no consumer (payroll audit signal; payload run_id) | ✅ emitted |
 > | *(scheduled, hourly)* `scheduler.fee_overdue_scan` | overdue monthly ledger → parent FEE_OVERDUE; emits FEE_OVERDUE_REMINDED | ✅ live |
 > | EXAM_PUBLISHED | report-card **PDF** generation | ⏳ blocked (R2 + PDF dep) |
 > | ADMISSION_APPROVED *(new)* | create student + assign fees + provision parent access | ⏳ not built |
@@ -754,6 +757,41 @@ single-codebase constraints; Postgres-as-queue is sufficient at 500–5,000 stud
 2026-06-13: absent alerts, fee receipts + reconcile, manual reminders, homework pings, exam
 publish notices, fee-overdue scan. Still to build on it: lifecycle state machines, admissions
 orchestration, year rollover, and the PDF/SMS delivery adapters.
+
+## ADR-011 — Server-side PDF via reportlab + consolidated payroll (ACCEPTED — 2026-06-15)
+
+**Context:** Two user-requested capabilities, each tripping a CLAUDE.md gate. (1) Accountants
+need a *PDF* fee receipt to forward to parents (the existing receipt was HTML-only). (2) The
+principal needs to set staff salaries and produce monthly payslips — **payroll is listed
+OUT OF SCOPE** in CLAUDE.md.
+
+**Decision (both explicitly approved by the user this session):**
+- **PDF: `reportlab`** (pure-Python, no system libs — keeps the slim image small and the
+  ₹2k/month VPS light; weasyprint was rejected for its cairo/pango footprint). Receipts and
+  payslips render from **structured DB data**, not by parsing stored HTML. The built-in
+  Helvetica lacks the ₹ glyph and the image ships no TTF, so amounts use `Rs.`.
+- **Payroll: consolidated, no statutory engine.** Each staff has one salary structure
+  (`gross + recurring allowance/deduction lines`); a monthly **run** snapshots a payslip per
+  active staff (`net = gross + Σallowances − Σdeductions`); payslips are editable while the
+  run is `draft` and frozen on `finalize`. **No PF/ESI/TDS auto-calculation** — those rules
+  vary and most target schools pay consolidated salaries; statutory deductions, if any, are
+  entered as manual lines. This bounds the out-of-scope expansion to a correct, low-maintenance
+  module rather than a compliance engine.
+
+**Approval gates tripped (cleared by user this session):**
+- Dependency — `reportlab>=4.1` added to `backend/requirements.txt`.
+- Schema — migration `031_payroll.sql` (`staff_salary_structures`, `staff_payroll_runs`,
+  `staff_payslips`; all composite indexes lead with `tenant_id`).
+- Scope — payroll, otherwise out of scope, admitted as a principal-only module.
+
+**Endpoints:** `GET/PUT /payroll/staff/{id}/salary`, `GET /payroll/staff/{id}/payslips`,
+`GET/POST /payroll/runs`, `GET /payroll/runs/{id}/payslips`, `POST /payroll/runs/{id}/finalize`,
+`PATCH /payroll/payslips/{id}`, `GET /payroll/payslips/{id}.pdf`, plus
+`GET /payments/{id}/receipt.pdf` for fee receipts. All payroll routes are **principal-only**;
+receipt PDF is principal/vice_principal/accountant.
+
+**Events:** SALARY_STRUCTURE_SET, PAYROLL_RUN_CREATED, PAYROLL_FINALIZED (audit-only, no
+worker consumer yet).
 
 ---
 

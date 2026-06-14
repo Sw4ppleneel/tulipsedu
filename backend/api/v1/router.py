@@ -1,9 +1,30 @@
 from fastapi import APIRouter
 
 from api.v1 import (
-    academic_years, admissions, attendance, auth, classes, cms_admin, cms_public,
-    dashboard, exam, fees, homework, me, notifications, parent, parent_auth,
-    payments, settings, staff, students, superadmin, teacher, timetable, uploads,
+    academic_years,
+    admissions,
+    attendance,
+    auth,
+    classes,
+    cms_admin,
+    cms_public,
+    dashboard,
+    exam,
+    fees,
+    homework,
+    me,
+    notifications,
+    parent,
+    parent_auth,
+    payments,
+    payroll,
+    settings,
+    staff,
+    students,
+    superadmin,
+    teacher,
+    timetable,
+    uploads,
 )
 
 router = APIRouter()
@@ -30,3 +51,4 @@ router.include_router(settings.router)
 router.include_router(notifications.router)
 router.include_router(me.router)
 router.include_router(admissions.router)
+router.include_router(payroll.router)

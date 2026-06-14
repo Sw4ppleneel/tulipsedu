@@ -30,7 +30,31 @@ Completed (Phase 1, all deployed to *.tulipsedu.in, 4 schools seeded):
 
 Completed this session: **W9** (fee lifecycle) · **W14** (analytics) · **W11** (rollover) · **W10** (admissions pipeline)
 
-Remaining: **W12/W13** (SMS/WhatsApp + PDF report cards — BLOCKED on credentials). Production deploy needed for migrations 027–030.
+Remaining: **W12/W13** (SMS/WhatsApp + PDF report cards — BLOCKED on credentials).
+
+## ⚠️ NOT YET DEPLOYED (local-verified, batched for one push) — 2026-06-15
+
+These are built + verified on the dev DB but **held from prod** at user request (batch deploy).
+**Migration state verified 2026-06-15:** prod has 001–018 + 021–030 (28 applied, latest
+`030_admissions.sql`; 019/020 never existed — redundant RBAC tables). The ONLY pending
+migration is **`031_payroll.sql`**. (The old "027–030 not deployed" note was stale — those
+are live; it was the *dev* DB that lagged, now caught up.) Deploying also adds `reportlab`
+to the backend image.
+
+- **Fee-status fixes (deployed earlier today)** — `due`/`overdue` ledger rows were invisible
+  across 5 backend queries + parent portal filter. All fixed and live.
+- **Fee receipt PDF (ADR-011)** — `reportlab` dep; `GET /payments/{id}/receipt.pdf`;
+  `receipt.get_receipt_context` reconstructs structured data for any paid payment. Verify
+  Payments view gains a **Paid · receipt ready** section (approve → download PDF → forward
+  manually); Payment Logs receipt no. is a one-click PDF download.
+- **Payroll module (ADR-011, migration 031, principal-only)** — consolidated payroll, no
+  statutory engine. `staff_salary_structures` / `staff_payroll_runs` / `staff_payslips`.
+  Service: salary upsert, run create (snapshots payslip/active staff, `net = gross + Σallow −
+  Σdeduct`), payslip edit (draft only), finalize (locks). API under `/payroll`. Payslip PDF.
+  New **Payroll** tile (principal): *Staff & Salary* tab → tap staff → drawer (salary editor +
+  class assignments + recent payslips); *Monthly Payroll* tab → runs, editable payslips,
+  finalize, PDF. End-to-end verified vs dev DB (net math, update, finalize-lock, dup-run guard,
+  zero drift). Events: SALARY_STRUCTURE_SET, PAYROLL_RUN_CREATED, PAYROLL_FINALIZED.
 
 ## ✅ 2026-06-14 — W10 Admissions pipeline
 
@@ -663,6 +687,11 @@ Project scaffold, Docker, migration framework, auth, tenant isolation, Preact fr
 **Reason:** `audit_events` is producer-only; a single Postgres-polling worker over an outbox
 turns recorded events into driven workflows without a broker (₹2k/month + single-codebase
 constraints). Full write-up in ARCHITECTURE.md. **Trips approval gates** — see W1/W2.
+## ADR-011 — reportlab PDFs + consolidated payroll (Accepted — 2026-06-15, user-approved)
+**Reason:** Fee-receipt + payslip PDFs via pure-Python `reportlab` (no system libs, slim image).
+Payroll admitted as a principal-only module despite being OUT OF SCOPE — **consolidated only**
+(gross + manual allowance/deduction lines, monthly runs → payslips), **no PF/ESI/TDS engine**.
+Migration 031. Full write-up in ARCHITECTURE.md.
 
 ---
 

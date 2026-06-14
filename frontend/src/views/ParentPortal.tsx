@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'preact/hooks'
 import qrcode from 'qrcode-generator'
 import {
   getStudentLedger, getStudentResults, getStudentSummary, listMyStudents,
-  listParentNotifications, submitParentPayment, listParentPayments,
+  listParentNotifications, submitParentPayment, listParentPayments, downloadReportCard,
 } from '../api/parent'
 import type {
   FeeLedgerEntry, LinkedStudent, ParentNotification, ParentPayment, StudentSummary,

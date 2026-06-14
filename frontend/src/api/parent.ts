@@ -240,3 +240,21 @@ export interface TermResultSheet {
 export function getStudentResults(studentId: string): Promise<TermResultSheet[]> {
   return parentRequest<TermResultSheet[]>(`/parent/students/${studentId}/results`)
 }
+
+// Report-card PDF is auth-gated — fetch with the parent Bearer header, save the blob.
+export async function downloadReportCard(studentId: string, examTermId: string, filenameHint?: string): Promise<void> {
+  const auth = getAuthState()
+  const res = await fetch(`/api/v1/parent/students/${studentId}/results/report-card.pdf?exam_term_id=${examTermId}`, {
+    headers: auth ? { Authorization: `Bearer ${auth.accessToken}`, 'X-Tenant-Slug': auth.tenantSlug } : {},
+  })
+  if (!res.ok) throw new Error('Could not download report card')
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `report-card-${filenameHint ?? studentId}.pdf`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}

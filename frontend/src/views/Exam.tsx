@@ -2,7 +2,7 @@ import { useEffect, useState } from 'preact/hooks'
 import {
   listSubjects, listTerms, listMarksConfig, getMarks, saveMarks, getTermResults,
   listComponents, configureComponents, getComponentGrid, saveComponentMarks,
-  transitionTermStatus,
+  transitionTermStatus, downloadReportCard,
 } from '../api/exam'
 import { listAcademicYears, listClasses, listStudents } from '../api/students'
 import type {
@@ -505,6 +505,7 @@ function ResultsTab({ terms, classes }: { terms: ExamTerm[]; classes: Class[] })
                   <th style={{ border: '1px solid #e5e7eb', padding: '0.375rem 0.5rem', textAlign: 'center', color: '#6b7280', fontWeight: 600, width: 70 }}>%</th>
                   <th style={{ border: '1px solid #e5e7eb', padding: '0.375rem 0.5rem', textAlign: 'center', color: '#6b7280', fontWeight: 600, width: 50 }}>Grade</th>
                   <th style={{ border: '1px solid #e5e7eb', padding: '0.375rem 0.5rem', textAlign: 'center', color: '#6b7280', fontWeight: 600, width: 55 }}>Result</th>
+                  <th style={{ border: '1px solid #e5e7eb', padding: '0.375rem 0.5rem', textAlign: 'center', color: '#6b7280', fontWeight: 600, width: 70 }}>Card</th>
                 </tr>
               </thead>
               <tbody>
@@ -533,6 +534,12 @@ function ResultsTab({ terms, classes }: { terms: ExamTerm[]; classes: Class[] })
                       <span style={{ padding: '1px 7px', borderRadius: 9999, fontSize: '0.7rem', fontWeight: 600, background: r.passed ? '#d1fae5' : '#fee2e2', color: r.passed ? '#0D332A' : '#dc2626' }}>
                         {r.passed ? 'PASS' : 'FAIL'}
                       </span>
+                    </td>
+                    <td style={{ border: '1px solid #e5e7eb', padding: '0.3rem 0.5rem', textAlign: 'center' }}>
+                      <button
+                        onClick={() => downloadReportCard(term, r.student_id, `${r.admission_no}-${termName}`).catch(() => alert('Could not download report card'))}
+                        style={{ padding: '2px 8px', background: '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.7rem', fontWeight: 600 }}
+                      >PDF</button>
                     </td>
                   </tr>
                 ))}

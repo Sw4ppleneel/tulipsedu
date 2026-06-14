@@ -2,6 +2,7 @@ from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
+from fastapi.responses import Response
 
 from core.rbac import require_roles
 from models.exam import (
@@ -23,6 +24,8 @@ from models.exam import (
 )
 from services import exam as svc
 from services.exam import ExamError
+from services.report_card import build_report_card_context
+from services.report_card_pdf import render_report_card_pdf
 
 # All teaching roles may read exam config and enter marks; exam setup (subjects,
 # terms, config, publish) is restricted to principal/vice_principal.
@@ -234,6 +237,29 @@ async def term_results(
             )
         except ExamError as e:
             raise HTTPException(404, str(e))
+
+
+@router.get("/results/report-card.pdf")
+async def report_card_pdf(
+    request: Request,
+    exam_term_id: UUID = Query(...),
+    student_id: UUID = Query(...),
+):
+    """Downloadable report-card PDF for one student in a term (staff may download
+    regardless of publish state — to print/forward)."""
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        ctx = await build_report_card_context(
+            conn, request.state.tenant_id, exam_term_id, student_id, require_published=False
+        )
+    if not ctx:
+        raise HTTPException(404, "No results found for this student in this term")
+    pdf = render_report_card_pdf(ctx)
+    filename = f"report-card-{ctx['admission_no']}-{ctx['term_name']}.pdf".replace(" ", "_")
+    return Response(
+        content=pdf, media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/results/consolidated", response_model=list[ConsolidatedResult])

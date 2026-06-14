@@ -23,6 +23,7 @@ import { TeacherDashboard } from '../views/TeacherDashboard'
 import { PaymentVerificationView } from '../views/PaymentVerification'
 import { ClassAssignmentsView } from '../views/ClassAssignments'
 import { AdmissionsView } from '../views/Admissions'
+import { PayrollView } from '../views/Payroll'
 
 type Mod = 'attendance' | 'fees' | 'homework' | 'timetable' | 'exams' | 'cms'
 
@@ -98,6 +99,7 @@ export function buildPortalConfig(args: BuildArgs): PortalConfig {
   }
   if (flagOn(features, 'timetable'))  sections.push({ key: 'timetable',  label: 'Timetable',  icon: ic('timetable'), desc: 'Weekly schedules and teachers',      render: () => <TimetableView /> })
   if (flagOn(features, 'exams'))      sections.push({ key: 'exams',      label: 'Exams',      icon: ic('exams'),     desc: 'Terms, marks and results',           render: () => <ExamView role={role} /> })
+  if (isPrincipal) sections.push({ key: 'payroll', label: 'Payroll', icon: ic('staff'), desc: 'Staff salaries, class assignments and monthly payslips', render: () => <PayrollView /> })
   if (isPrincipal && flagOn(features, 'cms')) sections.push({ key: 'cms', label: 'Website', icon: ic('website'), desc: 'Public site pages and announcements', render: () => <CmsAdminView /> })
   if (isPrincipal) sections.push({ key: 'settings', label: 'Settings', icon: ic('settings'), desc: 'School profile and payment settings', render: () => <SettingsView /> })
 

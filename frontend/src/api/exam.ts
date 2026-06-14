@@ -132,6 +132,25 @@ export function getTermResults(params: {
   return request<TermResultSheet>(`/exams/results/term?${p}`)
 }
 
+// Report-card PDF is auth-gated, so fetch with the Bearer header then save the blob.
+export async function downloadReportCard(examTermId: string, studentId: string, filenameHint?: string): Promise<void> {
+  const { getAuthState } = await import('./auth_state')
+  const auth = getAuthState()
+  const res = await fetch(`/api/v1/exams/results/report-card.pdf?exam_term_id=${examTermId}&student_id=${studentId}`, {
+    headers: auth ? { Authorization: `Bearer ${auth.accessToken}`, 'X-Tenant-Slug': auth.tenantSlug } : {},
+  })
+  if (!res.ok) throw new Error('Could not download report card')
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `report-card-${filenameHint ?? studentId}.pdf`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
 // ── Exam Components ────────────────────────────────────────────────────────────
 
 export interface ExamComponent {
