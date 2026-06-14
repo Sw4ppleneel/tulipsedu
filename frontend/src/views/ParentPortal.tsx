@@ -150,7 +150,7 @@ function FeesSection({ student, schoolName, upi }: { student: LinkedStudent; sch
               <button
                 class="btn btn-accent" style={{ width: '100%', marginTop: '.7rem' }}
                 disabled={!upi}
-                onClick={() => setPay({ amount: g.total, ledgerIds: g.entries.map(e => e.id), note: `${schoolName} — ${g.label}` })}
+                onClick={() => setPay({ amount: g.total, ledgerIds: g.entries.map(e => e.id), note: `${schoolName} | ${student.first_name} ${student.last_name} | Adm ${student.admission_no} | ${g.label}` })}
               >
                 {upi ? `Pay ${inr(g.total)} via UPI` : 'Pay at school office'}
               </button>
@@ -241,6 +241,104 @@ function FeedSection({ items, empty }: { items: { id: string; title: string; sub
   )
 }
 
+// ── Grade chip colour ─────────────────────────────────────────────────────────
+const GRADE_COLOR: Record<string, { bg: string; fg: string }> = {
+  'A+': { bg: '#d1fae5', fg: '#065f46' },
+  A:   { bg: '#d1fae5', fg: '#065f46' },
+  'B+': { bg: '#dbeafe', fg: '#1e40af' },
+  B:   { bg: '#dbeafe', fg: '#1e40af' },
+  'C+': { bg: '#fef9c3', fg: '#854d0e' },
+  C:   { bg: '#fef9c3', fg: '#854d0e' },
+  D:   { bg: 'var(--c-warn-lt)', fg: 'var(--c-warn)' },
+  F:   { bg: 'var(--c-accent-lt)', fg: 'var(--c-accent-dk)' },
+}
+function GradeChip({ grade }: { grade: string }) {
+  const tone = GRADE_COLOR[grade] ?? { bg: 'var(--gray-100)', fg: 'var(--gray-600)' }
+  return (
+    <span style={{ padding: '2px 9px', borderRadius: 9999, fontSize: '.75rem', fontWeight: 700, background: tone.bg, color: tone.fg }}>
+      {grade}
+    </span>
+  )
+}
+
+// ── Results / Grade Sheet ─────────────────────────────────────────────────────
+function ResultsSection({ studentId }: { studentId: string }) {
+  const [sheets, setSheets] = useState<TermResultSheet[] | null>(null)
+  const [err, setErr] = useState('')
+
+  useEffect(() => {
+    getStudentResults(studentId)
+      .then(setSheets)
+      .catch(e => setErr(e instanceof Error ? e.message : 'Failed to load results'))
+  }, [studentId])
+
+  if (err) return <div class="empty-state" style={{ color: 'var(--c-danger)' }}>{err}</div>
+  if (!sheets) return <Spinner label="Loading results…" />
+
+  if (sheets.length === 0) {
+    return (
+      <div style={{ maxWidth: 560, margin: '0 auto', padding: '1rem' }}>
+        <EmptyState icon={<Icon name="results" size={30} />}
+          title="No results yet"
+          hint="Results will appear here once your school publishes exam marks." />
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ maxWidth: 560, margin: '0 auto', padding: '1rem' }}>
+      {sheets.map(sheet => {
+        const me = sheet.results[0]
+        return (
+          <Card key={sheet.exam_term_id} style={{ marginBottom: '1.25rem', padding: 0 }}>
+            {/* Term header */}
+            <div style={{ padding: '.875rem 1rem .6rem', borderBottom: '1px solid var(--gray-100)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1rem' }}>{sheet.exam_term_name}</div>
+                <div class="text-xs text-muted">{me.student_name}</div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <GradeChip grade={me.grade} />
+                {me.percentage != null && (
+                  <div class="text-xs text-muted" style={{ marginTop: '3px' }}>
+                    {me.percentage.toFixed(1)}% · {me.total_obtained}/{me.total_max}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Subject rows */}
+            <div style={{ padding: '.25rem 0' }}>
+              {me.subjects.map(s => (
+                <div key={s.subject_id} style={{ display: 'flex', alignItems: 'center', padding: '.45rem 1rem', borderBottom: '1px solid var(--gray-50)', gap: '.5rem' }}>
+                  <span style={{ flex: 1, fontSize: '.85rem', fontWeight: 500 }}>{s.subject_name}</span>
+                  {s.is_absent ? (
+                    <span class="badge badge-red">Absent</span>
+                  ) : (
+                    <>
+                      <span style={{ fontSize: '.8rem', color: 'var(--gray-600)', minWidth: 70, textAlign: 'right' }}>
+                        {s.marks_obtained != null ? `${s.marks_obtained}/${s.max_marks}` : '—'}
+                      </span>
+                      <GradeChip grade={s.grade} />
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Pass/fail footer */}
+            <div style={{ padding: '.5rem 1rem', background: me.passed ? 'var(--c-success-lt)' : 'var(--c-accent-lt)', borderRadius: '0 0 var(--r-lg) var(--r-lg)', textAlign: 'center' }}>
+              <span style={{ fontSize: '.78rem', fontWeight: 700, color: me.passed ? 'var(--c-success)' : 'var(--c-accent-dk)' }}>
+                {me.passed ? 'PASS' : 'NEEDS IMPROVEMENT'}
+              </span>
+            </div>
+          </Card>
+        )
+      })}
+    </div>
+  )
+}
+
 // ── Parent Portal — big-button launcher ───────────────────────────────────────
 type Sec = 'fees' | 'attendance' | 'homework' | 'announcements' | 'timetable' | 'results'
 const TILES: { key: Sec; label: string; icon: IconName; desc: string }[] = [
@@ -288,10 +386,12 @@ export function ParentPortalView({ onLogout }: { onLogout: () => void }) {
         return <FeedSection empty="No homework yet" items={summary.recent_homework.map(h => ({ id: h.id, title: h.title, sub: `${h.subject ?? ''}${h.due_date ? ` · due ${fmtDate(h.due_date)}` : ''}` }))} />
       case 'announcements':
         return <FeedSection empty="No notices yet" items={notifs.map(n => ({ id: n.id, title: n.title, sub: `${n.body} · ${fmtDate(n.created_at)}` }))} />
+      case 'results':
+        return <ResultsSection studentId={student.id} />
       default:
         return <div style={{ maxWidth: 560, margin: '0 auto', padding: '1rem' }}>
-          <EmptyState icon={<Icon name={section === 'results' ? 'results' : 'timetable'} size={30} />}
-            title={section === 'results' ? 'Results not published yet' : 'Timetable coming soon'}
+          <EmptyState icon={<Icon name="timetable" size={30} />}
+            title="Timetable coming soon"
             hint="Please check with the school office." />
         </div>
     }
