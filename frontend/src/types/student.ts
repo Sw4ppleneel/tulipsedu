@@ -5,6 +5,7 @@ export interface AcademicYear {
   start_date: string
   end_date: string
   is_current: boolean
+  status: string
   created_at: string
 }
 

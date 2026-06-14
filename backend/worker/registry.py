@@ -64,4 +64,6 @@ HANDLERS: dict[str, list[Handler]] = {
     "EXAM_MARKS_OPENED": [],
     "EXAM_MARKS_LOCKED": [],
     "EXAM_REOPENED":     [],
+    # Year rollover is a superadmin/principal-driven batch operation; audit only.
+    "ACADEMIC_YEAR_ROLLED_OVER": [],
 }

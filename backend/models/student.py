@@ -18,6 +18,7 @@ class AcademicYearResponse(BaseModel):
     start_date: date
     end_date: date
     is_current: bool
+    status: str = 'active'
     created_at: datetime
 
 

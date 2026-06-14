@@ -31,6 +31,20 @@ export function setCurrentYear(yearId: string): Promise<AcademicYear> {
   return request<AcademicYear>(`/academic-years/${yearId}/set-current`, { method: 'PATCH' })
 }
 
+export interface RolloverResult {
+  archived_year: string
+  new_current_year: string
+  fee_rows_carried: number
+  timetable_slots_cloned: number
+}
+
+export function rolloverYear(fromYearId: string, toYearId: string): Promise<RolloverResult> {
+  return request<RolloverResult>(`/academic-years/${fromYearId}/rollover`, {
+    method: 'POST',
+    body: JSON.stringify({ to_year_id: toYearId }),
+  })
+}
+
 // ── Classes ──────────────────────────────────────────────────────────────────
 
 export function listClasses(): Promise<Class[]> {

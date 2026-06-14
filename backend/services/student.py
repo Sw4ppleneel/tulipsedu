@@ -67,6 +67,110 @@ async def set_current_year(
     return AcademicYearResponse(**dict(row))
 
 
+async def rollover_academic_year(
+    conn: asyncpg.Connection,
+    tenant_id: uuid.UUID,
+    from_year_id: uuid.UUID,
+    to_year_id: uuid.UUID,
+    user_id: uuid.UUID,
+) -> dict:
+    """
+    Orchestrated academic-year rollover inside a single transaction.
+
+    Steps:
+    1. Validate: from_year is active+current, to_year exists, no existing rollover
+    2. Carry forward pending/due/overdue fee ledger rows into the new year as 'pending'
+    3. Clone timetable slots (not published) into the new year
+    4. Archive the old year; set the new year as current
+    5. Emit ACADEMIC_YEAR_ROLLED_OVER
+
+    Graduating-class promotion (increment class) is intentionally NOT done
+    automatically — class assignments in rural India require manual principal
+    oversight (failures, TC cases, special repeat students).
+    """
+    async with conn.transaction():
+        from_year = await conn.fetchrow(
+            "SELECT * FROM academic_years WHERE id=$1 AND tenant_id=$2 FOR UPDATE",
+            from_year_id, tenant_id,
+        )
+        if not from_year:
+            raise StudentError("Source academic year not found")
+        if from_year["status"] != "active":
+            raise StudentError("Source year is already archived")
+        if not from_year["is_current"]:
+            raise StudentError("Source year is not the current year")
+
+        to_year = await conn.fetchrow(
+            "SELECT * FROM academic_years WHERE id=$1 AND tenant_id=$2 FOR UPDATE",
+            to_year_id, tenant_id,
+        )
+        if not to_year:
+            raise StudentError("Target academic year not found")
+        if to_year["status"] == "archived":
+            raise StudentError("Target year is already archived")
+
+        # Step 1: carry forward unpaid fee ledger rows
+        carried = await conn.execute(
+            """
+            INSERT INTO fee_ledger
+              (tenant_id, student_id, fee_head_id, fee_schedule_id, academic_year_id,
+               amount_due, period_month, period_year, status, due_date)
+            SELECT tenant_id, student_id, fee_head_id, fee_schedule_id, $2,
+                   amount_due, period_month, period_year, 'pending', due_date
+            FROM fee_ledger
+            WHERE tenant_id = $1
+              AND academic_year_id = $3
+              AND status IN ('pending', 'due', 'overdue')
+            ON CONFLICT DO NOTHING
+            """,
+            tenant_id, to_year_id, from_year_id,
+        )
+
+        # Step 2: clone timetable slots (unpublished; teacher assignments preserved)
+        slots_cloned = await conn.execute(
+            """
+            INSERT INTO timetable_slots
+              (tenant_id, academic_year_id, class_id, section_id, staff_id,
+               day_of_week, period_number, subject, start_time, end_time)
+            SELECT tenant_id, $2, class_id, section_id, staff_id,
+                   day_of_week, period_number, subject, start_time, end_time
+            FROM timetable_slots
+            WHERE tenant_id = $1 AND academic_year_id = $3
+            ON CONFLICT DO NOTHING
+            """,
+            tenant_id, to_year_id, from_year_id,
+        )
+
+        # Step 3: archive old year, set new year as current
+        await conn.execute(
+            "UPDATE academic_years SET status='archived', is_current=FALSE WHERE id=$1 AND tenant_id=$2",
+            from_year_id, tenant_id,
+        )
+        updated = await conn.fetchrow(
+            "UPDATE academic_years SET is_current=TRUE WHERE id=$1 AND tenant_id=$2 RETURNING *",
+            to_year_id, tenant_id,
+        )
+
+        # Step 4: emit audit event
+        await emit(conn, "ACADEMIC_YEAR_ROLLED_OVER", tenant_id, {
+            "from_year_id": str(from_year_id),
+            "to_year_id": str(to_year_id),
+            "from_year_name": from_year["name"],
+            "to_year_name": to_year["name"],
+            "initiated_by": str(user_id),
+        })
+
+    ledger_rows = int((carried or "0 0").split()[-1])
+    slot_rows = int((slots_cloned or "0 0").split()[-1])
+
+    return {
+        "archived_year": from_year["name"],
+        "new_current_year": updated["name"] if updated else to_year["name"],
+        "fee_rows_carried": ledger_rows,
+        "timetable_slots_cloned": slot_rows,
+    }
+
+
 # ── Classes & Sections ────────────────────────────────────────────────────────
 
 async def create_class(
