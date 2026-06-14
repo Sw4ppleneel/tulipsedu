@@ -20,8 +20,8 @@ _JWT_EXEMPT = frozenset({
     "/api/v1/parent/auth/login",
 })
 
-# Path prefixes that are JWT-exempt (public CMS endpoints)
-_JWT_EXEMPT_PREFIXES = ("/api/v1/public/",)
+# Path prefixes that are JWT-exempt (public CMS + admissions enquiry)
+_JWT_EXEMPT_PREFIXES = ("/api/v1/public/", "/api/v1/admissions/enquiry")
 
 # Paths that bypass tenant lookup entirely
 _TENANT_EXEMPT = frozenset({"/health"})

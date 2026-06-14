@@ -22,6 +22,7 @@ import { SuperadminView } from '../views/Superadmin'
 import { TeacherDashboard } from '../views/TeacherDashboard'
 import { PaymentVerificationView } from '../views/PaymentVerification'
 import { ClassAssignmentsView } from '../views/ClassAssignments'
+import { AdmissionsView } from '../views/Admissions'
 
 type Mod = 'attendance' | 'fees' | 'homework' | 'timetable' | 'exams' | 'cms'
 
@@ -82,7 +83,8 @@ export function buildPortalConfig(args: BuildArgs): PortalConfig {
     { key: 'dashboard', label: 'Dashboard', icon: ic('dashboard'), desc: 'Counts, attendance and fee collection at a glance', render: () => <DashboardView schoolName={schoolName} role={role} /> },
     { key: 'students',  label: 'Students',  icon: ic('students'),  desc: 'Enrolment, roster and student records',             render: () => <StudentsView /> },
     { key: 'staff',     label: 'Staff',     icon: ic('staff'),     desc: 'Teachers, roles and class assignments',             render: () => <StaffView /> },
-    { key: 'assign',    label: 'Assignments', icon: ic('timetable'), desc: 'Assign teachers to classes and subjects',           render: () => <ClassAssignmentsView /> },
+    { key: 'assign',      label: 'Assignments', icon: ic('timetable'), desc: 'Assign teachers to classes and subjects',           render: () => <ClassAssignmentsView /> },
+    { key: 'admissions',  label: 'Admissions',  icon: ic('students'),  desc: 'Enquiry pipeline and student enrolment',            render: () => <AdmissionsView /> },
   ]
   if (flagOn(features, 'attendance')) sections.push({ key: 'attendance', label: 'Attendance', icon: ic('attendance'), desc: 'Monitor and override attendance', render: () => <AttendanceView /> })
   if (flagOn(features, 'fees')) {

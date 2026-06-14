@@ -66,4 +66,8 @@ HANDLERS: dict[str, list[Handler]] = {
     "EXAM_REOPENED":     [],
     # Year rollover is a superadmin/principal-driven batch operation; audit only.
     "ACADEMIC_YEAR_ROLLED_OVER": [],
+    # Admissions pipeline lifecycle — in-app only until SMS/WhatsApp wired (W12).
+    "ADMISSION_ENQUIRY_RECEIVED": [],
+    "ADMISSION_STATUS_CHANGED":   [],
+    "ADMISSION_APPROVED":         [],
 }
