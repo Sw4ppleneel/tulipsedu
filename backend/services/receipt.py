@@ -1,6 +1,8 @@
+import uuid
 from datetime import datetime
 from typing import Optional
 
+import asyncpg
 
 MONTH_NAMES = {
     1: "Jan", 2: "Feb", 3: "Mar", 4: "Apr", 5: "May", 6: "Jun",
@@ -12,6 +14,64 @@ def period_label(month: Optional[int], year: int) -> str:
     if month is None:
         return f"Annual {year}"
     return f"{MONTH_NAMES[month]} {year}"
+
+
+async def get_receipt_context(
+    conn: asyncpg.Connection, tenant_id: uuid.UUID, payment_id: uuid.UUID
+) -> Optional[dict]:
+    """Reconstruct structured receipt data for a paid payment from the tables.
+
+    Works for both parent-claimed (approved) and office-recorded (offline) payments
+    — both store receipt_number/paid_at and link fee_payment_items to the ledger.
+    Returns None if the payment is not found or not yet paid.
+    """
+    head = await conn.fetchrow(
+        """
+        SELECT fp.receipt_number, fp.payment_method, fp.paid_at, fp.amount,
+               t.name AS school_name,
+               s.first_name, s.last_name, s.admission_no,
+               c.name AS class_name, sec.name AS section_name
+        FROM fee_payments fp
+        JOIN tenants  t   ON t.id = fp.tenant_id
+        JOIN students s   ON s.id = fp.student_id
+        JOIN classes  c   ON c.id = s.class_id
+        JOIN sections sec ON sec.id = s.section_id
+        WHERE fp.id = $1 AND fp.tenant_id = $2 AND fp.status = 'paid'
+        """,
+        payment_id, tenant_id,
+    )
+    if not head:
+        return None
+
+    item_rows = await conn.fetch(
+        """
+        SELECT fh.name AS fee_head_name, fl.period_month, fl.period_year, fpi.amount
+        FROM fee_payment_items fpi
+        JOIN fee_ledger fl ON fl.id = fpi.ledger_id
+        JOIN fee_heads  fh ON fh.id = fl.fee_head_id
+        WHERE fpi.payment_id = $1
+        ORDER BY fl.period_year, fl.period_month NULLS FIRST
+        """,
+        payment_id,
+    )
+
+    return {
+        "receipt_number": head["receipt_number"],
+        "school_name": head["school_name"],
+        "student_name": f"{head['first_name']} {head['last_name']}",
+        "admission_no": head["admission_no"],
+        "class_section": f"{head['class_name']} — {head['section_name']}",
+        "payment_method": head["payment_method"],
+        "paid_at": head["paid_at"],
+        "items": [
+            {
+                "description": f"{period_label(r['period_month'], r['period_year'])} — {r['fee_head_name']}",
+                "amount": float(r["amount"]),
+            }
+            for r in item_rows
+        ],
+        "total": float(head["amount"]),
+    }
 
 
 def generate_receipt_html(

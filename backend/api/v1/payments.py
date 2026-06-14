@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 
 from config import settings
 from core.rbac import require_roles
@@ -15,6 +15,8 @@ from services.payment import (
     handle_razorpay_webhook,
     mock_complete_payment,
 )
+from services.receipt import get_receipt_context
+from services.receipt_pdf import render_receipt_pdf
 
 # No router-level gate: the webhook routes below are JWT-exempt (no user_role on
 # request.state). Each authenticated route declares its own guard instead.
@@ -67,6 +69,23 @@ async def get_receipt(payment_id: UUID, request: Request):
     if not html:
         raise HTTPException(status_code=404, detail="Receipt not found or payment not yet completed")
     return HTMLResponse(content=html)
+
+
+@router.get("/{payment_id}/receipt.pdf", dependencies=[_fee_view])
+async def get_receipt_pdf(payment_id: UUID, request: Request):
+    """Downloadable PDF receipt — accountant/principal forwards it to the parent."""
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        ctx = await get_receipt_context(conn, request.state.tenant_id, payment_id)
+    if not ctx:
+        raise HTTPException(status_code=404, detail="Receipt not found or payment not yet completed")
+    pdf = render_receipt_pdf(ctx)
+    filename = f"receipt-{ctx['receipt_number']}.pdf"
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 # ── Dev-only mock complete ────────────────────────────────────────────────────

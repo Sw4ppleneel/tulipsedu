@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks'
 import {
-  collectOffline, getDefaulters, getOutstanding, getPaymentLogs, getStudentLedger,
+  collectOffline, downloadReceiptPdf, getDefaulters, getOutstanding, getPaymentLogs, getStudentLedger,
   listFeeHeads, listSchedules, sendReminders,
 } from '../api/finance'
 import type { Defaulter } from '../api/finance'
@@ -468,7 +468,11 @@ function LogsTab() {
             <div key={p.id} style={{ display: 'flex', padding: '0.5rem 1rem', borderBottom: '1px solid #f3f4f6', gap: '0.75rem', fontSize: '0.8rem', alignItems: 'center' }}>
               <span style={{ width: 120, fontWeight: p.receipt_number ? 600 : 400, color: p.receipt_number ? '#14463A' : '#9ca3af' }}>
                 {p.receipt_number ? (
-                  <a href={`/api/v1/payments/${p.id}/receipt`} target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>{p.receipt_number}</a>
+                  <a
+                    href="#" title="Download receipt PDF"
+                    onClick={(e) => { e.preventDefault(); downloadReceiptPdf(p.id, p.receipt_number).catch(() => {}) }}
+                    style={{ color: 'inherit', cursor: 'pointer' }}
+                  >{p.receipt_number} ↓</a>
                 ) : '—'}
               </span>
               <span style={{ flex: 1 }}>{p.student_name ?? p.student_id}</span>

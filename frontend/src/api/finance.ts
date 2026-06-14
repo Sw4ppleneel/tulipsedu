@@ -63,6 +63,27 @@ export function getPaymentLogs(limit = 100): Promise<FeePayment[]> {
   return request<FeePayment[]>(`/fees/logs?limit=${limit}`)
 }
 
+// ── Receipt PDF download ──────────────────────────────────────────────────────
+// The PDF endpoint is auth-gated (Bearer header), so a plain <a href> would 401.
+// Fetch with the auth header, then save the blob as a file the staff can forward.
+export async function downloadReceiptPdf(paymentId: string, receiptNumber?: string): Promise<void> {
+  const { getAuthState } = await import('./auth_state')
+  const auth = getAuthState()
+  const res = await fetch(`/api/v1/payments/${paymentId}/receipt.pdf`, {
+    headers: auth ? { Authorization: `Bearer ${auth.accessToken}`, 'X-Tenant-Slug': auth.tenantSlug } : {},
+  })
+  if (!res.ok) throw new Error('Could not generate receipt PDF')
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `receipt-${receiptNumber ?? paymentId}.pdf`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
 // ── Payments ─────────────────────────────────────────────────────────────────
 export function createOrder(data: {
   student_id: string; ledger_ids: string[]; gateway: string
