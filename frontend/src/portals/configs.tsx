@@ -70,15 +70,16 @@ export function buildPortalConfig(args: BuildArgs): PortalConfig {
   // ── Accountant — finance only ────────────────────────────────────────────
   if (role === 'accountant') {
     return base('Accountant', [
-      { key: 'fees',   label: 'Fees & Collections', icon: ic('fees'),    desc: 'Fee ledger, receipts, collections, outstanding', render: () => <FeesAdminView /> },
-      { key: 'verify', label: 'Verify Payments',    icon: ic('results'), desc: 'Approve parent-reported UPI payments',           render: () => <PaymentVerificationView /> },
+      { key: 'dashboard', label: 'Dashboard',         icon: ic('dashboard'), desc: 'Fee collection summary and defaulter count',     render: () => <DashboardView schoolName={schoolName} role={role} /> },
+      { key: 'fees',      label: 'Fees & Collections',icon: ic('fees'),    desc: 'Fee ledger, receipts, collections, outstanding', render: () => <FeesAdminView /> },
+      { key: 'verify',    label: 'Verify Payments',   icon: ic('results'), desc: 'Approve parent-reported UPI payments',           render: () => <PaymentVerificationView /> },
     ])
   }
 
   // ── Principal / vice-principal — full institution ────────────────────────
   const isPrincipal = role === 'principal'
   const sections: PortalSection[] = [
-    { key: 'dashboard', label: 'Dashboard', icon: ic('dashboard'), desc: 'Counts, attendance and fee collection at a glance', render: () => <DashboardView schoolName={schoolName} /> },
+    { key: 'dashboard', label: 'Dashboard', icon: ic('dashboard'), desc: 'Counts, attendance and fee collection at a glance', render: () => <DashboardView schoolName={schoolName} role={role} /> },
     { key: 'students',  label: 'Students',  icon: ic('students'),  desc: 'Enrolment, roster and student records',             render: () => <StudentsView /> },
     { key: 'staff',     label: 'Staff',     icon: ic('staff'),     desc: 'Teachers, roles and class assignments',             render: () => <StaffView /> },
     { key: 'assign',    label: 'Assignments', icon: ic('timetable'), desc: 'Assign teachers to classes and subjects',           render: () => <ClassAssignmentsView /> },
