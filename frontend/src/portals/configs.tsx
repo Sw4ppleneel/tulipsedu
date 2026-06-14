@@ -62,7 +62,7 @@ export function buildPortalConfig(args: BuildArgs): PortalConfig {
       { key: 'announcements',label: 'Announcements', icon: ic('announcement'), desc: 'Post notices to your classes',              render: () => <HomeworkView defaultType="announcement" /> },
       { key: 'material',     label: 'Study Material',icon: ic('material'),     desc: 'Share study resources',                     render: () => <HomeworkView defaultType="resource" /> },
       { key: 'timetable',    label: 'Timetable',     icon: ic('timetable'),    desc: 'Your weekly teaching schedule',             render: () => <TimetableView /> },
-      { key: 'exams',        label: 'Exams',         icon: ic('exams'),        desc: 'Enter marks for your subjects',             render: () => <ExamView /> },
+      { key: 'exams',        label: 'Exams',         icon: ic('exams'),        desc: 'Enter marks for your subjects',             render: () => <ExamView role={role} /> },
     ])
   }
 
@@ -92,7 +92,7 @@ export function buildPortalConfig(args: BuildArgs): PortalConfig {
     sections.push({ key: 'material',      label: 'Study Material',icon: ic('material'),     desc: 'Shared study resources',        render: () => <HomeworkView defaultType="resource" /> })
   }
   if (flagOn(features, 'timetable'))  sections.push({ key: 'timetable',  label: 'Timetable',  icon: ic('timetable'), desc: 'Weekly schedules and teachers',      render: () => <TimetableView /> })
-  if (flagOn(features, 'exams'))      sections.push({ key: 'exams',      label: 'Exams',      icon: ic('exams'),     desc: 'Terms, marks and results',           render: () => <ExamView /> })
+  if (flagOn(features, 'exams'))      sections.push({ key: 'exams',      label: 'Exams',      icon: ic('exams'),     desc: 'Terms, marks and results',           render: () => <ExamView role={role} /> })
   if (isPrincipal && flagOn(features, 'cms')) sections.push({ key: 'cms', label: 'Website', icon: ic('website'), desc: 'Public site pages and announcements', render: () => <CmsAdminView /> })
   if (isPrincipal) sections.push({ key: 'settings', label: 'Settings', icon: ic('settings'), desc: 'School profile and payment settings', render: () => <SettingsView /> })
 

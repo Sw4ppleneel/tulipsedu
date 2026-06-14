@@ -19,6 +19,7 @@ from models.exam import (
     MarksConfigResponse,
     SaveComponentMarksRequest,
     TermResultSheet,
+    TermStatusRequest,
 )
 from services import exam as svc
 from services.exam import ExamError
@@ -104,6 +105,20 @@ async def publish_term(
     return result
 
 
+@router.post(
+    "/terms/{term_id}/status", response_model=ExamTermResponse, dependencies=[_setup]
+)
+async def transition_term_status(term_id: UUID, body: TermStatusRequest, request: Request):
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        try:
+            return await svc.transition_term_status(
+                conn, request.state.tenant_id, term_id, body.status
+            )
+        except svc.ExamError as e:
+            raise HTTPException(409, str(e))
+
+
 # ── Marks Config ──────────────────────────────────────────────────────────────
 
 @router.put("/marks-config", response_model=MarksConfigResponse, dependencies=[_setup])
@@ -168,7 +183,10 @@ async def save_component_marks(body: SaveComponentMarksRequest, request: Request
     pool = request.app.state.pool
     user_id = UUID(request.state.user_id)
     async with pool.acquire() as conn:
-        return await svc.save_component_marks(conn, request.state.tenant_id, user_id, body)
+        try:
+            return await svc.save_component_marks(conn, request.state.tenant_id, user_id, body)
+        except svc.ExamError as e:
+            raise HTTPException(409, str(e))
 
 
 # ── Mark Entry ────────────────────────────────────────────────────────────────
@@ -178,7 +196,10 @@ async def save_marks(body: BulkMarkRequest, request: Request):
     pool = request.app.state.pool
     user_id = UUID(request.state.user_id)
     async with pool.acquire() as conn:
-        return await svc.save_marks(conn, request.state.tenant_id, user_id, body)
+        try:
+            return await svc.save_marks(conn, request.state.tenant_id, user_id, body)
+        except svc.ExamError as e:
+            raise HTTPException(409, str(e))
 
 
 @router.get("/marks", response_model=list[MarkEntryResponse])

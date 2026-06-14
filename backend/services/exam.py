@@ -26,6 +26,7 @@ from models.exam import (
     StudentTermResult,
     SubjectResult,
     TermResultSheet,
+    TermStatusRequest,
 )
 
 
@@ -150,6 +151,70 @@ async def publish_term(
     return ExamTermResponse(**dict(row)) if row else None
 
 
+# Valid transitions: which statuses can move to which next status.
+_ALLOWED_TRANSITIONS: dict[str, set[str]] = {
+    "draft":      {"marks_open"},
+    "marks_open": {"locked"},
+    "locked":     {"published", "marks_open"},   # marks_open = reopen
+    "published":  {"locked"},                    # locked = reopen (principal escape hatch)
+}
+
+_EVENT_FOR_TRANSITION: dict[tuple[str, str], str] = {
+    ("draft",      "marks_open"):  "EXAM_MARKS_OPENED",
+    ("marks_open", "locked"):      "EXAM_MARKS_LOCKED",
+    ("locked",     "published"):   "EXAM_PUBLISHED",
+    ("locked",     "marks_open"):  "EXAM_REOPENED",
+    ("published",  "locked"):      "EXAM_REOPENED",
+}
+
+
+async def transition_term_status(
+    conn: asyncpg.Connection,
+    tenant_id: uuid.UUID,
+    term_id: uuid.UUID,
+    new_status: str,
+) -> ExamTermResponse:
+    valid_statuses = {"draft", "marks_open", "locked", "published"}
+    if new_status not in valid_statuses:
+        raise ExamError(f"Invalid status '{new_status}'. Must be one of: {', '.join(sorted(valid_statuses))}")
+
+    async with conn.transaction():
+        row = await conn.fetchrow(
+            "SELECT * FROM exam_terms WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
+            term_id, tenant_id,
+        )
+        if not row:
+            raise ExamError("Exam term not found")
+
+        current = row["status"]
+        if new_status == current:
+            return ExamTermResponse(**dict(row))
+
+        allowed = _ALLOWED_TRANSITIONS.get(current, set())
+        if new_status not in allowed:
+            raise ExamError(
+                f"Cannot move from '{current}' to '{new_status}'. "
+                f"Allowed next states: {', '.join(sorted(allowed)) or 'none'}"
+            )
+
+        is_published = new_status == "published"
+        updated = await conn.fetchrow(
+            "UPDATE exam_terms SET status = $1, is_published = $2 WHERE id = $3 AND tenant_id = $4 RETURNING *",
+            new_status, is_published, term_id, tenant_id,
+        )
+
+        event_type = _EVENT_FOR_TRANSITION.get((current, new_status))
+        if event_type:
+            await emit(conn, event_type, tenant_id, {
+                "term_id": str(term_id),
+                "academic_year_id": str(row["academic_year_id"]),
+                "from_status": current,
+                "to_status": new_status,
+            })
+
+    return ExamTermResponse(**dict(updated))
+
+
 # ── Marks Config ──────────────────────────────────────────────────────────────
 
 async def upsert_marks_config(
@@ -193,12 +258,24 @@ async def list_marks_config(
 
 # ── Mark Entries ──────────────────────────────────────────────────────────────
 
+async def _assert_marks_open(conn: asyncpg.Connection, tenant_id: uuid.UUID, term_id: uuid.UUID) -> None:
+    status = await conn.fetchval(
+        "SELECT status FROM exam_terms WHERE id = $1 AND tenant_id = $2", term_id, tenant_id
+    )
+    if status is None:
+        raise ExamError("Exam term not found")
+    if status != "marks_open":
+        label = {"draft": "Draft", "locked": "Locked", "published": "Published"}.get(status, status)
+        raise ExamError(f"Marks entry is closed — term is {label}. Ask the principal to open marks.")
+
+
 async def save_marks(
     conn: asyncpg.Connection,
     tenant_id: uuid.UUID,
     user_id: uuid.UUID,
     req: BulkMarkRequest,
 ) -> dict:
+    await _assert_marks_open(conn, tenant_id, req.exam_term_id)
     await conn.executemany(
         """
         INSERT INTO mark_entries
@@ -329,6 +406,7 @@ async def save_component_marks(
     if not req.entries:
         return {"saved": 0}
 
+    await _assert_marks_open(conn, tenant_id, req.exam_term_id)
     async with conn.transaction():
         await conn.executemany(
             """

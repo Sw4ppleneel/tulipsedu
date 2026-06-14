@@ -48,8 +48,13 @@ class ExamTermResponse(BaseModel):
     start_date: Optional[date]
     end_date: Optional[date]
     is_published: bool
+    status: str
     sort_order: int
     created_at: datetime
+
+
+class TermStatusRequest(BaseModel):
+    status: str  # marks_open | locked | published
 
 
 # ── Marks Config ──────────────────────────────────────────────────────────────

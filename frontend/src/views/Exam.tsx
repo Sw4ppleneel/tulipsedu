@@ -2,6 +2,7 @@ import { useEffect, useState } from 'preact/hooks'
 import {
   listSubjects, listTerms, listMarksConfig, getMarks, saveMarks, getTermResults,
   listComponents, configureComponents, getComponentGrid, saveComponentMarks,
+  transitionTermStatus,
 } from '../api/exam'
 import { listAcademicYears, listClasses, listStudents } from '../api/students'
 import type {
@@ -9,6 +10,98 @@ import type {
   ExamComponent, StudentComponentRow,
 } from '../api/exam'
 import type { AcademicYear, Class, Section } from '../types/student'
+
+// ── Lifecycle helpers ─────────────────────────────────────────────────────────
+
+const STATUS_LABEL: Record<string, string> = {
+  draft: 'Draft', marks_open: 'Open', locked: 'Locked', published: 'Published',
+}
+const STATUS_COLOR: Record<string, { bg: string; fg: string }> = {
+  draft:      { bg: '#f3f4f6', fg: '#6b7280' },
+  marks_open: { bg: '#d1fae5', fg: '#0D332A' },
+  locked:     { bg: '#fef3c7', fg: '#92400e' },
+  published:  { bg: '#dbeafe', fg: '#1e40af' },
+}
+const NEXT_ACTION: Record<string, { label: string; next: string; btnBg: string }[]> = {
+  draft:      [{ label: 'Open for Marks Entry', next: 'marks_open', btnBg: '#1F8A5D' }],
+  marks_open: [{ label: 'Lock Marks', next: 'locked', btnBg: '#d97706' }],
+  locked:     [
+    { label: 'Publish Results', next: 'published', btnBg: '#1d4ed8' },
+    { label: 'Reopen for Edits', next: 'marks_open', btnBg: '#6b7280' },
+  ],
+  published:  [{ label: 'Reopen (Locked)', next: 'locked', btnBg: '#6b7280' }],
+}
+
+function StatusChip({ status }: { status: string }) {
+  const c = STATUS_COLOR[status] ?? STATUS_COLOR.draft
+  return (
+    <span style={{ padding: '2px 8px', borderRadius: 9999, fontSize: '0.7rem', fontWeight: 700, background: c.bg, color: c.fg, letterSpacing: '0.03em' }}>
+      {STATUS_LABEL[status] ?? status.toUpperCase()}
+    </span>
+  )
+}
+
+// ── Tab: Terms Management ─────────────────────────────────────────────────────
+
+function TermsTab({
+  terms, onUpdate, canManage,
+}: {
+  terms: ExamTerm[]
+  onUpdate: (updated: ExamTerm) => void
+  canManage: boolean
+}) {
+  const [busy, setBusy] = useState<string | null>(null)
+  const [err, setErr] = useState('')
+
+  async function advance(termId: string, nextStatus: string) {
+    setBusy(termId); setErr('')
+    try {
+      const updated = await transitionTermStatus(termId, nextStatus)
+      onUpdate(updated)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Transition failed')
+    } finally { setBusy(null) }
+  }
+
+  if (terms.length === 0) return <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>No exam terms configured yet. Import an exam setup Excel to create terms.</p>
+
+  return (
+    <div>
+      {err && <p style={{ color: '#dc2626', fontSize: '0.8rem', marginBottom: '0.75rem' }}>{err}</p>}
+      <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', padding: '0 1rem', height: 36, background: '#f9fafb', borderBottom: '1px solid #e5e7eb', fontSize: '0.72rem', fontWeight: 600, color: '#6b7280', alignItems: 'center', gap: '0.75rem' }}>
+          <span style={{ flex: 1 }}>TERM</span>
+          <span style={{ width: 80 }}>TYPE</span>
+          <span style={{ width: 90 }}>STATUS</span>
+          {canManage && <span style={{ width: 260 }}>ACTIONS</span>}
+        </div>
+        {terms.map(t => {
+          const actions = NEXT_ACTION[t.status] ?? []
+          return (
+            <div key={t.id} style={{ display: 'flex', padding: '0.625rem 1rem', borderBottom: '1px solid #f3f4f6', gap: '0.75rem', alignItems: 'center', fontSize: '0.8rem' }}>
+              <span style={{ flex: 1, fontWeight: 500 }}>{t.name}</span>
+              <span style={{ width: 80, color: '#6b7280', textTransform: 'capitalize' }}>{t.term_type.replace('_', ' ')}</span>
+              <span style={{ width: 90 }}><StatusChip status={t.status ?? (t.is_published ? 'published' : 'draft')} /></span>
+              {canManage && (
+                <div style={{ width: 260, display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                  {actions.map(a => (
+                    <button key={a.next} onClick={() => advance(t.id, a.next)} disabled={busy === t.id}
+                      style={{ padding: '0.3rem 0.625rem', background: a.btnBg, color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, opacity: busy === t.id ? 0.6 : 1 }}>
+                      {busy === t.id ? '…' : a.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+      <p style={{ marginTop: '0.75rem', fontSize: '0.75rem', color: '#9ca3af' }}>
+        Lifecycle: <strong>Draft</strong> → <strong>Open</strong> (teachers enter marks) → <strong>Locked</strong> (no more edits) → <strong>Published</strong> (parents see results). Principal can reopen a locked/published term if needed.
+      </p>
+    </div>
+  )
+}
 
 const GRADE_COLOR: Record<string, string> = {
   A1: '#0D332A', A2: '#0D332A', B1: '#0D332A', B2: '#0D332A',
@@ -155,6 +248,10 @@ function MarksEntryTab({
   const compMax = (id: string) => +(components.find(c => c.id === id)?.max_marks ?? 0)
   const totalMax = components.reduce((s, c) => s + +c.max_marks, 0)
 
+  const selectedTerm = terms.find(t => t.id === term)
+  const termStatus = selectedTerm?.status ?? 'draft'
+  const isLocked = !!selectedTerm && termStatus !== 'marks_open'
+
   return (
     <div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.625rem', marginBottom: '1rem' }}>
@@ -162,7 +259,7 @@ function MarksEntryTab({
           <label style={LBL}>Term</label>
           <select value={term} onChange={e => setTerm((e.target as HTMLSelectElement).value)} style={{ ...INP, width: '100%' }}>
             <option value="">— select —</option>
-            {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            {terms.map(t => <option key={t.id} value={t.id}>{t.name} — {STATUS_LABEL[t.status ?? 'draft'] ?? t.status}</option>)}
           </select>
         </div>
         <div>
@@ -228,6 +325,14 @@ function MarksEntryTab({
         </div>
       )}
 
+      {isLocked && (
+        <div style={{ padding: '0.75rem 1rem', background: termStatus === 'published' ? '#dbeafe' : '#fef3c7', border: `1px solid ${termStatus === 'published' ? '#93c5fd' : '#fcd34d'}`, borderRadius: 6, marginBottom: '1rem', fontSize: '0.8rem', color: termStatus === 'published' ? '#1e40af' : '#92400e', fontWeight: 600 }}>
+          {termStatus === 'published'
+            ? 'Results are published — marks are read-only. Ask the principal to reopen if corrections are needed.'
+            : `This term is ${STATUS_LABEL[termStatus] ?? termStatus} — marks entry is closed. Ask the principal to open it.`}
+        </div>
+      )}
+
       {err && <p style={{ color: '#ef4444', fontSize: '0.8rem', marginBottom: '0.5rem' }}>{err}</p>}
       {loading && <p style={{ color: '#6b7280', fontSize: '0.8rem' }}>Loading…</p>}
 
@@ -265,7 +370,8 @@ function MarksEntryTab({
             </table>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <button onClick={handleSaveComponents} disabled={saving} style={{ padding: '0.5rem 1.25rem', background: '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem' }}>
+            <button onClick={handleSaveComponents} disabled={saving || isLocked}
+              style={{ padding: '0.5rem 1.25rem', background: isLocked ? '#9ca3af' : '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: isLocked ? 'default' : 'pointer', fontSize: '0.875rem' }}>
               {saving ? 'Saving…' : 'Save Marks'}
             </button>
             {saved && <span style={{ color: '#1F8A5D', fontSize: '0.8rem', fontWeight: 600 }}>✓ Saved</span>}
@@ -291,11 +397,11 @@ function MarksEntryTab({
                   <td style={{ border: '1px solid #e5e7eb', padding: '0.3rem 0.625rem', color: '#6b7280' }}>{r.roll_number}</td>
                   <td style={{ border: '1px solid #e5e7eb', padding: '0.3rem 0.625rem', fontWeight: 500 }}>{r.student_name}</td>
                   <td style={TD}>
-                    <input type="checkbox" checked={r.absent} onChange={e => updateRow(i, { absent: (e.target as HTMLInputElement).checked, marks: '' })} />
+                    <input type="checkbox" disabled={isLocked} checked={r.absent} onChange={e => updateRow(i, { absent: (e.target as HTMLInputElement).checked, marks: '' })} />
                   </td>
                   <td style={TD}>
                     <input type="number" min={0} max={selectedConfig ? +selectedConfig.max_marks : undefined} step={0.5}
-                      value={r.marks} disabled={r.absent}
+                      value={r.marks} disabled={r.absent || isLocked}
                       onInput={e => updateRow(i, { marks: (e.target as HTMLInputElement).value })}
                       style={{ ...cellInput, width: 70 }} />
                   </td>
@@ -304,7 +410,8 @@ function MarksEntryTab({
             </tbody>
           </table>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <button onClick={handleSaveFlat} disabled={saving} style={{ padding: '0.5rem 1.25rem', background: '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem' }}>
+            <button onClick={handleSaveFlat} disabled={saving || isLocked}
+              style={{ padding: '0.5rem 1.25rem', background: isLocked ? '#9ca3af' : '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: isLocked ? 'default' : 'pointer', fontSize: '0.875rem' }}>
               {saving ? 'Saving…' : 'Save Marks'}
             </button>
             {saved && <span style={{ color: '#1F8A5D', fontSize: '0.8rem', fontWeight: 600 }}>✓ Saved</span>}
@@ -445,13 +552,15 @@ function ResultsTab({ terms, classes }: { terms: ExamTerm[]; classes: Class[] })
 
 // ── Main Exam View ─────────────────────────────────────────────────────────────
 
-export function ExamView() {
-  const [tab, setTab] = useState<'entry' | 'results'>('entry')
+export function ExamView({ role }: { role?: string }) {
+  const [tab, setTab] = useState<'terms' | 'entry' | 'results'>('entry')
   const [years, setYears] = useState<AcademicYear[]>([])
   const [classes, setClasses] = useState<Class[]>([])
   const [terms, setTerms] = useState<ExamTerm[]>([])
   const [subjects, setSubjects] = useState<ExamSubject[]>([])
   const [loading, setLoading] = useState(true)
+
+  const canManage = role === 'principal' || role === 'vice_principal' || role === 'superadmin'
 
   useEffect(() => {
     Promise.all([listAcademicYears(), listClasses()]).then(([ayList, clsList]) => {
@@ -468,6 +577,10 @@ export function ExamView() {
     })
   }, [])
 
+  function handleTermUpdate(updated: ExamTerm) {
+    setTerms(prev => prev.map(t => t.id === updated.id ? updated : t))
+  }
+
   const TAB_BTN = (active: boolean): preact.JSX.CSSProperties => ({
     padding: '0.4rem 1rem', border: 'none', borderBottom: active ? '2px solid #14463A' : '2px solid transparent',
     background: 'none', cursor: 'pointer', fontSize: '0.875rem', fontWeight: active ? 600 : 400,
@@ -480,9 +593,11 @@ export function ExamView() {
     <div style={{ maxWidth: 1000, margin: '1.5rem auto', padding: '0 1rem' }}>
       <h2 style={{ margin: '0 0 0.75rem', fontSize: '1.1rem', fontWeight: 700, color: '#111827' }}>Examinations</h2>
       <div style={{ borderBottom: '1px solid #e5e7eb', marginBottom: '1.25rem', display: 'flex', gap: '0.25rem' }}>
+        {canManage && <button style={TAB_BTN(tab === 'terms')} onClick={() => setTab('terms')}>Manage Terms</button>}
         <button style={TAB_BTN(tab === 'entry')} onClick={() => setTab('entry')}>Marks Entry</button>
         <button style={TAB_BTN(tab === 'results')} onClick={() => setTab('results')}>Results</button>
       </div>
+      {tab === 'terms' && canManage && <TermsTab terms={terms} onUpdate={handleTermUpdate} canManage={canManage} />}
       {tab === 'entry' && <MarksEntryTab terms={terms} subjects={subjects} classes={classes} />}
       {tab === 'results' && <ResultsTab terms={terms} classes={classes} />}
     </div>

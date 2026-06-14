@@ -21,6 +21,7 @@ export interface ExamTerm {
   start_date: string | null
   end_date: string | null
   is_published: boolean
+  status: string  // draft | marks_open | locked | published
   sort_order: number
   created_at: string
 }
@@ -183,4 +184,8 @@ export function saveComponentMarks(data: {
   entries: { student_id: string; exam_component_id: string; marks_obtained?: number | null; is_absent: boolean }[]
 }): Promise<{ saved: number }> {
   return request<{ saved: number }>('/exams/component-marks', { method: 'POST', body: JSON.stringify(data) })
+}
+
+export function transitionTermStatus(termId: string, status: string): Promise<ExamTerm> {
+  return request<ExamTerm>(`/exams/terms/${termId}/status`, { method: 'POST', body: JSON.stringify({ status }) })
 }

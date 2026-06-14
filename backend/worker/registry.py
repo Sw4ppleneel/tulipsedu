@@ -60,4 +60,8 @@ HANDLERS: dict[str, list[Handler]] = {
     "FEE_PAYMENT_REJECTED": [fees.payment_rejected],
     "HOMEWORK_ASSIGNED": [homework.parent_ping],
     "EXAM_PUBLISHED": [exams.publish_notify],
+    # Lifecycle transitions — no push needed for these; they're internal signals.
+    "EXAM_MARKS_OPENED": [],
+    "EXAM_MARKS_LOCKED": [],
+    "EXAM_REOPENED":     [],
 }
