@@ -26,9 +26,9 @@ Completed (Phase 1, all deployed to *.tulipsedu.in, 4 schools seeded):
 - CMS (pages + announcements) + per-tenant public website at subdomain root
 - Dashboard
 - Apex marketing landing page at tulipsedu.in / www (2026-06-12)
-- R2 upload endpoint (501 until credentials added)
+- R2 upload endpoint (live — presigned URL flow, teacher media uploads wired)
 
-Completed this session: **W9** (fee lifecycle) · **W14** (analytics) · **W11** (rollover) · **W10** (admissions pipeline)
+Completed this session: **W9** (fee lifecycle) · **W14** (analytics) · **W11** (rollover) · **W10** (admissions pipeline) · **Integrity hardening + escalation** (migration 033) · **Teacher media uploads** (R2 presigned, homework/study material) · **Per-school public websites** (DaffodilsPublicSchool, router pattern)
 
 Remaining: **W12** (SMS/WhatsApp *auto-delivery* — BLOCKED on paid creds). **W13 report-card
 PDF generation is DONE** (reportlab, free, download-and-forward) — only auto-delivery is blocked.
@@ -56,6 +56,31 @@ to the backend image.
   class assignments + recent payslips); *Monthly Payroll* tab → runs, editable payslips,
   finalize, PDF. End-to-end verified vs dev DB (net math, update, finalize-lock, dup-run guard,
   zero drift). Events: SALARY_STRUCTURE_SET, PAYROLL_RUN_CREATED, PAYROLL_FINALIZED.
+
+## ✅ DEPLOYED 2026-06-15 — integrity escalation + media uploads + per-school sites (migration 033)
+
+**Zero-suspended-state payment integrity (migration 033, worker scheduler):**
+- `fee_payments.escalated_at TIMESTAMPTZ NULL` — throttle re-nudge column.
+- `admissions.nudged_at TIMESTAMPTZ NULL` — throttle stale-lead nudge column.
+- `payment_claim_escalation()` scheduler job: selects `pending_verification` claims ≥2 days old, emits `FEE_CLAIM_ESCALATED` (includes `notify_principal=true` at ≥4 days), sets `escalated_at`. Never auto-rejects.
+- `gateway_payment_sweep()` scheduler job: auto-fails dormant gateway `pending`/`processing` orders >24h (no real money attached in Phase 1 static-UPI model); deletes `fee_payment_items` to free ledger; emits `FEE_PAYMENT_TIMEOUT` → parent retry notification.
+- `admissions_aging()` scheduler job: non-terminal admissions idle >3 days → `ADMISSION_STALE` → principal/VP notified; throttled by `nudged_at`.
+- New handlers: `claim_escalated` (accountant + principal re-notify); `payment_timeout` (parent notify); `admission_stale` (new `handlers/admissions.py`).
+- All three jobs registered in `worker/main.py` hourly scan loop alongside `fee_overdue_scan`.
+- Dashboard API adds `payment_claims_pending` + `oldest_claim_age_days` to the existing aggregate.
+- Frontend: red "To Verify" stat card on Dashboard (hidden when 0); `AgingChip` in PaymentVerification queue (green <2d, amber 2–4d, red ≥4d); urgent red banner at ≥4d; aging chip on Admissions kanban cards.
+
+**Teacher media uploads (R2 presigned — no migration, no new dependency):**
+- `uploads.py` ALLOWED_CONTENT_TYPES server-side allowlist (images, PDF, Office MIME types); 415 on disallowed type.
+- `frontend/src/api/uploads.ts` — `uploadFiles(files)`: validates type/size (10 MB)/count (5) client-side → POST `/api/v1/uploads/url` for presigned URL → PUT directly to R2 → returns `{name, url}[]`.
+- `Homework.tsx` PostForm: file input + "Attach" button → upload chips with remove; attachment_urls included in create payload. PostCard: attachment chips as download links with `fileIcon()` by extension. Works for all three post types.
+- Parent portal `HomeworkItem` type + backend model/service expose `attachment_urls` from the existing JSONB column (migration 012). ParentPortal.tsx renders attachment download links.
+
+**Per-school public websites:**
+- `PublicSite.tsx` rewritten as a thin slug→component router (`SCHOOL_SITES` map).
+- `frontend/src/views/public/DaffodilsPublicSchool.tsx` — full Daffodils-specific site: navy/gold/rose palette, Nursery–VIII, Mesra Ranchi; `NoticeBoard` component for CMS announcements; gallery + footer use `SchoolImage`/`SchoolLogo`. Import paths adjusted for `public/` subdirectory.
+
+Deployed: migration 033 auto-applied via entrypoint; backend + worker rebuilt; frontend 294 kB / 75 kB gzip; all 4 containers healthy.
 
 ## ✅ DEPLOYED 2026-06-15 — payroll + fee-PDF batch (migration 031, reportlab)
 
@@ -435,9 +460,6 @@ Defined locally in each school's `.tsx` (copy in as needed, adapt colours):
 
 ---
 
-Blocked:
-- R2 credentials not yet added to production .env (uploads return 501 until then)
-
 Next Task: (superseded) — all of Sprint 2 shipped to prod. See the Workflow ERP
 Transformation FINAL TODO near the top of this file for the current direction.
 
@@ -809,8 +831,8 @@ Migration 031. Full write-up in ARCHITECTURE.md.
 
 # Blockers
 
-- R2 credentials for production file uploads (blocks report-card PDF W13, admission docs W10)
-- SMS/WhatsApp provider — paid service, needs approval + credentials (blocks W12)
+- SMS/WhatsApp provider — paid service, needs approval + credentials (blocks W12 auto-delivery)
+- R2 school-asset images: folder structure `school-assets/<slug>/` needs to be uploaded to the R2 bucket for per-school website photos to appear in production.
 
 ---
 
