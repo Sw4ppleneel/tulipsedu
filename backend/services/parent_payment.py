@@ -77,6 +77,18 @@ async def submit_claim(
             tenant_id, student_id, str(uuid.uuid4()), total,
             (reference_no or "").strip()[:40] or None,
         )
+        # Supersede any dead-payment line items on these rows (rejected/failed/
+        # refunded/abandoned-gateway) so the double-pay UNIQUE guard isn't tripped
+        # by a stale attempt. Live items can't exist here — the dup-check above bars them.
+        await conn.execute(
+            """
+            DELETE FROM fee_payment_items fpi USING fee_payments fp
+            WHERE fpi.payment_id = fp.id AND fpi.tenant_id = $1
+              AND fpi.ledger_id = ANY($2::uuid[])
+              AND fp.status IN ('rejected', 'failed', 'refunded', 'pending')
+            """,
+            tenant_id, ledger_ids,
+        )
         await conn.executemany(
             "INSERT INTO fee_payment_items (tenant_id, payment_id, ledger_id, amount) VALUES ($1,$2,$3,$4)",
             [(tenant_id, payment_id, r["id"], r["amount_due"]) for r in rows],
@@ -247,6 +259,12 @@ async def reject(
         )
         if not row:
             raise ParentPaymentError("Payment not found or not awaiting verification")
+        # Free the ledger rows: a rejected claim must not keep holding its line
+        # items (they'd block the double-pay UNIQUE guard on a legitimate retry).
+        await conn.execute(
+            "DELETE FROM fee_payment_items WHERE tenant_id = $1 AND payment_id = $2",
+            tenant_id, payment_id,
+        )
         await emit(conn, "FEE_PAYMENT_REJECTED", tenant_id, {
             "payment_id": str(payment_id),
             "student_id": str(row["student_id"]),

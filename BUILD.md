@@ -708,6 +708,14 @@ Project scaffold, Docker, migration framework, auth, tenant isolation, Preact fr
 **Reason:** `audit_events` is producer-only; a single Postgres-polling worker over an outbox
 turns recorded events into driven workflows without a broker (₹2k/month + single-codebase
 constraints). Full write-up in ARCHITECTURE.md. **Trips approval gates** — see W1/W2.
+## ADR-012 — Ironclad money integrity (Accepted — 2026-06-15, DEPLOYED, user-approved)
+**Reason:** real currency = legal contract; zero tolerance for lost/double rupees. Migration 032
+adds `UNIQUE(tenant_id, ledger_id)` on `fee_payment_items` (DB-enforced no-double-pay; reject +
+live collectors delete dead items so retries aren't blocked). Daily worker `money_reconciliation`
+tripwire (startup + 24h) → MONEY_RECONCILIATION_ALERT on any drift. Pool 10→20. Concurrency proven
+(10 simultaneous collects → 1 wins; ₹ conserved). Tests committed: `backend/scripts/
+{pipeline_smoke_test,money_concurrency_test}.py`. First prod run flagged 48 mock-seed orphan-paid
+rows (payment_id NULL) — seed artifact, not a code bug. Full write-up in ARCHITECTURE.md ADR-012.
 ## ADR-011 — reportlab PDFs + consolidated payroll (Accepted — 2026-06-15, user-approved)
 **Reason:** Fee-receipt + payslip PDFs via pure-Python `reportlab` (no system libs, slim image).
 Payroll admitted as a principal-only module despite being OUT OF SCOPE — **consolidated only**

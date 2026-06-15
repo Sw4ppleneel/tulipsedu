@@ -134,3 +134,58 @@ async def fee_lifecycle_advance(conn: asyncpg.Connection) -> dict:
 async def fee_overdue_scan(conn: asyncpg.Connection) -> int:
     result = await fee_lifecycle_advance(conn)
     return result["reminded"]
+
+
+async def money_reconciliation(conn: asyncpg.Connection) -> dict:
+    """Daily integrity scan over the whole money ledger. Asserts the invariants the
+    concurrency tests check, but in production and forever: no fee row in >1 live
+    payment, every paid payment's amount equals the sum of its line items, and every
+    'paid' ledger row has exactly one paid item + a payment_id. Any violation emits a
+    MONEY_RECONCILIATION_ALERT audit event (per tenant) and logs an error — a tripwire
+    so a lost/duplicated rupee is caught by the system, not by an angry parent.
+    """
+    double_pay = await conn.fetch(
+        """
+        SELECT fpi.tenant_id, count(*) AS n FROM (
+          SELECT fpi.tenant_id, fpi.ledger_id
+          FROM fee_payment_items fpi JOIN fee_payments fp ON fp.id = fpi.payment_id
+          WHERE fp.status IN ('pending_verification', 'processing', 'paid')
+          GROUP BY fpi.tenant_id, fpi.ledger_id HAVING count(*) > 1
+        ) fpi GROUP BY fpi.tenant_id
+        """
+    )
+    amount_mismatch = await conn.fetch(
+        """
+        SELECT fp.tenant_id, count(*) AS n FROM fee_payments fp
+        WHERE fp.status = 'paid'
+          AND fp.amount <> (SELECT COALESCE(SUM(amount), 0) FROM fee_payment_items WHERE payment_id = fp.id)
+        GROUP BY fp.tenant_id
+        """
+    )
+    orphan_paid = await conn.fetch(
+        """
+        SELECT fl.tenant_id, count(*) AS n FROM fee_ledger fl
+        WHERE fl.status = 'paid'
+          AND (fl.payment_id IS NULL
+               OR (SELECT count(*) FROM fee_payment_items fpi JOIN fee_payments fp ON fp.id = fpi.payment_id
+                   WHERE fpi.ledger_id = fl.id AND fp.status = 'paid') <> 1)
+        GROUP BY fl.tenant_id
+        """
+    )
+
+    by_tenant: dict = {}
+    for label, rows in (("double_pay", double_pay), ("amount_mismatch", amount_mismatch), ("orphan_paid", orphan_paid)):
+        for r in rows:
+            by_tenant.setdefault(r["tenant_id"], {})[label] = r["n"]
+
+    for tenant_id, violations in by_tenant.items():
+        logger.error("MONEY_RECONCILIATION_ALERT tenant=%s violations=%s", tenant_id, violations)
+        await conn.execute(
+            "INSERT INTO audit_events (tenant_id, event_type, payload) VALUES ($1, $2, $3)",
+            tenant_id, "MONEY_RECONCILIATION_ALERT", json.dumps(violations),
+        )
+
+    total = sum(sum(v.values()) for v in by_tenant.values())
+    if not total:
+        logger.info("money_reconciliation: clean (0 violations)")
+    return {"tenants_flagged": len(by_tenant), "violations": total}

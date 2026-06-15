@@ -456,6 +456,7 @@ Grade scale (CBSE): A1≥91, A2≥81, B1≥71, B2≥61, C1≥51, C2≥41, D≥33
 > | EXAM_MARKS_OPENED | no consumer (internal lifecycle signal) | ✅ emitted |
 > | EXAM_MARKS_LOCKED | no consumer (internal lifecycle signal) | ✅ emitted |
 > | EXAM_REOPENED | no consumer (principal override; internal audit) | ✅ emitted |
+> | MONEY_RECONCILIATION_ALERT | no consumer (daily worker tripwire; payload = violation counts per tenant: double_pay / amount_mismatch / orphan_paid) | ✅ emitted |
 > | SALARY_STRUCTURE_SET | no consumer (payroll audit signal; payload staff_id, gross_salary) | ✅ emitted |
 > | PAYROLL_RUN_CREATED | no consumer (payroll audit signal; payload run_id, period, payslips) | ✅ emitted |
 > | PAYROLL_FINALIZED | no consumer (payroll audit signal; payload run_id) | ✅ emitted |
@@ -804,6 +805,40 @@ no binaries in app containers (File Upload Rules).
 
 **Events:** SALARY_STRUCTURE_SET, PAYROLL_RUN_CREATED, PAYROLL_FINALIZED (audit-only, no
 worker consumer yet).
+
+## ADR-012 — Ironclad money integrity: DB double-pay guard + reconciliation tripwire (ACCEPTED — 2026-06-15)
+
+**Context:** Fees are a legal/financial contract — a lost or duplicated rupee is unacceptable.
+Concurrency safety on the payment paths (offline collect, parent UPI claim, gateway) was
+**application-level only** (`SELECT … FOR UPDATE` on the ledger row + status re-check + a
+dup-check). Proven correct under concurrency (10 simultaneous collects on one row → exactly one
+succeeds; claim-vs-collect race → one wins; receipts unique; ₹ conserved — see
+`backend/scripts/money_concurrency_test.py`), but a future code path that forgot the lock could
+silently reintroduce double-pay.
+
+**Decision (user-approved):**
+1. **DB-level double-pay guard** (migration 032): `UNIQUE (tenant_id, ledger_id)` on
+   `fee_payment_items` — a fee row can belong to at most one payment line item, enforced by
+   Postgres. The reject path and both live collectors (`fee_collection.record_offline_payment`,
+   `parent_payment.submit_claim`) delete **dead** line items (rejected/failed/refunded/abandoned-
+   gateway-`pending`) before inserting, so the guard never blocks a legitimate retry after a
+   rejected/abandoned attempt. One-time migration cleanup removed dead-payment items first
+   (verified 0 resulting duplicates).
+2. **Daily reconciliation tripwire** (`worker/scheduler.py::money_reconciliation`, run at worker
+   startup + every 24 h): scans the whole ledger for (a) any fee row in >1 live payment, (b)
+   `paid` payment whose amount ≠ Σ its line items, (c) `paid` ledger row missing payment_id or
+   without exactly one paid item. Each violation logs ERROR + emits MONEY_RECONCILIATION_ALERT.
+   On first prod run it flagged 48 mock-seed rows marked `paid` with no payment record
+   (`payment_id IS NULL`) — a seed artifact, not a code defect (the live code always sets
+   payment_id + items atomically); fresh real-school tenants start clean.
+3. **Pool sizing**: asyncpg `max_size` 10→20 (4 workers → 80 conns < Postgres max 100), `min_size`
+   5 (warm) for the morning attendance/fee burst.
+
+**Committed safeguards:** `backend/scripts/pipeline_smoke_test.py` (50 checks, all 5 POVs +
+RBAC denials) and `backend/scripts/money_concurrency_test.py` (concurrency + ₹-conservation
+invariants) — run against a throwaway tenant before each launch/deploy.
+
+**Approval gate:** schema change (migration 032) — explicitly approved.
 
 ---
 

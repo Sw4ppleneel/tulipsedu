@@ -112,6 +112,18 @@ async def record_offline_payment(
             (reference_no or "").strip()[:40] or None,
             receipt_number, receipt_html, now, user_id,
         )
+        # Supersede dead-payment line items (rejected/failed/refunded/abandoned
+        # gateway) on these rows so the double-pay UNIQUE guard isn't tripped by a
+        # stale attempt — e.g. a parent claim that was rejected, now collected at the desk.
+        await conn.execute(
+            """
+            DELETE FROM fee_payment_items fpi USING fee_payments fp
+            WHERE fpi.payment_id = fp.id AND fpi.tenant_id = $1
+              AND fpi.ledger_id = ANY($2::uuid[])
+              AND fp.status IN ('rejected', 'failed', 'refunded', 'pending')
+            """,
+            tenant_id, ledger_ids,
+        )
         await conn.executemany(
             "INSERT INTO fee_payment_items (tenant_id, payment_id, ledger_id, amount) VALUES ($1,$2,$3,$4)",
             [(tenant_id, payment_id, r["id"], r["amount_due"]) for r in rows],

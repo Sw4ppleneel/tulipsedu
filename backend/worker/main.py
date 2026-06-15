@@ -21,7 +21,7 @@ import asyncpg
 
 from config import settings
 from worker.registry import HANDLERS, Event
-from worker.scheduler import fee_overdue_scan
+from worker.scheduler import fee_overdue_scan, money_reconciliation
 
 logging.basicConfig(
     level=logging.INFO,
@@ -33,6 +33,7 @@ CONSUMER = "main"
 MAX_ATTEMPTS = 5
 RETRY_BATCH = 20
 SCAN_INTERVAL_SECONDS = 3600
+RECONCILE_INTERVAL_SECONDS = 86400  # daily money-integrity tripwire
 
 
 async def wait_for_migrations(pool: asyncpg.Pool, version: str) -> None:
@@ -158,7 +159,13 @@ async def run() -> None:
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(sig, stop.set)
 
+    # Run the money-integrity tripwire once at startup (validates every deploy),
+    # then on the daily cadence below.
+    with suppress(Exception):
+        async with pool.acquire() as conn:
+            await money_reconciliation(conn)
     last_scan = 0.0
+    last_reconcile = time.monotonic()
     while not stop.is_set():
         try:
             async with pool.acquire() as conn:
@@ -167,6 +174,9 @@ async def run() -> None:
                 if time.monotonic() - last_scan > SCAN_INTERVAL_SECONDS:
                     await fee_overdue_scan(conn)
                     last_scan = time.monotonic()
+                if time.monotonic() - last_reconcile > RECONCILE_INTERVAL_SECONDS:
+                    await money_reconciliation(conn)
+                    last_reconcile = time.monotonic()
         except Exception:  # noqa: BLE001 — e.g. DB restart; back off and retry
             logger.exception("worker tick failed; backing off")
             processed = 0
