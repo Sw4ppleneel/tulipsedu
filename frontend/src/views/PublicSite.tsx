@@ -436,11 +436,17 @@ function Academics() {
 }
 
 // ── Gallery ───────────────────────────────────────────────────────────────────
-function Gallery() {
-  const photos = [
-    'School Building — Main Block', 'School Assembly Ground', 'Smart Classroom',
-    'Library Reading Corner', 'Annual Day Celebration', 'Sports & Games',
-    'Art & Craft Class', 'Students at Prayer', 'Independence Day',
+function Gallery({ slug }: { slug: string }) {
+  const photos: { file: string; label: string }[] = [
+    { file: 'gallery1.png', label: 'School Building — Main Block' },
+    { file: 'gallery2.png', label: 'School Assembly Ground' },
+    { file: 'gallery3.png', label: 'Smart Classroom' },
+    { file: 'gallery4.png', label: 'Library Reading Corner' },
+    { file: 'gallery5.png', label: 'Annual Day Celebration' },
+    { file: 'gallery6.png', label: 'Sports & Games' },
+    { file: 'gallery7.png', label: 'Art & Craft Class' },
+    { file: 'gallery8.png', label: 'Students at Prayer' },
+    { file: 'gallery9.png', label: 'Independence Day' },
   ]
   return (
     <Section id="gallery" bg={C.cream}>
@@ -450,7 +456,7 @@ function Gallery() {
           <div key={i} style={{ overflow: 'hidden', borderRadius: 12, cursor: 'pointer', transition: 'transform .2s, box-shadow .2s' }}
             onMouseOver={e => { e.currentTarget.style.transform = 'scale(1.02)'; e.currentTarget.style.boxShadow = '0 8px 22px rgba(155,74,63,.16)' }}
             onMouseOut={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '' }}>
-            <ImgPlaceholder label={p} ratio={66} radius={12} />
+            <SchoolImage slug={slug} file={p.file} label={p.label} ratio={66} radius={12} />
           </div>
         ))}
       </div>
@@ -524,16 +530,14 @@ function Contact() {
 }
 
 // ── Footer ────────────────────────────────────────────────────────────────────
-function Footer({ onStaffLogin, onParentLogin }: { onStaffLogin: () => void; onParentLogin: () => void }) {
+function Footer({ slug, name, onStaffLogin, onParentLogin }: { slug: string; name: string; onStaffLogin: () => void; onParentLogin: () => void }) {
   const year = new Date().getFullYear()
   return (
     <footer style={{ background: C.navyDk, color: 'rgba(255,255,255,.7)', fontFamily: FONT }}>
       <div style={{ maxWidth: 1120, margin: '0 auto', padding: '3.25rem 1.25rem 1.5rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: '2.5rem' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', marginBottom: '1rem' }}>
-            <div style={{ width: 40, height: 40, borderRadius: 10, background: C.white, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <img src="/tulips-logo.jpg" alt="Logo" width={28} height={28} style={{ objectFit: 'contain' }} />
-            </div>
+            <SchoolLogo slug={slug} name={name} size={40} radius={10} />
             <div>
               <div style={{ color: C.white, fontWeight: 800, fontSize: '.88rem' }}>Daffodils Public School</div>
               <div style={{ color: C.gold, fontSize: '.62rem', fontWeight: 600, letterSpacing: '.05em' }}>MESRA, RANCHI</div>
@@ -580,6 +584,7 @@ function Footer({ onStaffLogin, onParentLogin }: { onStaffLogin: () => void; onP
 
 // ── Root ──────────────────────────────────────────────────────────────────────
 export function PublicSite({ onStaffLogin, onParentLogin }: { onStaffLogin: () => void; onParentLogin: () => void }) {
+  const [slug] = useState(() => schoolSlug())
   const [schoolName, setSchoolName] = useState('')
   const [announcements, setAnnouncements] = useState<CmsAnnouncement[]>([])
 
@@ -590,17 +595,17 @@ export function PublicSite({ onStaffLogin, onParentLogin }: { onStaffLogin: () =
 
   return (
     <div style={{ fontFamily: FONT }}>
-      <Navbar onStaffLogin={onStaffLogin} onParentLogin={onParentLogin} />
-      <Hero schoolName={schoolName} announcements={announcements} />
-      <About />
+      <Navbar slug={slug} name={schoolName} onStaffLogin={onStaffLogin} onParentLogin={onParentLogin} />
+      <Hero slug={slug} schoolName={schoolName} announcements={announcements} />
+      <About slug={slug} />
       <Stats />
       <Facilities />
-      <PrincipalMessage />
+      <PrincipalMessage slug={slug} />
       <Academics />
-      <Gallery />
+      <Gallery slug={slug} />
       <Admissions />
       <Contact />
-      <Footer onStaffLogin={onStaffLogin} onParentLogin={onParentLogin} />
+      <Footer slug={slug} name={schoolName} onStaffLogin={onStaffLogin} onParentLogin={onParentLogin} />
     </div>
   )
 }
