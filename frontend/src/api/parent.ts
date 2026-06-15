@@ -1,4 +1,5 @@
 import { getAuthState } from './auth_state'
+import type { WeeklyTimetable } from './timetable'
 
 const BASE = '/api/v1'
 
@@ -241,6 +242,10 @@ export function getStudentResults(studentId: string): Promise<TermResultSheet[]>
   return parentRequest<TermResultSheet[]>(`/parent/students/${studentId}/results`)
 }
 
+export function getStudentTimetable(studentId: string): Promise<WeeklyTimetable> {
+  return parentRequest<WeeklyTimetable>(`/parent/students/${studentId}/timetable`)
+}
+
 // Report-card PDF is auth-gated — fetch with the parent Bearer header, save the blob.
 export async function downloadReportCard(studentId: string, examTermId: string, filenameHint?: string): Promise<void> {
   const auth = getAuthState()
@@ -258,3 +263,4 @@ export async function downloadReportCard(studentId: string, examTermId: string, 
   a.remove()
   URL.revokeObjectURL(url)
 }
+

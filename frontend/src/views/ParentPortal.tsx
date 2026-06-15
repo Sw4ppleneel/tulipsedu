@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useState } from 'preact/hooks'
 import qrcode from 'qrcode-generator'
 import {
-  getStudentLedger, getStudentResults, getStudentSummary, listMyStudents,
+  getStudentLedger, getStudentResults, getStudentSummary, getStudentTimetable, listMyStudents,
   listParentNotifications, submitParentPayment, listParentPayments, downloadReportCard,
 } from '../api/parent'
 import type {
   FeeLedgerEntry, LinkedStudent, ParentNotification, ParentPayment, StudentSummary,
   TermResultSheet,
 } from '../api/parent'
+import type { WeeklyTimetable } from '../api/timetable'
 import { Brand, Card, Icon, SectionTile, Spinner, EmptyState, type IconName } from '../ui'
+import { usePwaInstall } from '../hooks/usePwaInstall'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const MONTHS = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -343,6 +345,74 @@ function ResultsSection({ studentId }: { studentId: string }) {
   )
 }
 
+// ── Timetable section ─────────────────────────────────────────────────────────
+const TT_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+function TimetableSection({ studentId }: { studentId: string }) {
+  const [tt, setTt] = useState<WeeklyTimetable | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [err, setErr] = useState('')
+
+  useEffect(() => {
+    getStudentTimetable(studentId)
+      .then(setTt)
+      .catch(e => setErr(e instanceof Error ? e.message : 'Failed to load'))
+      .finally(() => setLoading(false))
+  }, [studentId])
+
+  if (loading) return <Spinner label="Loading timetable…" />
+  if (err) return <div style={{ padding: '1rem', color: 'var(--c-danger)', fontSize: '.875rem' }}>{err}</div>
+  if (!tt || tt.slots.length === 0) return (
+    <div style={{ maxWidth: 560, margin: '0 auto', padding: '1rem' }}>
+      <EmptyState icon={<Icon name="timetable" size={30} />} title="No timetable yet" hint="The school hasn't published the timetable for this class." />
+    </div>
+  )
+
+  const slotMap = new Map<string, WeeklyTimetable['slots'][0]>()
+  tt.slots.forEach(s => slotMap.set(`${s.day_of_week}-${s.period_number}`, s))
+  const maxPeriod = Math.max(...tt.slots.map(s => s.period_number))
+  const periods = Array.from({ length: maxPeriod }, (_, i) => i + 1)
+
+  return (
+    <div style={{ maxWidth: 700, margin: '0 auto', padding: '1rem' }}>
+      <p style={{ fontSize: '.8rem', color: 'var(--gray-500)', marginBottom: '.75rem' }}>
+        {tt.class_name} — Section {tt.section_name}
+      </p>
+      <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <table style={{ borderCollapse: 'collapse', fontSize: '.75rem', width: '100%', minWidth: 400 }}>
+          <thead>
+            <tr>
+              <th style={{ border: '1px solid #e5e7eb', padding: '.3rem .5rem', background: '#f9fafb', color: '#6b7280', width: 40 }}>#</th>
+              {[1,2,3,4,5,6].map(d => (
+                <th key={d} style={{ border: '1px solid #e5e7eb', padding: '.3rem .5rem', background: '#f9fafb', color: '#374151', fontWeight: 600, textAlign: 'center', minWidth: 80 }}>{TT_DAYS[d-1]}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {periods.map(p => (
+              <tr key={p}>
+                <td style={{ border: '1px solid #e5e7eb', padding: '.3rem .5rem', background: '#f9fafb', fontWeight: 600, color: '#374151', textAlign: 'center' }}>{p}</td>
+                {[1,2,3,4,5,6].map(d => {
+                  const s = slotMap.get(`${d}-${p}`)
+                  return (
+                    <td key={d} style={{ border: '1px solid #e5e7eb', padding: '.35rem .5rem', background: s ? '#EDF3EE' : '#fafafa', verticalAlign: 'top' }}>
+                      {s && <>
+                        <div style={{ fontWeight: 600, color: '#0D332A' }}>{s.subject}</div>
+                        {s.staff_name && <div style={{ color: '#6b7280', fontSize: '.7rem' }}>{s.staff_name}</div>}
+                        <div style={{ color: '#9ca3af', fontSize: '.7rem' }}>{s.start_time.slice(0,5)}–{s.end_time.slice(0,5)}</div>
+                      </>}
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 // ── Parent Portal — big-button launcher ───────────────────────────────────────
 type Sec = 'fees' | 'attendance' | 'homework' | 'announcements' | 'timetable' | 'results'
 const TILES: { key: Sec; label: string; icon: IconName; desc: string }[] = [
@@ -362,6 +432,7 @@ export function ParentPortalView({ onLogout }: { onLogout: () => void }) {
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
   const [section, setSection] = useState<Sec | null>(null)
+  const { isInstallable, triggerInstall } = usePwaInstall()
 
   useEffect(() => {
     Promise.all([listMyStudents(), listParentNotifications().catch(() => [])])
@@ -392,12 +463,10 @@ export function ParentPortalView({ onLogout }: { onLogout: () => void }) {
         return <FeedSection empty="No notices yet" items={notifs.map(n => ({ id: n.id, title: n.title, sub: `${n.body} · ${fmtDate(n.created_at)}` }))} />
       case 'results':
         return <ResultsSection studentId={student.id} />
+      case 'timetable':
+        return <TimetableSection studentId={student.id} />
       default:
-        return <div style={{ maxWidth: 560, margin: '0 auto', padding: '1rem' }}>
-          <EmptyState icon={<Icon name="timetable" size={30} />}
-            title="Timetable coming soon"
-            hint="Please check with the school office." />
-        </div>
+        return null
     }
   }
 
@@ -413,6 +482,9 @@ export function ParentPortalView({ onLogout }: { onLogout: () => void }) {
               style={{ background: 'rgba(255,255,255,.14)', color: '#fff', border: '1px solid rgba(255,255,255,.25)', borderRadius: 'var(--r)', padding: '.3rem .5rem', fontSize: '.75rem', fontFamily: 'inherit' }}>
               {students.map((s, i) => <option key={s.id} value={i} style={{ color: '#000' }}>{s.first_name}</option>)}
             </select>
+          )}
+          {isInstallable && (
+            <button onClick={triggerInstall} style={{ background: 'rgba(255,255,255,.14)', color: '#fff', border: '1px solid rgba(255,255,255,.25)', borderRadius: 'var(--r)', padding: '.35rem .8rem', cursor: 'pointer', fontSize: '.75rem', fontFamily: 'inherit', fontWeight: 600 }}>Install App</button>
           )}
           <button onClick={onLogout} style={{ background: 'rgba(255,255,255,.14)', color: '#fff', border: '1px solid rgba(255,255,255,.25)', borderRadius: 'var(--r)', padding: '.35rem .8rem', cursor: 'pointer', fontSize: '.75rem', fontFamily: 'inherit', fontWeight: 600 }}>Sign out</button>
         </div>

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'preact/hooks'
 import {
-  collectOffline, downloadReceiptPdf, getDefaulters, getOutstanding, getPaymentLogs, getStudentLedger,
-  listFeeHeads, listSchedules, sendReminders,
+  collectOffline, downloadDefaultersCsv, downloadReceiptPdf, getDefaulters, getOutstanding, getPaymentLogs, getStudentLedger,
+  listFeeHeads, listSchedules, openReceiptHtml, sendReminders,
 } from '../api/finance'
 import type { Defaulter } from '../api/finance'
 import { listAcademicYears, listClasses } from '../api/students'
@@ -247,11 +247,8 @@ function DefaultersTab({ years, classes }: { years: AcademicYear[]; classes: Cla
   }
 
   function exportCsv() {
-    const p = new URLSearchParams()
-    if (yearId) p.set('academic_year_id', yearId)
-    if (classId) p.set('class_id', classId)
-    p.set('format', 'csv')
-    window.open(`/api/v1/fees/defaulters?${p}`, '_blank')
+    downloadDefaultersCsv({ academic_year_id: yearId || undefined, class_id: classId || undefined })
+      .catch((err) => alert(err instanceof Error ? err.message : 'Export failed'))
   }
 
   const SEL: preact.JSX.CSSProperties = { padding: '0.375rem 0.625rem', border: '1px solid #d1d5db', borderRadius: 4, fontSize: '0.8rem' }
@@ -338,11 +335,11 @@ function CollectTab() {
   const [reference, setReference] = useState('')
   const [status, setStatus] = useState('')
   const [loading, setLoading] = useState(false)
-  const [receiptUrl, setReceiptUrl] = useState('')
+  const [receiptPaymentId, setReceiptPaymentId] = useState('')
 
   async function loadStudent(e: Event) {
     e.preventDefault()
-    setLoading(true); setLedger(null); setSelected(new Set()); setReceiptUrl(''); setStatus('')
+    setLoading(true); setLedger(null); setSelected(new Set()); setReceiptPaymentId(''); setStatus('')
     try {
       const { listStudents } = await import('../api/students')
       const res = await listStudents({ limit: 500 })
@@ -358,7 +355,7 @@ function CollectTab() {
   // clear the selection (paid rows can't be re-submitted) and reload the ledger
   // so the paid months leave the pending list.
   async function finishCollection(paymentId: string, studentId: string) {
-    setReceiptUrl(`/api/v1/payments/${paymentId}/receipt`)
+    setReceiptPaymentId(paymentId)
     setStatus('paid')
     setSelected(new Set())
     setReference('')
@@ -398,7 +395,7 @@ function CollectTab() {
           {ledger.pending.map((e) => (
             <label key={e.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0', borderBottom: '1px solid #f3f4f6', fontSize: '0.8rem', cursor: 'pointer' }}>
               <input type="checkbox" checked={selected.has(e.id)} onChange={(ev) => {
-                if (status === 'paid') { setStatus(''); setReceiptUrl('') }
+                if (status === 'paid') { setStatus(''); setReceiptPaymentId('') }
                 const checked = (ev.target as HTMLInputElement).checked
                 setSelected((p) => { const n = new Set(p); checked ? n.add(e.id) : n.delete(e.id); return n })
               }} />
@@ -426,10 +423,10 @@ function CollectTab() {
               </button>
             </div>
           )}
-          {status === 'paid' && receiptUrl && (
+          {status === 'paid' && receiptPaymentId && (
             <div style={{ marginTop: '1rem', padding: '1rem', background: 'var(--c-success-lt)', borderRadius: 6, fontSize: '0.85rem', color: '#0D332A', fontWeight: 600 }}>
               ✓ Payment recorded. The dues below are updated and it now shows in the parent's Paid section.{' '}
-              <a href={receiptUrl} target="_blank" rel="noreferrer" style={{ color: '#14463A' }}>View Receipt ↗</a>
+              <a href="#" onClick={(e) => { e.preventDefault(); openReceiptHtml(receiptPaymentId).catch((err) => alert(err instanceof Error ? err.message : 'Error')) }} style={{ color: '#14463A' }}>View Receipt ↗</a>
             </div>
           )}
         </div>

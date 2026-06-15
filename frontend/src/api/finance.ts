@@ -63,6 +63,51 @@ export function getPaymentLogs(limit = 100): Promise<FeePayment[]> {
   return request<FeePayment[]>(`/fees/logs?limit=${limit}`)
 }
 
+// ── Receipt HTML view ─────────────────────────────────────────────────────────
+// The receipt endpoint is auth-gated, so window.open / <a href> would 401.
+// Fetch with auth, create a blob URL, open in a new tab.
+export async function openReceiptHtml(paymentId: string): Promise<void> {
+  const { getAuthState } = await import('./auth_state')
+  const auth = getAuthState()
+  const res = await fetch(`/api/v1/payments/${paymentId}/receipt`, {
+    headers: auth ? { Authorization: `Bearer ${auth.accessToken}`, 'X-Tenant-Slug': auth.tenantSlug } : {},
+  })
+  if (!res.ok) throw new Error('Could not load receipt')
+  const html = await res.text()
+  const blob = new Blob([html], { type: 'text/html' })
+  const url = URL.createObjectURL(blob)
+  const tab = window.open(url, '_blank')
+  if (!tab) throw new Error('Popup blocked — please allow popups for this site')
+  setTimeout(() => URL.revokeObjectURL(url), 30_000)
+}
+
+// ── CSV exports ───────────────────────────────────────────────────────────────
+async function _downloadCsv(url: string, filename: string): Promise<void> {
+  const { getAuthState } = await import('./auth_state')
+  const auth = getAuthState()
+  const res = await fetch(url, {
+    headers: auth ? { Authorization: `Bearer ${auth.accessToken}`, 'X-Tenant-Slug': auth.tenantSlug } : {},
+  })
+  if (!res.ok) throw new Error('Could not export CSV')
+  const blob = await res.blob()
+  const blobUrl = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = blobUrl
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(blobUrl)
+}
+
+export function downloadDefaultersCsv(params: { academic_year_id?: string; class_id?: string } = {}): Promise<void> {
+  const p = new URLSearchParams()
+  if (params.academic_year_id) p.set('academic_year_id', params.academic_year_id)
+  if (params.class_id) p.set('class_id', params.class_id)
+  p.set('format', 'csv')
+  return _downloadCsv(`/api/v1/fees/defaulters?${p}`, 'defaulters.csv')
+}
+
 // ── Receipt PDF download ──────────────────────────────────────────────────────
 // The PDF endpoint is auth-gated (Bearer header), so a plain <a href> would 401.
 // Fetch with the auth header, then save the blob as a file the staff can forward.

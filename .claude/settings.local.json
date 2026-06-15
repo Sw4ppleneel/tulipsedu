@@ -81,7 +81,8 @@
       "Bash(backend/.venv/bin/python *)",
       "Bash(scp -q index.html nginx.prod.conf docker-compose.prod.yml swap@62.72.13.103:~/tulips/)",
       "Bash(ssh swap@62.72.13.103 'docker exec tulips-nginx-1 nginx -t')",
-      "Bash(ssh *)"
+      "Bash(ssh *)",
+      "Bash(xargs ls -la)"
     ]
   }
 }

@@ -4,11 +4,13 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import Response
 
 from models.exam import TermResultSheet
+from models.timetable import WeeklyTimetable
 from models.finance import ParentPaymentClaim, ParentPaymentRow
 from models.notification import NotificationResponse, UnreadCount
 from models.parent import FeeLedgerEntry, LinkedStudent, StudentSummary
 from services import parent_payment
 from services.exam import ExamError, compute_term_results
+from services import timetable as timetable_svc
 from services.notification import (
     list_for_recipient,
     mark_all_read,
@@ -199,6 +201,32 @@ async def student_results(student_id: uuid.UUID, request: Request):
                 pass  # term not configured for this class yet
 
     return sheets
+
+
+@router.get("/students/{student_id}/timetable", response_model=WeeklyTimetable)
+async def student_timetable(student_id: uuid.UUID, request: Request):
+    """Return the weekly timetable for the student's class/section (current academic year)."""
+    session_student = _require_parent(request)
+    if student_id != session_student:
+        raise HTTPException(status_code=403, detail="Not permitted for this student")
+    tid = request.state.tenant_id
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT class_id, section_id FROM students WHERE id = $1 AND tenant_id = $2",
+            student_id, tid,
+        )
+        if not row:
+            raise HTTPException(status_code=404, detail="Student not found")
+        ay = await conn.fetchrow(
+            "SELECT id FROM academic_years WHERE tenant_id = $1 AND is_current = TRUE LIMIT 1",
+            tid,
+        )
+        if not ay:
+            raise HTTPException(status_code=404, detail="No current academic year")
+        return await timetable_svc.get_weekly_timetable(
+            conn, tid, ay["id"], row["class_id"], row["section_id"]
+        )
 
 
 @router.get("/students/{student_id}/results/report-card.pdf")

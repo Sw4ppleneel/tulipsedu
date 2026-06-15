@@ -1,6 +1,7 @@
 import { useState } from 'preact/hooks'
 import type { ComponentChildren } from 'preact'
 import { Brand, SectionTile } from '../ui'
+import { usePwaInstall } from '../hooks/usePwaInstall'
 import { NotificationsBell } from '../views/NotificationsBell'
 
 // A portal section = one big launcher tile + the dedicated page it opens.
@@ -34,6 +35,7 @@ export interface PortalConfig {
 export function PortalShell({ config }: { config: PortalConfig }) {
   const [active, setActive] = useState<string | null>(null)
   const current = config.sections.find(s => s.key === active) ?? null
+  const { isInstallable, triggerInstall } = usePwaInstall()
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--gray-50)', fontFamily: 'var(--font)' }}>
@@ -47,6 +49,14 @@ export function PortalShell({ config }: { config: PortalConfig }) {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', flexShrink: 0 }}>
           {config.showBell && <NotificationsBell />}
+          {isInstallable && (
+            <button
+              onClick={triggerInstall}
+              style={{ background: 'rgba(255,255,255,.14)', color: '#fff', border: '1px solid rgba(255,255,255,.25)', borderRadius: 'var(--r)', padding: '.35rem .8rem', cursor: 'pointer', fontSize: '.75rem', fontFamily: 'inherit', fontWeight: 600 }}
+            >
+              Install App
+            </button>
+          )}
           <button
             onClick={config.onLogout}
             style={{ background: 'rgba(255,255,255,.14)', color: '#fff', border: '1px solid rgba(255,255,255,.25)', borderRadius: 'var(--r)', padding: '.35rem .8rem', cursor: 'pointer', fontSize: '.75rem', fontFamily: 'inherit', fontWeight: 600 }}
