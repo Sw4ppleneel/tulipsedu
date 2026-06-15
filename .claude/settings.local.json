@@ -84,7 +84,8 @@
       "Bash(ssh *)",
       "Bash(xargs ls -la)",
       "WebFetch(domain:www.sxcsccu.edu.in)",
-      "Bash(rsync -az --exclude='backend/.env' --exclude='backend/.venv' --exclude='__pycache__' --exclude='*.pyc' --exclude='frontend/node_modules' --exclude='frontend/dist' ~/Tulips.edu/ swap@62.72.13.103:~/tulips/)"
+      "Bash(rsync -az --exclude='backend/.env' --exclude='backend/.venv' --exclude='__pycache__' --exclude='*.pyc' --exclude='frontend/node_modules' --exclude='frontend/dist' ~/Tulips.edu/ swap@62.72.13.103:~/tulips/)",
+      "Bash(sips -g pixelWidth -g pixelHeight /Users/swapneelpremchand/Tulips.edu/TulipsLogo.jpeg)"
     ]
   }
 }

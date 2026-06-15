@@ -47,7 +47,7 @@ export interface SchoolInfo {
 }
 
 // Resolve tenant slug from subdomain (prod) or ?school= override (local dev).
-function publicSlug(): string {
+export function publicSlug(): string {
   const params = new URLSearchParams(window.location.search)
   const override = params.get('school')
   if (override) return override
