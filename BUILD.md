@@ -30,8 +30,8 @@ Completed (Phase 1, all deployed to *.tulipsedu.in, 4 schools seeded):
 
 Completed this session: **W9** (fee lifecycle) · **W14** (analytics) · **W11** (rollover) · **W10** (admissions pipeline) · **Integrity hardening + escalation** (migration 033) · **Teacher media uploads** (R2 presigned, homework/study material) · **Per-school public websites** (DaffodilsPublicSchool, router pattern)
 
-Remaining: **W12** (SMS/WhatsApp *auto-delivery* — BLOCKED on paid creds). **W13 report-card
-PDF generation is DONE** (reportlab, free, download-and-forward) — only auto-delivery is blocked.
+Remaining: **W13 report-card PDF generation is DONE** (reportlab, free, download-and-forward).
+**W12 (SMS/WhatsApp) removed from scope** — in-app notifications + parent portal Updates tab + CMS announcements fully cover the communication loop without a paid dependency.
 
 ## ⚠️ NOT YET DEPLOYED (local-verified, batched for one push) — 2026-06-15
 
@@ -316,13 +316,10 @@ Ordered so each step unblocks the next. ⛔ = trips a CLAUDE.md approval gate (s
       promote students, close/carry fee ledgers, archive the year, clone sections/timetable,
       flag the graduating batch — one explicit transaction, fully reversible. [schema]
 
-## Sprint 6 — Delivery + polish (blocked on credentials / paid services)
-- [ ] **W12. ⛔ SMS/WhatsApp delivery adapter** (MSG91 or WhatsApp Cloud API). The worker
-      gains a delivery channel beyond in-app. [paid service + credentials — BLOCKED]
-- [ ] **W13. ⛔ Report-card PDF.** EXAM_PUBLISHED → worker renders PDF → R2 → parent
-      downloads. [dependency: PDF lib + R2 credentials — BLOCKED]
-- [ ] **W14. Analytics aggregates** precomputed on write (fee recovery %, attendance
-      trend, low-attendance <75% list) — no runtime heavy queries.
+## Sprint 6 — Delivery + polish
+- ~~**W12. SMS/WhatsApp delivery adapter**~~ — **REMOVED FROM SCOPE.** In-app notifications + parent portal Updates + CMS announcements are the communication layer. No paid provider needed.
+- [x] **W13. Report-card PDF** — DONE. reportlab, free. Staff download + parent download both wired. No auto-delivery needed.
+- [x] **W14. Analytics aggregates** — DONE. Fee recovery bars, attendance sparkline, low-attendance alert, all precomputed on write.
 
 ---
 
@@ -831,8 +828,7 @@ Migration 031. Full write-up in ARCHITECTURE.md.
 
 # Blockers
 
-- SMS/WhatsApp provider — paid service, needs approval + credentials (blocks W12 auto-delivery)
-- R2 school-asset images: folder structure `school-assets/<slug>/` needs to be uploaded to the R2 bucket for per-school website photos to appear in production.
+- R2 school-asset images: `school-assets/<slug>/` folder needs actual photos uploaded to the R2 bucket for per-school public website photos to appear (currently placeholders).
 
 ---
 
