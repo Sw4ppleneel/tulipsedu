@@ -288,7 +288,8 @@ async def _recent_homework(
 ) -> list[HomeworkItem]:
     rows = await conn.fetch(
         """
-        SELECT id, subject, post_type, title, description, due_date, created_at
+        SELECT id, subject, post_type, title, description,
+               due_date::text AS due_date, created_at
         FROM homework_posts
         WHERE tenant_id = $1
           AND class_id = $2

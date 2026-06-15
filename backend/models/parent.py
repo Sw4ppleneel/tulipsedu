@@ -79,11 +79,11 @@ class FeeSummary(BaseModel):
 
 class HomeworkItem(BaseModel):
     id: uuid.UUID
-    subject: str
+    subject: Optional[str] = None   # announcements/resources may have no subject
     post_type: str
     title: str
-    description: Optional[str]
-    due_date: Optional[str]
+    description: Optional[str] = None
+    due_date: Optional[str] = None  # query casts the DATE column to text
     created_at: datetime
 
 
