@@ -82,7 +82,9 @@
       "Bash(scp -q index.html nginx.prod.conf docker-compose.prod.yml swap@62.72.13.103:~/tulips/)",
       "Bash(ssh swap@62.72.13.103 'docker exec tulips-nginx-1 nginx -t')",
       "Bash(ssh *)",
-      "Bash(xargs ls -la)"
+      "Bash(xargs ls -la)",
+      "WebFetch(domain:www.sxcsccu.edu.in)",
+      "Bash(rsync -az --exclude='backend/.env' --exclude='backend/.venv' --exclude='__pycache__' --exclude='*.pyc' --exclude='frontend/node_modules' --exclude='frontend/dist' ~/Tulips.edu/ swap@62.72.13.103:~/tulips/)"
     ]
   }
 }
