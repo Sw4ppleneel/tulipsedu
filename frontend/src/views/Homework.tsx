@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'preact/hooks'
+import { useEffect, useRef, useState } from 'preact/hooks'
 import { listHomework, createHomework, deleteHomework } from '../api/homework'
 import { listAcademicYears, listClasses } from '../api/students'
+import { uploadFiles, UploadError } from '../api/uploads'
+import type { Attachment } from '../api/uploads'
 import type { HomeworkPost, HomeworkCreate } from '../api/homework'
 import type { AcademicYear, Class, Section } from '../types/student'
 
@@ -8,6 +10,16 @@ const PILL: Record<string, { bg: string; color: string }> = {
   homework:     { bg: '#E7EFEA', color: '#0D332A' },
   announcement: { bg: '#fef3c7', color: '#92400e' },
   resource:     { bg: '#d1fae5', color: '#0D332A' },
+}
+
+function fileIcon(name: string): string {
+  const ext = name.split('.').pop()?.toLowerCase() ?? ''
+  if (['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext)) return '🖼'
+  if (ext === 'pdf') return '📄'
+  if (['doc', 'docx'].includes(ext)) return '📝'
+  if (['ppt', 'pptx'].includes(ext)) return '📊'
+  if (['xls', 'xlsx'].includes(ext)) return '📋'
+  return '📎'
 }
 
 function PostCard({ post, onDelete }: { post: HomeworkPost; onDelete: () => void }) {
@@ -27,6 +39,16 @@ function PostCard({ post, onDelete }: { post: HomeworkPost; onDelete: () => void
           </div>
           <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#111827', marginBottom: '0.2rem' }}>{post.title}</div>
           {post.description && <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>{post.description}</div>}
+          {post.attachment_urls.length > 0 && (
+            <div style={{ marginTop: '0.5rem', display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+              {post.attachment_urls.map((a, i) => (
+                <a key={i} href={a.url} target="_blank" rel="noreferrer"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.72rem', color: '#14463A', background: '#E7EFEA', borderRadius: 4, padding: '2px 7px', textDecoration: 'none', fontWeight: 500 }}>
+                  <span>{fileIcon(a.name)}</span>{a.name}
+                </a>
+              ))}
+            </div>
+          )}
           <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '0.4rem' }}>
             {post.class_name} {post.section_name}{post.staff_name ? ` · ${post.staff_name}` : ''} · {new Date(post.created_at).toLocaleDateString()}
           </div>
@@ -60,15 +82,37 @@ function PostForm({
   const [due, setDue] = useState('')
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
+  const [attachments, setAttachments] = useState<Attachment[]>([])
+  const [uploading, setUploading] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   const sections: Section[] = classes.find(c => c.id === cls)?.sections ?? []
+
+  async function handleFiles(e: Event) {
+    const files = Array.from((e.target as HTMLInputElement).files ?? [])
+    if (!files.length) return
+    setUploading(true); setErr('')
+    try {
+      const uploaded = await uploadFiles(files)
+      setAttachments(prev => [...prev, ...uploaded].slice(0, 5))
+    } catch (ex) {
+      setErr(ex instanceof UploadError ? ex.message : 'Upload failed')
+    } finally {
+      setUploading(false)
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }
+
+  function removeAttachment(i: number) {
+    setAttachments(prev => prev.filter((_, idx) => idx !== i))
+  }
 
   async function submit(e: Event) {
     e.preventDefault()
     if (!cls || !sec || !subject || !title) { setErr('All required fields must be filled'); return }
     setSaving(true); setErr('')
     try {
-      await onSubmit({ academic_year_id: ay, class_id: cls, section_id: sec, subject, post_type: type, title, description: desc || undefined, due_date: due || undefined })
+      await onSubmit({ academic_year_id: ay, class_id: cls, section_id: sec, subject, post_type: type, title, description: desc || undefined, due_date: due || undefined, attachment_urls: attachments.length ? attachments : undefined })
     } catch (ex) {
       setErr(ex instanceof Error ? ex.message : 'Error')
     } finally { setSaving(false) }
@@ -127,9 +171,32 @@ function PostForm({
         <label style={LBL}>Description</label>
         <textarea value={desc} onInput={e => setDesc((e.target as HTMLTextAreaElement).value)} style={{ ...INP, height: 72, resize: 'vertical' }} placeholder="Optional details…" />
       </div>
+      {/* File attachments */}
+      <div style={{ marginBottom: '0.75rem' }}>
+        <label style={LBL}>Attachments <span style={{ color: '#9ca3af', fontWeight: 400 }}>(images, PDF, Office — max 10 MB each, up to 5)</span></label>
+        {attachments.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginBottom: '0.4rem' }}>
+            {attachments.map((a, i) => (
+              <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.72rem', background: '#E7EFEA', color: '#14463A', borderRadius: 4, padding: '2px 6px' }}>
+                {a.name}
+                <button type="button" onClick={() => removeAttachment(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', padding: 0, lineHeight: 1 }}>×</button>
+              </span>
+            ))}
+          </div>
+        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <input ref={fileRef} type="file" multiple accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx"
+            onChange={handleFiles} style={{ display: 'none' }} />
+          <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading || attachments.length >= 5}
+            style={{ padding: '0.35rem 0.9rem', border: '1px solid #d1d5db', borderRadius: 4, background: '#f9fafb', cursor: 'pointer', fontSize: '0.8rem', color: '#374151' }}>
+            {uploading ? 'Uploading…' : '+ Attach files'}
+          </button>
+          {attachments.length >= 5 && <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>Max 5 files</span>}
+        </div>
+      </div>
       {err && <p style={{ color: '#ef4444', fontSize: '0.8rem', marginBottom: '0.5rem' }}>{err}</p>}
       <div style={{ display: 'flex', gap: '0.5rem' }}>
-        <button type="submit" disabled={saving} style={{ padding: '0.5rem 1.25rem', background: '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem' }}>
+        <button type="submit" disabled={saving || uploading} style={{ padding: '0.5rem 1.25rem', background: '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem' }}>
           {saving ? 'Posting…' : 'Post'}
         </button>
         <button type="button" onClick={onCancel} style={{ padding: '0.5rem 1rem', background: 'none', border: '1px solid #d1d5db', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem', color: '#374151' }}>

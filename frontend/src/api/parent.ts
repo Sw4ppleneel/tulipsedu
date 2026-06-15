@@ -83,6 +83,7 @@ export interface HomeworkItem {
   description: string | null
   due_date: string | null
   created_at: string
+  attachment_urls: { name: string; url: string }[]
 }
 
 export interface StudentSummary {

@@ -4,6 +4,21 @@ import { Card, Button, Icon, Spinner, EmptyState } from '../ui'
 
 const inr = (n: number) => '₹' + Number(n).toLocaleString('en-IN')
 
+function ageDays(iso: string): number {
+  return Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000)
+}
+
+function AgingChip({ iso }: { iso: string }) {
+  const days = ageDays(iso)
+  const color = days >= 4 ? '#dc2626' : days >= 2 ? '#d97706' : '#16a34a'
+  const bg    = days >= 4 ? '#fee2e2'  : days >= 2 ? '#fef3c7' : '#dcfce7'
+  return (
+    <span style={{ fontSize: '0.68rem', fontWeight: 700, background: bg, color, borderRadius: 9999, padding: '1px 7px', marginLeft: 6, whiteSpace: 'nowrap' }}>
+      {days}d waiting
+    </span>
+  )
+}
+
 // A payment that was just approved this session — kept so staff can grab the PDF.
 interface PaidRow extends PendingPayment { receipt_number: string }
 
@@ -50,6 +65,11 @@ export function PaymentVerificationView() {
       <div class="page-hd">
         <div class="page-title">Verify Payments</div>
         <span class="text-sm text-muted">{rows.length} awaiting approval</span>
+        {rows.some(r => ageDays(r.created_at) >= 4) && (
+          <span style={{ fontSize: '0.75rem', background: '#fee2e2', color: '#dc2626', borderRadius: 6, padding: '3px 10px', fontWeight: 700 }}>
+            ⚠ Some claims are overdue for action
+          </span>
+        )}
       </div>
       {err && <div class="err" style={{ marginBottom: '.75rem' }}>{err}</div>}
 
@@ -61,7 +81,9 @@ export function PaymentVerificationView() {
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '.75rem' }}>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontWeight: 700, fontFamily: 'var(--font-display)' }}>
-                {r.first_name} {r.last_name} <span class="text-xs text-muted">· {r.class_name} {r.section_name} · {r.admission_no}</span>
+                {r.first_name} {r.last_name}
+                <span class="text-xs text-muted"> · {r.class_name} {r.section_name} · {r.admission_no}</span>
+                <AgingChip iso={r.created_at} />
               </div>
               <div class="text-sm" style={{ marginTop: '.15rem' }}>
                 <b>{inr(r.amount)}</b> · {r.periods || '—'}

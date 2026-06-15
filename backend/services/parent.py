@@ -289,7 +289,8 @@ async def _recent_homework(
     rows = await conn.fetch(
         """
         SELECT id, subject, post_type, title, description,
-               due_date::text AS due_date, created_at
+               due_date::text AS due_date, created_at,
+               COALESCE(attachment_urls, '[]'::jsonb) AS attachment_urls
         FROM homework_posts
         WHERE tenant_id = $1
           AND class_id = $2
@@ -299,7 +300,16 @@ async def _recent_homework(
         """,
         tenant_id, class_id, section_id,
     )
-    return [HomeworkItem(**dict(r)) for r in rows]
+    items = []
+    for r in rows:
+        d = dict(r)
+        urls = d.get("attachment_urls") or []
+        if isinstance(urls, str):
+            import json as _json
+            urls = _json.loads(urls)
+        d["attachment_urls"] = urls
+        items.append(HomeworkItem(**d))
+    return items
 
 
 async def get_student_summary(

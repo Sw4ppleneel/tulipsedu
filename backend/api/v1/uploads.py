@@ -22,6 +22,20 @@ except ImportError:
 
 router = APIRouter(prefix="/uploads", tags=["Uploads"])
 
+ALLOWED_CONTENT_TYPES = {
+    # Images
+    "image/jpeg", "image/png", "image/webp", "image/gif",
+    # Documents
+    "application/pdf",
+    # Office
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-powerpoint",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+}
+
 
 class UploadRequest(BaseModel):
     filename: str
@@ -49,6 +63,12 @@ def _r2_client():
 async def get_upload_url(body: UploadRequest, request: Request):
     if not _HAS_BOTO3 or not settings.r2_bucket_name:
         raise HTTPException(status_code=501, detail="File uploads not configured")
+
+    if body.content_type not in ALLOWED_CONTENT_TYPES:
+        raise HTTPException(
+            status_code=415,
+            detail=f"File type '{body.content_type}' is not allowed. Upload images, PDF, or Office documents only.",
+        )
 
     tenant_id = request.state.tenant_id
     ext = body.filename.rsplit(".", 1)[-1] if "." in body.filename else "bin"

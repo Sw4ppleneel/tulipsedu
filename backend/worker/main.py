@@ -21,7 +21,13 @@ import asyncpg
 
 from config import settings
 from worker.registry import HANDLERS, Event
-from worker.scheduler import fee_overdue_scan, money_reconciliation
+from worker.scheduler import (
+    admissions_aging,
+    fee_overdue_scan,
+    gateway_payment_sweep,
+    money_reconciliation,
+    payment_claim_escalation,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -166,6 +172,7 @@ async def run() -> None:
             await money_reconciliation(conn)
     last_scan = 0.0
     last_reconcile = time.monotonic()
+    last_escalation = 0.0
     while not stop.is_set():
         try:
             async with pool.acquire() as conn:
@@ -173,6 +180,9 @@ async def run() -> None:
                 await _retry_dlq(conn)
                 if time.monotonic() - last_scan > SCAN_INTERVAL_SECONDS:
                     await fee_overdue_scan(conn)
+                    await payment_claim_escalation(conn)
+                    await gateway_payment_sweep(conn)
+                    await admissions_aging(conn)
                     last_scan = time.monotonic()
                 if time.monotonic() - last_reconcile > RECONCILE_INTERVAL_SECONDS:
                     await money_reconciliation(conn)

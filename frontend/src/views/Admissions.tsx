@@ -146,9 +146,20 @@ function AdmissionCard({
       {adm.class_name && <div style={{ color: '#6b7280', marginBottom: 2 }}>Applying for: {adm.class_name}</div>}
       {adm.parent_phone && <div style={{ color: '#6b7280', marginBottom: 2 }}>📞 {adm.parent_phone}</div>}
       {adm.notes && <div style={{ color: '#9ca3af', fontSize: '0.75rem', marginBottom: '0.5rem', fontStyle: 'italic' }}>{adm.notes}</div>}
-      <div style={{ fontSize: '0.72rem', color: '#9ca3af', marginBottom: '0.5rem' }}>
-        {new Date(adm.created_at).toLocaleDateString('en-IN')}
-        {adm.public_enquiry && ' · web'}
+      <div style={{ fontSize: '0.72rem', color: '#9ca3af', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+        <span>{new Date(adm.created_at).toLocaleDateString('en-IN')}</span>
+        {adm.public_enquiry && <span>· web</span>}
+        {(() => {
+          const days = Math.floor((Date.now() - new Date(adm.updated_at).getTime()) / 86_400_000)
+          if (days < 3) return null
+          const color = days >= 6 ? '#dc2626' : '#d97706'
+          const bg    = days >= 6 ? '#fee2e2' : '#fef3c7'
+          return (
+            <span style={{ fontSize: '0.68rem', fontWeight: 700, background: bg, color, borderRadius: 9999, padding: '1px 6px' }}>
+              {days}d in {adm.status}
+            </span>
+          )
+        })()}
       </div>
       {adm.status !== 'enrolled' && adm.status !== 'rejected' && (
         <div style={{ display: 'flex', gap: '0.375rem', flexWrap: 'wrap' }}>

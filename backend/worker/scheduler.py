@@ -10,6 +10,21 @@ Lifecycle:
 On becoming overdue: emits one FEE_OVERDUE in-app notification per student per
 ledger row (dedup via ON CONFLICT DO NOTHING). Sets reminded_at; re-escalates
 every REMINDER_INTERVAL_DAYS if still unpaid.
+
+payment_claim_escalation():
+  A pending_verification claim that has sat unresolved ≥ CLAIM_ESCALATE_DAYS gets
+  a FEE_CLAIM_ESCALATED event (accountants re-notified every 2 days; principal/VP
+  added after CLAIM_PRINCIPAL_DAYS). Real money may have moved — NEVER auto-reject.
+
+gateway_payment_sweep():
+  Gateway 'pending'/'processing' orders older than GATEWAY_TIMEOUT_HOURS are
+  auto-failed and their line items deleted (freeing the ledger for retry). These
+  carry no confirmed money — they're dormant stubs in Phase 1 (static UPI only).
+
+admissions_aging():
+  Non-terminal admissions (enquiry/application/docs_pending) with no activity for
+  ≥ ADMISSION_STALE_DAYS get a ADMISSION_STALE event → principal + staff notified.
+  Terminal states (approved/enrolled/rejected) are excluded.
 """
 
 import json
@@ -20,8 +35,13 @@ import asyncpg
 
 logger = logging.getLogger("worker.scheduler")
 
-GRACE_DAYS = 5           # days after due_date before entry is 'overdue'
-REMINDER_INTERVAL_DAYS = 7  # re-remind overdue entries every N days
+GRACE_DAYS = 5               # days after due_date before entry is 'overdue'
+REMINDER_INTERVAL_DAYS = 7   # re-remind overdue entries every N days
+
+CLAIM_ESCALATE_DAYS = 2      # days before a pending_verification claim is re-nudged
+CLAIM_PRINCIPAL_DAYS = 4     # days before principal/VP is pulled into escalation
+GATEWAY_TIMEOUT_HOURS = 24   # hours before a dormant gateway 'pending' order is failed
+ADMISSION_STALE_DAYS = 3     # days before a non-terminal admission is nudged
 
 
 async def fee_lifecycle_advance(conn: asyncpg.Connection) -> dict:
@@ -189,3 +209,134 @@ async def money_reconciliation(conn: asyncpg.Connection) -> dict:
     if not total:
         logger.info("money_reconciliation: clean (0 violations)")
     return {"tenants_flagged": len(by_tenant), "violations": total}
+
+
+async def payment_claim_escalation(conn: asyncpg.Connection) -> dict:
+    """Re-notify accountants (and principal/VP after CLAIM_PRINCIPAL_DAYS) for every
+    pending_verification payment claim that has sat unresolved too long.
+
+    Never auto-rejects — real money may have moved. Throttled to one escalation per
+    CLAIM_ESCALATE_DAYS via escalated_at. Emits FEE_CLAIM_ESCALATED per payment.
+    """
+    stale = await conn.fetch(
+        """
+        SELECT fp.id, fp.tenant_id, fp.student_id, fp.amount,
+               EXTRACT(EPOCH FROM (NOW() - fp.created_at)) / 86400 AS age_days
+        FROM fee_payments fp
+        WHERE fp.status = 'pending_verification'
+          AND fp.created_at < NOW() - ($1 || ' days')::interval
+          AND (fp.escalated_at IS NULL
+               OR fp.escalated_at < NOW() - ($1 || ' days')::interval)
+        """,
+        CLAIM_ESCALATE_DAYS,
+    )
+    if not stale:
+        logger.info("payment_claim_escalation: 0 stale claims")
+        return {"escalated": 0}
+
+    for row in stale:
+        age_days = int(row["age_days"])
+        notify_principal = age_days >= CLAIM_PRINCIPAL_DAYS
+        await conn.execute(
+            "INSERT INTO audit_events (tenant_id, event_type, payload) VALUES ($1, $2, $3)",
+            row["tenant_id"], "FEE_CLAIM_ESCALATED",
+            json.dumps({
+                "payment_id": str(row["id"]),
+                "student_id": str(row["student_id"]),
+                "amount": str(row["amount"]),
+                "age_days": age_days,
+                "notify_principal": notify_principal,
+            }),
+        )
+        await conn.execute(
+            "UPDATE fee_payments SET escalated_at = NOW() WHERE id = $1",
+            row["id"],
+        )
+
+    logger.info("payment_claim_escalation: escalated=%d", len(stale))
+    return {"escalated": len(stale)}
+
+
+async def gateway_payment_sweep(conn: asyncpg.Connection) -> dict:
+    """Auto-fail dormant gateway 'pending'/'processing' orders older than
+    GATEWAY_TIMEOUT_HOURS. These have no confirmed money behind them (Phase 1 uses
+    static UPI only). Deletes their line items so the fee ledger is freed for retry.
+    Emits FEE_PAYMENT_TIMEOUT per affected student.
+    """
+    async with conn.transaction():
+        timed_out = await conn.fetch(
+            """
+            SELECT fp.id, fp.tenant_id, fp.student_id
+            FROM fee_payments fp
+            WHERE fp.status IN ('pending', 'processing')
+              AND fp.created_at < NOW() - ($1 || ' hours')::interval
+            """,
+            GATEWAY_TIMEOUT_HOURS,
+        )
+        if not timed_out:
+            logger.info("gateway_payment_sweep: 0 timed-out orders")
+            return {"failed": 0}
+
+        payment_ids = [r["id"] for r in timed_out]
+
+        # Free the ledger rows first (remove the unique constraint slot)
+        await conn.execute(
+            "DELETE FROM fee_payment_items WHERE payment_id = ANY($1::uuid[])",
+            payment_ids,
+        )
+        await conn.execute(
+            "UPDATE fee_payments SET status = 'failed' WHERE id = ANY($1::uuid[])",
+            payment_ids,
+        )
+
+        for row in timed_out:
+            await conn.execute(
+                "INSERT INTO audit_events (tenant_id, event_type, payload) VALUES ($1, $2, $3)",
+                row["tenant_id"], "FEE_PAYMENT_TIMEOUT",
+                json.dumps({"payment_id": str(row["id"]), "student_id": str(row["student_id"])}),
+            )
+
+    logger.info("gateway_payment_sweep: failed=%d", len(timed_out))
+    return {"failed": len(timed_out)}
+
+
+async def admissions_aging(conn: asyncpg.Connection) -> dict:
+    """Nudge non-terminal admissions (enquiry/application/docs_pending) that have had
+    no activity for ≥ ADMISSION_STALE_DAYS. Throttled via nudged_at.
+    Emits ADMISSION_STALE per record → principal + admissions staff notified.
+    Terminal states (approved/enrolled/rejected) are excluded.
+    """
+    stale = await conn.fetch(
+        """
+        SELECT a.id, a.tenant_id, a.applicant_name, a.status,
+               EXTRACT(EPOCH FROM (NOW() - a.updated_at)) / 86400 AS age_days
+        FROM admissions a
+        WHERE a.status IN ('enquiry', 'application', 'docs_pending')
+          AND a.updated_at < NOW() - ($1 || ' days')::interval
+          AND (a.nudged_at IS NULL
+               OR a.nudged_at < NOW() - ($1 || ' days')::interval)
+        """,
+        ADMISSION_STALE_DAYS,
+    )
+    if not stale:
+        logger.info("admissions_aging: 0 stale admissions")
+        return {"nudged": 0}
+
+    for row in stale:
+        await conn.execute(
+            "INSERT INTO audit_events (tenant_id, event_type, payload) VALUES ($1, $2, $3)",
+            row["tenant_id"], "ADMISSION_STALE",
+            json.dumps({
+                "admission_id": str(row["id"]),
+                "applicant_name": row["applicant_name"],
+                "status": row["status"],
+                "age_days": int(row["age_days"]),
+            }),
+        )
+        await conn.execute(
+            "UPDATE admissions SET nudged_at = NOW() WHERE id = $1",
+            row["id"],
+        )
+
+    logger.info("admissions_aging: nudged=%d", len(stale))
+    return {"nudged": len(stale)}

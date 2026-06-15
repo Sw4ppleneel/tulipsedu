@@ -16,7 +16,7 @@ from typing import Awaitable, Callable
 
 import asyncpg
 
-from worker.handlers import attendance, exams, fees, homework
+from worker.handlers import admissions, attendance, exams, fees, homework
 
 
 @dataclass(frozen=True)
@@ -70,4 +70,10 @@ HANDLERS: dict[str, list[Handler]] = {
     "ADMISSION_ENQUIRY_RECEIVED": [],
     "ADMISSION_STATUS_CHANGED":   [],
     "ADMISSION_APPROVED":         [],
+    # Stale non-terminal admission → notify principal + VP to act.
+    "ADMISSION_STALE": [admissions.admission_stale],
+    # Payment claim sitting unresolved — re-escalate accountants (+ principal if old).
+    "FEE_CLAIM_ESCALATED": [fees.claim_escalated],
+    # Dormant gateway order timed out — tell parent to retry.
+    "FEE_PAYMENT_TIMEOUT": [fees.payment_timeout],
 }

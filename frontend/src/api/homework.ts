@@ -30,6 +30,7 @@ export interface HomeworkCreate {
   title: string
   description?: string
   due_date?: string
+  attachment_urls?: { name: string; url: string }[]
 }
 
 export function listHomework(filters: {

@@ -12,6 +12,8 @@ interface DashboardStats {
   fee_outstanding: number
   fee_recovery: { collected: number; expected: number; rate_pct: number }
   defaulter_count: number
+  payment_claims_pending: number
+  oldest_claim_age_days: number
   class_recovery: ClassRecovery[]
   attendance_trend: TrendDay[]
   low_attendance: LowAtt[]
@@ -143,6 +145,18 @@ export function DashboardView({ schoolName, role }: { schoolName: string; role?:
           </div>
           <div class="stat-sub">overdue payments</div>
         </div>
+        {stats && stats.payment_claims_pending > 0 && (
+          <div class="stat-card" style={{ borderLeft: '3px solid #dc2626', background: '#fff5f5' }}>
+            <div class="stat-icon">🔴</div>
+            <div class="stat-label">To Verify</div>
+            <div class="stat-value" style={{ color: '#dc2626' }}>
+              {stats.payment_claims_pending}
+            </div>
+            <div class="stat-sub">
+              {stats.oldest_claim_age_days > 0 ? `oldest ${stats.oldest_claim_age_days}d` : 'payment claims'}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Analytics panels — principal/VP only */}

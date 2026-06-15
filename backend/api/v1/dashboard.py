@@ -137,6 +137,17 @@ async def stats(request: Request):
             "SELECT COUNT(DISTINCT student_id) FROM fee_ledger WHERE tenant_id=$1 AND status='overdue'",
             tid,
         )
+        claims_row = await conn.fetchrow(
+            """
+            SELECT COUNT(*) AS pending,
+                   COALESCE(MAX(EXTRACT(EPOCH FROM (NOW() - created_at)) / 86400), 0) AS oldest_days
+            FROM fee_payments
+            WHERE tenant_id = $1 AND status = 'pending_verification'
+            """,
+            tid,
+        )
+        payment_claims_pending = int(claims_row["pending"] or 0)
+        oldest_claim_age_days = int(claims_row["oldest_days"] or 0)
 
     is_principal = role in ("principal", "vice_principal")
 
@@ -147,6 +158,8 @@ async def stats(request: Request):
         "fee_outstanding":  float(fee_outstanding or 0),
         "fee_recovery":     fee_recovery,
         "defaulter_count":  int(defaulter_count or 0),
+        "payment_claims_pending": payment_claims_pending,
+        "oldest_claim_age_days":  oldest_claim_age_days,
         "class_recovery":   [
             {
                 "class_name": r["class_name"],

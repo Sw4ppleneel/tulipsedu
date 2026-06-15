@@ -458,7 +458,28 @@ export function ParentPortalView({ onLogout }: { onLogout: () => void }) {
       case 'attendance':
         return <AttendanceSection summary={summary} absences={notifs.filter(n => n.type === 'ABSENT')} />
       case 'homework':
-        return <FeedSection empty="No homework yet" items={summary.recent_homework.map(h => ({ id: h.id, title: h.title, sub: `${h.subject ?? ''}${h.due_date ? ` · due ${fmtDate(h.due_date)}` : ''}` }))} />
+        return (
+          <div style={{ maxWidth: 560, margin: '0 auto', padding: '1rem' }}>
+            {summary.recent_homework.length === 0
+              ? <EmptyState icon={<Icon name="homework" size={28} />} title="No homework yet" />
+              : summary.recent_homework.map(h => (
+                <Card key={h.id} pad={false} style={{ marginBottom: '.5rem', padding: '.7rem 1rem' }}>
+                  <div style={{ fontWeight: 600, fontSize: '.86rem' }}>{h.title}</div>
+                  <div class="text-xs text-muted">{h.subject ?? ''}{h.due_date ? ` · due ${fmtDate(h.due_date)}` : ''}</div>
+                  {h.attachment_urls?.length > 0 && (
+                    <div style={{ marginTop: '.35rem', display: 'flex', flexWrap: 'wrap', gap: '.3rem' }}>
+                      {h.attachment_urls.map((a, i) => (
+                        <a key={i} href={a.url} target="_blank" rel="noreferrer"
+                          style={{ fontSize: '.7rem', color: '#14463A', background: '#E7EFEA', borderRadius: 4, padding: '1px 7px', textDecoration: 'none', fontWeight: 500 }}>
+                          📎 {a.name}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </Card>
+              ))}
+          </div>
+        )
       case 'announcements':
         return <FeedSection empty="No notices yet" items={notifs.map(n => ({ id: n.id, title: n.title, sub: `${n.body} · ${fmtDate(n.created_at)}` }))} />
       case 'results':

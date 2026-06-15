@@ -96,6 +96,69 @@ async def payment_rejected(conn: asyncpg.Connection, event: "Event") -> None:
     )
 
 
+async def claim_escalated(conn: asyncpg.Connection, event: "Event") -> None:
+    """Stale pending_verification claim — re-notify all accountants; add principal/VP
+    if the claim is old enough. Dedup ref = payment_id:day so one notification per
+    accountant per calendar day max."""
+    payment_id = event.payload["payment_id"]
+    amount = event.payload.get("amount", "")
+    age_days = event.payload.get("age_days", 0)
+    notify_principal = event.payload.get("notify_principal", False)
+    from datetime import date as _date
+    day_key = _date.today().isoformat()
+    ref = f"{payment_id}:{day_key}"
+
+    await conn.execute(
+        """
+        INSERT INTO notifications
+            (tenant_id, recipient_type, recipient_id, type, title, body, ref)
+        SELECT $1, 'user', u.id, 'FEE_VERIFY',
+               'URGENT: Payment awaiting verification',
+               'A UPI payment claim of ₹' || $2 || ' has been waiting '
+                   || $3 || ' day(s) without action. Please approve or reject it now.',
+               $4
+        FROM users u
+        WHERE u.tenant_id = $1 AND u.role = 'accountant'
+        ON CONFLICT DO NOTHING
+        """,
+        event.tenant_id, amount, age_days, ref,
+    )
+
+    if notify_principal:
+        await conn.execute(
+            """
+            INSERT INTO notifications
+                (tenant_id, recipient_type, recipient_id, type, title, body, ref)
+            SELECT $1, 'user', u.id, 'FEE_VERIFY',
+                   'ESCALATED: Unverified payment (' || $3 || ' days)',
+                   'A parent UPI payment claim of ₹' || $2 || ' has been pending for '
+                       || $3 || ' days with no accountant action. Please follow up.',
+                   $4
+            FROM users u
+            WHERE u.tenant_id = $1 AND u.role IN ('principal', 'vice_principal')
+            ON CONFLICT DO NOTHING
+            """,
+            event.tenant_id, amount, age_days, f"principal:{ref}",
+        )
+
+
+async def payment_timeout(conn: asyncpg.Connection, event: "Event") -> None:
+    """A gateway payment order timed out — tell the parent to retry."""
+    await conn.execute(
+        """
+        INSERT INTO notifications
+            (tenant_id, recipient_type, recipient_id, type, title, body, ref)
+        VALUES ($1, 'parent_of_student', $2, 'FEE_REJECTED',
+                'Payment did not complete',
+                'Your fee payment did not go through. Please try again from the app.',
+                $3)
+        ON CONFLICT DO NOTHING
+        """,
+        event.tenant_id, uuid.UUID(event.payload["student_id"]),
+        event.payload["payment_id"],
+    )
+
+
 async def manual_reminder(conn: asyncpg.Connection, event: "Event") -> None:
     student_id = uuid.UUID(event.payload["student_id"])
 

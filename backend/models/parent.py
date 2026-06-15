@@ -85,6 +85,7 @@ class HomeworkItem(BaseModel):
     description: Optional[str] = None
     due_date: Optional[str] = None  # query casts the DATE column to text
     created_at: datetime
+    attachment_urls: list[dict] = []
 
 
 class StudentSummary(BaseModel):

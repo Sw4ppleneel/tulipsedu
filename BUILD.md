@@ -5,7 +5,7 @@
 Project: Tulips.edu
 Phase: Phase 2 — Workflow ERP (lifecycle state machines)
 Current Sprint: Sprint 5 — W14 Analytics, W11 Rollover, W10 Admissions
-Last Updated: 2026-06-14
+Last Updated: 2026-06-15
 
 ---
 
@@ -335,7 +335,7 @@ Email Routing is enabled (free; forwards to the Gmail). One-line index.html edit
 
 ---
 
-# Public School Website + Path Routing (COMPLETED 2026-06-05)
+# Public School Website + Path Routing (COMPLETED 2026-06-05, restructured 2026-06-15)
 
 Decision: path-based routing (no new subdomains/cert). One-page CMS-driven site.
 - `school.tulipsedu.in/`       → public website (no login)
@@ -345,9 +345,6 @@ Decision: path-based routing (no new subdomains/cert). One-page CMS-driven site.
 Built:
 - frontend/src/api/cms.ts: cmsPublic (schoolInfo/pages/announcements) — unauthenticated,
   tenant slug from subdomain or ?school= override (for localhost testing).
-- frontend/src/views/PublicSite.tsx: one-page site — sticky header (school name + nav +
-  login buttons), hero, Notices (announcements), CMS pages as sections (content_html),
-  contact footer. System fonts, lightweight.
 - frontend/src/app.tsx: AppMode gains 'public'; initialMode() routes by pathname;
   goStaffLogin/goParentLogin/goPublic use history.pushState; popstate listener (doesn't
   disrupt active sessions); parent logout → public, staff logout → /app login.
@@ -355,12 +352,86 @@ Built:
 No backend change, no migration, no new dependency. nginx SPA fallback already serves
 all paths → /app and /parent load the SPA which self-routes. Zero infra change.
 
-Verified: /public/school-info + /public/pages + /public/announcements return seeded data
-(Daffodils: "About Us" page + welcome announcement). Frontend tsc+build clean (42.21 kB gzip).
-Browser render not driven (no headless browser); data path + routing logic verified.
+## Per-school website architecture (2026-06-15)
 
-REMAINING for a fuller site (optional): gallery/photos (needs R2), per-page routing,
-contact fields on tenants (address/phone — currently via a CMS 'contact' page).
+**Rule: each school has its own completely separate website component — its own design,
+colour palette, sections, and copy. No shared layout or theme across schools.**
+
+### File layout
+
+```
+frontend/src/views/
+  PublicSite.tsx                      ← thin slug→component router only
+  public/
+    DaffodilsPublicSchool.tsx         ← Daffodils: navy/gold/rose, Nursery–VIII, Mesra Ranchi
+    VivekMemorialHighSchool.tsx       ← (to be built when needed)
+    PremchandMahtoIC.tsx              ← (to be built when needed)
+    PremchandHighSchool.tsx           ← (to be built when needed)
+```
+
+### How the router works
+
+`PublicSite.tsx` resolves the tenant slug (subdomain in prod, `?school=` in dev) and
+looks it up in a `SCHOOL_SITES` map. Unknown slugs render a generic "being set up" fallback.
+
+```ts
+const SCHOOL_SITES: Record<string, Component> = {
+  daffodilspublicschool:   DaffodilsPublicSchool,
+  vivekmemorialhighschool: VivekMemorialHighSchool,  // add here when built
+}
+```
+
+### Adding a new school's website
+
+1. Create `frontend/src/views/public/<SchoolSlug>.tsx` — completely from scratch.
+   Pick the school's own colours, sections, and copy. Do NOT copy DaffodilsPublicSchool
+   and tweak — start fresh for each school.
+2. Export a single named component: `export function <SchoolName>({ onStaffLogin, onParentLogin }) { … }`
+3. Add one entry to `SCHOOL_SITES` in `PublicSite.tsx`.
+4. Typecheck, build, deploy.
+
+### Per-school image assets
+
+Each school's photos live in a slug-named folder:
+
+```
+frontend/public/school-assets/<slug>/
+  logo.svg        preferred logo (also accepts logo.png; falls back to monogram)
+  hero.jpg        homepage hero background
+  building.jpg    "About" section building photo
+  principal.jpg   principal's photo
+  gallery1–9.png  gallery photos
+```
+
+- **Local dev**: served from `frontend/public/school-assets/` (default, no env var needed)
+- **Production**: set `VITE_SCHOOL_ASSET_BASE=https://cdn.tulipsedu.in/school-assets`
+  in the build env and upload matching folder structure to R2. No code changes needed.
+- Missing files show a labelled placeholder — assets can be added incrementally.
+- The Tulips.edu brand logo (`/tulips-logo.jpg`) is NOT a school asset — it powers the
+  PWA icons only. School logos go in their per-slug folder.
+
+Current tenant slugs:
+
+| Slug | School |
+|---|---|
+| `daffodilspublicschool` | Daffodils Public School, Mesra Ranchi |
+| `vivekmemorialhighschool` | Vivek Memorial High School |
+| `premchandmahtoic` | Premchand Mahto IC |
+| `premchandhighschool` | Premchand High School |
+
+### Notice Board
+
+Each school site should include a Notice Board section (`#notices`) that renders
+published `CmsAnnouncement` records from the CMS. Copy the `NoticeBoard` component
+pattern from `DaffodilsPublicSchool.tsx` — it takes the `announcements` prop (already
+fetched in the root component via `cmsPublic.announcements()`).
+
+### Helper components available in each school's file
+
+Defined locally in each school's `.tsx` (copy in as needed, adapt colours):
+- `SchoolImage` — loads `<base>/<slug>/<file>`, falls back to a labelled placeholder
+- `SchoolLogo` — tries `logo.svg` → `logo.png` → initial-letter monogram
+- `ImgPlaceholder` — consistent labelled placeholder for missing images
 
 ---
 
