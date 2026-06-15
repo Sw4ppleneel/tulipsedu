@@ -14,7 +14,7 @@ from typing import Optional
 import asyncpg
 
 from core.events import emit
-from services.receipt import generate_receipt_html, period_label
+from services.receipt import IST, generate_receipt_html, period_label
 
 METHODS = ("cash", "cheque", "upi", "bank_transfer", "card")
 _LIVE_STATUSES = ("pending_verification", "processing", "paid")
@@ -85,7 +85,7 @@ async def record_offline_payment(
             """,
             tenant_id,
         )
-        receipt_number = f"{tenant['slug'].upper()}-{datetime.now().year}-{counter:06d}"
+        receipt_number = f"{tenant['slug'].upper()}-{datetime.now(IST).year}-{counter:06d}"
         now = datetime.now(timezone.utc)
         receipt_html = generate_receipt_html(
             receipt_number=receipt_number,

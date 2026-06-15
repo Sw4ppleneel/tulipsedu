@@ -16,7 +16,7 @@ import asyncpg
 
 from core.events import emit
 from models.finance import FeePaymentResponse
-from services.receipt import generate_receipt_html, period_label
+from services.receipt import IST, generate_receipt_html, period_label
 
 
 class ParentPaymentError(Exception):
@@ -183,7 +183,7 @@ async def approve(
             """,
             tenant_id,
         )
-        receipt_number = f"{row['tenant_slug'].upper()}-{datetime.now().year}-{counter:06d}"
+        receipt_number = f"{row['tenant_slug'].upper()}-{datetime.now(IST).year}-{counter:06d}"
 
         items = await conn.fetch(
             """

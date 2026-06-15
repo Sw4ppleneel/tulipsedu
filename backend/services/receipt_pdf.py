@@ -21,6 +21,8 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+from services.receipt import to_ist
+
 # School brand palette (matches the SPA theme)
 _PRIMARY = colors.HexColor("#14463A")   # chalkboard green
 _ACCENT = colors.HexColor("#1F8A5D")
@@ -52,7 +54,7 @@ def render_receipt_pdf(ctx: dict) -> bytes:
     rcpt_sub = ParagraphStyle("RcptSub", parent=base, fontSize=9, alignment=2, textColor=_MUTED)
 
     paid_at: datetime = ctx["paid_at"] or datetime.now(timezone.utc)
-    date_display = paid_at.strftime("%d %b %Y, %I:%M %p")
+    date_display = to_ist(paid_at).strftime("%d %b %Y, %I:%M %p")
     method_display = (ctx["payment_method"] or "Online").replace("_", " ").title()
 
     elements = []

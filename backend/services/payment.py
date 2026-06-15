@@ -18,7 +18,7 @@ from models.finance import (
     PaymentOrderCreate,
     PaymentOrderResponse,
 )
-from services.receipt import generate_receipt_html, period_label
+from services.receipt import IST, generate_receipt_html, period_label
 
 logger = logging.getLogger(__name__)
 
@@ -285,7 +285,7 @@ async def _mark_payment_success(
             """,
             row["tenant_id"],
         )
-        receipt_number = f"{row['tenant_slug'].upper()}-{datetime.now().year}-{counter['last_number']:06d}"
+        receipt_number = f"{row['tenant_slug'].upper()}-{datetime.now(IST).year}-{counter['last_number']:06d}"
 
         # Fetch receipt items
         items = await conn.fetch(

@@ -1,6 +1,7 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 import asyncpg
 
@@ -8,6 +9,17 @@ MONTH_NAMES = {
     1: "Jan", 2: "Feb", 3: "Mar", 4: "Apr", 5: "May", 6: "Jun",
     7: "Jul", 8: "Aug", 9: "Sep", 10: "Oct", 11: "Nov", 12: "Dec",
 }
+
+# paid_at is stored in UTC; receipts must read in India Standard Time, else the
+# printed time is 5h30m off and pre-dawn collections show the previous day's date.
+IST = ZoneInfo("Asia/Kolkata")
+
+
+def to_ist(dt: datetime) -> datetime:
+    """UTC (or naive-assumed-UTC) datetime → IST, for receipt display."""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(IST)
 
 
 def period_label(month: Optional[int], year: int) -> str:
@@ -86,7 +98,7 @@ def generate_receipt_html(
     total: float,
 ) -> str:
     method_display = (payment_method or "Online").replace("_", " ").title()
-    date_display = paid_at.strftime("%d %b %Y, %I:%M %p")
+    date_display = to_ist(paid_at).strftime("%d %b %Y, %I:%M %p")
 
     rows_html = "\n".join(
         f'<tr><td>{i["description"]}</td>'
