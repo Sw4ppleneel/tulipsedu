@@ -142,7 +142,7 @@ function SectionHead({ label, title, sub, dark = false }: { label: string; title
 }
 
 // ── Navbar ────────────────────────────────────────────────────────────────────
-const NAV_LINKS = ['Home', 'About', 'Academics', 'Facilities', 'Gallery', 'Admissions', 'Contact']
+const NAV_LINKS = ['Home', 'About', 'Academics', 'Facilities', 'Gallery', 'Notices', 'Admissions', 'Contact']
 
 function Navbar({ slug, name, onStaffLogin, onParentLogin }: { slug: string; name: string; onStaffLogin: () => void; onParentLogin: () => void }) {
   const [scrolled, setScrolled] = useState(false)
@@ -464,6 +464,47 @@ function Gallery({ slug }: { slug: string }) {
   )
 }
 
+// ── Notice Board ──────────────────────────────────────────────────────────────
+function NoticeBoard({ announcements }: { announcements: CmsAnnouncement[] }) {
+  function fmtDate(iso: string | null) {
+    if (!iso) return ''
+    return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+  }
+  return (
+    <Section id="notices" bg={C.white}>
+      <SectionHead label="Notice Board" title="Announcements & Notices" sub="Stay informed with the latest updates from the school administration." />
+      {announcements.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '3rem 0', color: C.gray400 }}>
+          <Ico name="megaphone" size={44} stroke={C.gray400} width={1.2} />
+          <p style={{ marginTop: '1rem', fontSize: '.9rem' }}>No notices at this time.</p>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          {announcements.map(a => (
+            <div key={a.id} style={{ display: 'flex', gap: '1.25rem', alignItems: 'flex-start', background: C.cream, borderRadius: 14, padding: '1.25rem 1.5rem', border: `1px solid ${C.creamDk}`, borderLeft: `4px solid ${C.gold}` }}>
+              <div style={{ flexShrink: 0, paddingTop: '.1rem' }}>
+                <IconChip name="megaphone" size={42} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '1rem', flexWrap: 'wrap' }}>
+                  <div style={{ fontWeight: 700, color: C.navy, fontSize: '1rem' }}>{a.title}</div>
+                  {a.published_at && (
+                    <div style={{ fontSize: '.72rem', color: C.gray500, whiteSpace: 'nowrap', fontWeight: 600 }}>{fmtDate(a.published_at)}</div>
+                  )}
+                </div>
+                {a.body && <p style={{ color: C.gray600, fontSize: '.87rem', lineHeight: 1.7, margin: '.4rem 0 0' }}>{a.body}</p>}
+                {a.expires_at && (
+                  <div style={{ marginTop: '.5rem', fontSize: '.72rem', color: C.roseDk, fontWeight: 600 }}>Valid until {fmtDate(a.expires_at)}</div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Section>
+  )
+}
+
 // ── Admissions ────────────────────────────────────────────────────────────────
 function Admissions() {
   const steps = [
@@ -603,6 +644,7 @@ export function PublicSite({ onStaffLogin, onParentLogin }: { onStaffLogin: () =
       <PrincipalMessage slug={slug} />
       <Academics />
       <Gallery slug={slug} />
+      <NoticeBoard announcements={announcements} />
       <Admissions />
       <Contact />
       <Footer slug={slug} name={schoolName} onStaffLogin={onStaffLogin} onParentLogin={onParentLogin} />
