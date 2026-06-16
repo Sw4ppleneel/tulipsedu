@@ -3,7 +3,7 @@
 Seed 4 production schools with realistic mock data.
 
 Usage:
-    DATABASE_URL=postgresql://... python scripts/seed_schools.py
+    cd backend && PYTHONPATH=. DATABASE_URL=postgresql://... python ../scripts/seed_schools.py
 
 Idempotent — safe to re-run. Uses ON CONFLICT DO NOTHING.
 """
@@ -11,10 +11,13 @@ Idempotent — safe to re-run. Uses ON CONFLICT DO NOTHING.
 import asyncio
 import os
 import random
-from datetime import date, timedelta
+import uuid
+from datetime import date, datetime, timedelta, timezone
 
 import asyncpg
 import bcrypt
+
+from services.receipt import IST, generate_receipt_html, period_label  # PYTHONPATH=/app (or backend)
 
 # ── School definitions ──────────────────────────────────────────────────────
 
@@ -88,6 +91,68 @@ def rng_phone() -> str:
 
 def pw_hash(password: str) -> str:
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+
+async def _seed_paid_payment(
+    conn: asyncpg.Connection, tenant_id, slug: str, school_name: str,
+    student_id, ledger_id, month: int, year: int, fee_head_name: str,
+) -> None:
+    """Create the fee_payments/fee_payment_items row a 'paid' fee_ledger row must
+    have behind it (gateway='offline', method='cash'), so seed data satisfies the
+    same invariant money_reconciliation() enforces on real data. paid_at is
+    backdated to the 5th of the fee period so receipts look authentic."""
+    student = await conn.fetchrow(
+        """
+        SELECT s.first_name, s.last_name, s.admission_no,
+               c.name AS class_name, sec.name AS section_name
+        FROM students s
+        JOIN classes c ON c.id = s.class_id
+        JOIN sections sec ON sec.id = s.section_id
+        WHERE s.id = $1
+        """,
+        student_id,
+    )
+    amount_due = await conn.fetchval("SELECT amount_due FROM fee_ledger WHERE id = $1", ledger_id)
+    paid_at = datetime(year, month, 5, 10, 0, tzinfo=IST).astimezone(timezone.utc)
+
+    counter = await conn.fetchval(
+        """
+        INSERT INTO fee_receipt_counters (tenant_id, last_number) VALUES ($1, 1)
+        ON CONFLICT (tenant_id) DO UPDATE SET last_number = fee_receipt_counters.last_number + 1
+        RETURNING last_number
+        """,
+        tenant_id,
+    )
+    receipt_number = f"{slug.upper()}-{year}-{counter:06d}"
+    label = period_label(month, year)
+    receipt_html = generate_receipt_html(
+        receipt_number=receipt_number,
+        school_name=school_name,
+        student_name=f"{student['first_name']} {student['last_name']}",
+        admission_no=student["admission_no"],
+        class_section=f"{student['class_name']} — {student['section_name']}",
+        payment_method="cash",
+        paid_at=paid_at,
+        items=[{"description": f"{label} — {fee_head_name}", "amount": amount_due}],
+        total=float(amount_due),
+    )
+
+    payment_id = await conn.fetchval(
+        """
+        INSERT INTO fee_payments
+            (tenant_id, student_id, payment_ref, gateway, amount, status,
+             payment_method, receipt_number, receipt_html, paid_at, verified_at)
+        VALUES ($1, $2, $3, 'offline', $4, 'paid', 'cash', $5, $6, $7, $7)
+        RETURNING id
+        """,
+        tenant_id, student_id, str(uuid.uuid4()), amount_due, receipt_number, receipt_html, paid_at,
+    )
+    await conn.execute(
+        "INSERT INTO fee_payment_items (tenant_id, payment_id, ledger_id, amount) VALUES ($1,$2,$3,$4)",
+        tenant_id, payment_id, ledger_id, amount_due,
+    )
+    await conn.execute("UPDATE fee_ledger SET payment_id = $1 WHERE id = $2", payment_id, ledger_id)
+
 
 # ── Seed one school ──────────────────────────────────────────────────────────
 
@@ -400,16 +465,22 @@ async def seed_school(conn: asyncpg.Connection, school: dict) -> None:
         for st_id in g9_sids_curr:
             for month, year, paid in [(4,2025,True),(5,2025,True),(6,2025,False)]:
                 status = "paid" if paid else "pending"
-                await conn.execute(
+                ledger_id = await conn.fetchval(
                     """
                     INSERT INTO fee_ledger
                         (tenant_id,student_id,fee_head_id,academic_year_id,
                          period_month,period_year,amount_due,status)
                     VALUES ($1,$2,$3,$4,$5,$6,1200,$7)
                     ON CONFLICT DO NOTHING
+                    RETURNING id
                     """,
                     tid, st_id, fh_id, ay_id, month, year, status,
                 )
+                # A 'paid' ledger row must always have a real fee_payments/fee_payment_items
+                # row behind it — money_reconciliation()'s orphan_paid check enforces this in
+                # prod, and seed data must satisfy the same invariant or it trips daily.
+                if paid and ledger_id:
+                    await _seed_paid_payment(conn, tid, slug, name, st_id, ledger_id, month, year, "Tuition Fee")
 
     # 13. CMS page + announcement
     await conn.execute(
