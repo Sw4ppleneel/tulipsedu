@@ -264,12 +264,16 @@ async def gateway_payment_sweep(conn: asyncpg.Connection) -> dict:
     Emits FEE_PAYMENT_TIMEOUT per affected student.
     """
     async with conn.transaction():
+        # Atomic select-and-flip: the status re-check lives in the UPDATE's WHERE clause
+        # itself, so a concurrent gateway webhook that flips a row to 'paid' between a
+        # separate SELECT and UPDATE can't be clobbered back to 'failed' (TOCTOU-safe).
         timed_out = await conn.fetch(
             """
-            SELECT fp.id, fp.tenant_id, fp.student_id
-            FROM fee_payments fp
-            WHERE fp.status IN ('pending', 'processing')
-              AND fp.created_at < NOW() - ($1 || ' hours')::interval
+            UPDATE fee_payments
+               SET status = 'failed'
+             WHERE status IN ('pending', 'processing')
+               AND created_at < NOW() - ($1 || ' hours')::interval
+            RETURNING id, tenant_id, student_id
             """,
             GATEWAY_TIMEOUT_HOURS,
         )
@@ -279,13 +283,9 @@ async def gateway_payment_sweep(conn: asyncpg.Connection) -> dict:
 
         payment_ids = [r["id"] for r in timed_out]
 
-        # Free the ledger rows first (remove the unique constraint slot)
+        # Free the ledger rows now that these are confirmed failed
         await conn.execute(
             "DELETE FROM fee_payment_items WHERE payment_id = ANY($1::uuid[])",
-            payment_ids,
-        )
-        await conn.execute(
-            "UPDATE fee_payments SET status = 'failed' WHERE id = ANY($1::uuid[])",
             payment_ids,
         )
 

@@ -8,10 +8,11 @@ Install boto3 when ready: pip install boto3
 """
 import uuid as uuid_lib
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from config import settings
+from core.rbac import require_roles
 
 try:
     import boto3
@@ -36,6 +37,8 @@ ALLOWED_CONTENT_TYPES = {
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 }
 
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # mirrors frontend limit; enforced server-side via R2 POST policy
+
 
 class UploadRequest(BaseModel):
     filename: str
@@ -46,20 +49,31 @@ class UploadResponse(BaseModel):
     upload_url: str
     object_key: str
     public_url: str
+    fields: dict[str, str]
+
+
+_r2_client_singleton = None
 
 
 def _r2_client():
-    return boto3.client(
-        "s3",
-        endpoint_url=f"https://{settings.r2_account_id}.r2.cloudflarestorage.com",
-        aws_access_key_id=settings.r2_access_key_id,
-        aws_secret_access_key=settings.r2_secret_access_key,
-        config=BotocoreConfig(signature_version="s3v4"),
-        region_name="auto",
-    )
+    global _r2_client_singleton
+    if _r2_client_singleton is None:
+        _r2_client_singleton = boto3.client(
+            "s3",
+            endpoint_url=f"https://{settings.r2_account_id}.r2.cloudflarestorage.com",
+            aws_access_key_id=settings.r2_access_key_id,
+            aws_secret_access_key=settings.r2_secret_access_key,
+            config=BotocoreConfig(signature_version="s3v4"),
+            region_name="auto",
+        )
+    return _r2_client_singleton
 
 
-@router.post("/url", response_model=UploadResponse)
+@router.post(
+    "/url",
+    response_model=UploadResponse,
+    dependencies=[Depends(require_roles("principal", "vice_principal", "class_teacher", "teacher"))],
+)
 async def get_upload_url(body: UploadRequest, request: Request):
     if not _HAS_BOTO3 or not settings.r2_bucket_name:
         raise HTTPException(status_code=501, detail="File uploads not configured")
@@ -75,14 +89,22 @@ async def get_upload_url(body: UploadRequest, request: Request):
     key = f"{tenant_id}/{uuid_lib.uuid4()}.{ext}"
 
     client = _r2_client()
-    upload_url = client.generate_presigned_url(
-        "put_object",
-        Params={
-            "Bucket": settings.r2_bucket_name,
-            "Key": key,
-            "ContentType": body.content_type,
-        },
+    # Presigned POST (not PUT) so a content-length-range condition is enforceable —
+    # R2/S3 rejects the upload itself if the browser lies about file size.
+    presigned = client.generate_presigned_post(
+        Bucket=settings.r2_bucket_name,
+        Key=key,
+        Fields={"Content-Type": body.content_type},
+        Conditions=[
+            {"Content-Type": body.content_type},
+            ["content-length-range", 1, MAX_UPLOAD_BYTES],
+        ],
         ExpiresIn=300,
     )
     public_url = f"{settings.r2_public_url.rstrip('/')}/{key}"
-    return UploadResponse(upload_url=upload_url, object_key=key, public_url=public_url)
+    return UploadResponse(
+        upload_url=presigned["url"],
+        object_key=key,
+        public_url=public_url,
+        fields=presigned["fields"],
+    )

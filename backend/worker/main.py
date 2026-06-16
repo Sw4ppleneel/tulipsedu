@@ -179,10 +179,15 @@ async def run() -> None:
                 processed = await _process_batch(conn)
                 await _retry_dlq(conn)
                 if time.monotonic() - last_scan > SCAN_INTERVAL_SECONDS:
-                    await fee_overdue_scan(conn)
-                    await payment_claim_escalation(conn)
-                    await gateway_payment_sweep(conn)
-                    await admissions_aging(conn)
+                    # Each job isolated: one persistently-failing job must not starve the
+                    # others, and must not block last_scan from advancing (which would
+                    # otherwise hot-loop this whole block every poll cycle instead of
+                    # backing off to the next hourly scan).
+                    for job in (fee_overdue_scan, payment_claim_escalation, gateway_payment_sweep, admissions_aging):
+                        try:
+                            await job(conn)
+                        except Exception:  # noqa: BLE001 — log and move to the next job
+                            logger.exception("scheduled job failed: %s", job.__name__)
                     last_scan = time.monotonic()
                 if time.monotonic() - last_reconcile > RECONCILE_INTERVAL_SECONDS:
                     await money_reconciliation(conn)
