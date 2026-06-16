@@ -224,9 +224,9 @@ async def payment_claim_escalation(conn: asyncpg.Connection) -> dict:
                EXTRACT(EPOCH FROM (NOW() - fp.created_at)) / 86400 AS age_days
         FROM fee_payments fp
         WHERE fp.status = 'pending_verification'
-          AND fp.created_at < NOW() - ($1 || ' days')::interval
+          AND fp.created_at < NOW() - (INTERVAL '1 day' * $1)
           AND (fp.escalated_at IS NULL
-               OR fp.escalated_at < NOW() - ($1 || ' days')::interval)
+               OR fp.escalated_at < NOW() - (INTERVAL '1 day' * $1))
         """,
         CLAIM_ESCALATE_DAYS,
     )
@@ -272,7 +272,7 @@ async def gateway_payment_sweep(conn: asyncpg.Connection) -> dict:
             UPDATE fee_payments
                SET status = 'failed'
              WHERE status IN ('pending', 'processing')
-               AND created_at < NOW() - ($1 || ' hours')::interval
+               AND created_at < NOW() - (INTERVAL '1 hour' * $1)
             RETURNING id, tenant_id, student_id
             """,
             GATEWAY_TIMEOUT_HOURS,
@@ -312,9 +312,9 @@ async def admissions_aging(conn: asyncpg.Connection) -> dict:
                EXTRACT(EPOCH FROM (NOW() - a.updated_at)) / 86400 AS age_days
         FROM admissions a
         WHERE a.status IN ('enquiry', 'application', 'docs_pending')
-          AND a.updated_at < NOW() - ($1 || ' days')::interval
+          AND a.updated_at < NOW() - (INTERVAL '1 day' * $1)
           AND (a.nudged_at IS NULL
-               OR a.nudged_at < NOW() - ($1 || ' days')::interval)
+               OR a.nudged_at < NOW() - (INTERVAL '1 day' * $1))
         """,
         ADMISSION_STALE_DAYS,
     )
