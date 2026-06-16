@@ -7,7 +7,7 @@ import { PublicSite } from './views/PublicSite'
 import { PortalShell } from './portals/PortalShell'
 import { buildPortalConfig } from './portals/configs'
 import { featuresApi, type FeatureFlags } from './api/notifications'
-import { Brand } from './ui'
+import { Brand, PasswordInput } from './ui'
 import type { TokenResponse } from './types/auth'
 
 function getSubdomain(): string {
@@ -248,9 +248,7 @@ export function App() {
           </div>
           <div>
             <label class="lbl">Password</label>
-            <input class="input" type="password" value={password}
-              onInput={e => setPassword((e.target as HTMLInputElement).value)}
-              required />
+            <PasswordInput value={password} onInput={setPassword} required />
           </div>
           <button class="btn btn-primary btn-lg" type="submit" disabled={loading} style={{ width: '100%', marginTop: '.375rem' }}>
             {loading ? 'Signing in…' : 'Sign in'}

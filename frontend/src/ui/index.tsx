@@ -5,7 +5,9 @@
  * globals.css (the landing page is the source of truth). No Material/Bootstrap/
  * Ant/shadcn/Daisy. Reuse these instead of re-implementing visual variations.
  */
+import { useState } from 'preact/hooks'
 import type { ComponentChildren, JSX } from 'preact'
+import { Icon } from './icons'
 export { Icon, type IconName } from './icons'
 export { ExcelImport } from './ExcelImport'
 
@@ -34,6 +36,47 @@ export function Brand({
         <span style={{ fontSize: '1.05rem', fontWeight: 700 }}>Tulips.edu</span>
         {sub && <span style={{ fontSize: '.62rem', opacity: .8, fontWeight: 500, fontFamily: 'var(--font)' }}>{sub}</span>}
       </span>
+    </div>
+  )
+}
+
+// ── Password input (with show/hide toggle) ──────────────────────────────────
+export function PasswordInput({
+  value, onInput, placeholder, required, autocomplete, class: cls,
+}: {
+  value: string
+  onInput: (value: string) => void
+  placeholder?: string
+  required?: boolean
+  autocomplete?: string
+  class?: string
+}) {
+  const [shown, setShown] = useState(false)
+  return (
+    <div style={{ position: 'relative' }}>
+      <input
+        class={`input ${cls ?? ''}`.trim()}
+        style={{ paddingRight: '2.25rem' }}
+        type={shown ? 'text' : 'password'}
+        value={value}
+        onInput={e => onInput((e.target as HTMLInputElement).value)}
+        placeholder={placeholder}
+        required={required}
+        autocomplete={autocomplete}
+      />
+      <button
+        type="button"
+        onClick={() => setShown(s => !s)}
+        aria-label={shown ? 'Hide password' : 'Show password'}
+        title={shown ? 'Hide password' : 'Show password'}
+        style={{
+          position: 'absolute', right: '.4rem', top: '50%', transform: 'translateY(-50%)',
+          background: 'none', border: 'none', padding: '.25rem', cursor: 'pointer',
+          color: 'var(--gray-500)', display: 'flex', lineHeight: 0,
+        }}
+      >
+        <Icon name={shown ? 'eye-off' : 'eye'} size={18} />
+      </button>
     </div>
   )
 }

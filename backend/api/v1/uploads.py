@@ -16,6 +16,7 @@ from core.rbac import require_roles
 
 try:
     import boto3
+    import botocore.exceptions
     from botocore.config import Config as BotocoreConfig
     _HAS_BOTO3 = True
 except ImportError:
@@ -37,7 +38,9 @@ ALLOWED_CONTENT_TYPES = {
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 }
 
-MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # mirrors frontend limit; enforced server-side via R2 POST policy
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # mirrors frontend limit; enforced server-side in /confirm
+
+UPLOAD_ROLES = ("principal", "vice_principal", "class_teacher", "teacher")
 
 
 class UploadRequest(BaseModel):
@@ -49,7 +52,15 @@ class UploadResponse(BaseModel):
     upload_url: str
     object_key: str
     public_url: str
-    fields: dict[str, str]
+    content_type: str
+
+
+class ConfirmRequest(BaseModel):
+    object_key: str
+
+
+class ConfirmResponse(BaseModel):
+    size: int
 
 
 _r2_client_singleton = None
@@ -72,7 +83,7 @@ def _r2_client():
 @router.post(
     "/url",
     response_model=UploadResponse,
-    dependencies=[Depends(require_roles("principal", "vice_principal", "class_teacher", "teacher"))],
+    dependencies=[Depends(require_roles(*UPLOAD_ROLES))],
 )
 async def get_upload_url(body: UploadRequest, request: Request):
     if not _HAS_BOTO3 or not settings.r2_bucket_name:
@@ -89,22 +100,57 @@ async def get_upload_url(body: UploadRequest, request: Request):
     key = f"{tenant_id}/{uuid_lib.uuid4()}.{ext}"
 
     client = _r2_client()
-    # Presigned POST (not PUT) so a content-length-range condition is enforceable —
-    # R2/S3 rejects the upload itself if the browser lies about file size.
-    presigned = client.generate_presigned_post(
-        Bucket=settings.r2_bucket_name,
-        Key=key,
-        Fields={"Content-Type": body.content_type},
-        Conditions=[
-            {"Content-Type": body.content_type},
-            ["content-length-range", 1, MAX_UPLOAD_BYTES],
-        ],
+    # Presigned PUT — R2 does not implement presigned POST (S3 POST policy), so the
+    # content-length-range condition that would enforce max size server-side at upload
+    # time isn't available here. /confirm below closes that gap after the fact via a
+    # HEAD request, without proxying the file body through the app server.
+    upload_url = client.generate_presigned_url(
+        "put_object",
+        Params={
+            "Bucket": settings.r2_bucket_name,
+            "Key": key,
+            "ContentType": body.content_type,
+        },
         ExpiresIn=300,
     )
     public_url = f"{settings.r2_public_url.rstrip('/')}/{key}"
     return UploadResponse(
-        upload_url=presigned["url"],
+        upload_url=upload_url,
         object_key=key,
         public_url=public_url,
-        fields=presigned["fields"],
+        content_type=body.content_type,
     )
+
+
+@router.post(
+    "/confirm",
+    response_model=ConfirmResponse,
+    dependencies=[Depends(require_roles(*UPLOAD_ROLES))],
+)
+async def confirm_upload(body: ConfirmRequest, request: Request):
+    """Called after the browser PUTs the file straight to R2. Verifies the object
+    landed within the size limit (a client could otherwise lie about file.size before
+    upload) and deletes it if not — closing the gap left by R2 not supporting
+    presigned POST's content-length-range condition.
+    """
+    if not _HAS_BOTO3 or not settings.r2_bucket_name:
+        raise HTTPException(status_code=501, detail="File uploads not configured")
+
+    tenant_id = request.state.tenant_id
+    if not body.object_key.startswith(f"{tenant_id}/"):
+        raise HTTPException(status_code=403, detail="Object key does not belong to this tenant")
+
+    client = _r2_client()
+    try:
+        head = client.head_object(Bucket=settings.r2_bucket_name, Key=body.object_key)
+    except botocore.exceptions.ClientError:
+        raise HTTPException(status_code=404, detail="Uploaded object not found")
+
+    size = head["ContentLength"]
+    if size == 0 or size > MAX_UPLOAD_BYTES:
+        client.delete_object(Bucket=settings.r2_bucket_name, Key=body.object_key)
+        raise HTTPException(
+            status_code=413,
+            detail=f"File exceeds the {MAX_UPLOAD_BYTES // (1024 * 1024)} MB limit",
+        )
+    return ConfirmResponse(size=size)
