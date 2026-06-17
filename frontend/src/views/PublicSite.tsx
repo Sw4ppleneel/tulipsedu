@@ -1,5 +1,7 @@
 import { schoolSlug } from '../assets'
 import { DaffodilsPublicSchool } from './public/DaffodilsPublicSchool'
+import { PremchandMahtoInterCollege } from './public/PremchandMahtoInterCollege'
+import { PremchandHighSchool } from './public/PremchandHighSchool'
 
 interface Props {
   onStaffLogin: () => void
@@ -10,6 +12,8 @@ interface Props {
 // Add a new entry here when onboarding a new school.
 const SCHOOL_SITES: Record<string, (props: Props) => preact.JSX.Element> = {
   daffodilspublicschool: DaffodilsPublicSchool,
+  premchandmahtoic: PremchandMahtoInterCollege,
+  premchandhighschool: PremchandHighSchool,
 }
 
 // Fallback for slugs not yet mapped to a dedicated site.

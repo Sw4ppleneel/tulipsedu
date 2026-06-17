@@ -28,7 +28,7 @@ Completed (Phase 1, all deployed to *.tulipsedu.in, 4 schools seeded):
 - Apex marketing landing page at tulipsedu.in / www (2026-06-12)
 - R2 upload endpoint (live — presigned URL flow, teacher media uploads wired)
 
-Completed this session: **W9** (fee lifecycle) · **W14** (analytics) · **W11** (rollover) · **W10** (admissions pipeline) · **Integrity hardening + escalation** (migration 033) · **Teacher media uploads** (R2 presigned, homework/study material) · **Per-school public websites** (DaffodilsPublicSchool, router pattern)
+Completed this session: **W9** (fee lifecycle) · **W14** (analytics) · **W11** (rollover) · **W10** (admissions pipeline) · **Integrity hardening + escalation** (migration 033) · **Teacher media uploads** (R2 presigned, homework/study material) · **Per-school public websites** (DaffodilsPublicSchool, PremchandMahtoInterCollege, router pattern)
 
 Remaining: **W13 report-card PDF generation is DONE** (reportlab, free, download-and-forward).
 **W12 (SMS/WhatsApp) removed from scope** — in-app notifications + parent portal Updates tab + CMS announcements fully cover the communication loop without a paid dependency.
@@ -386,9 +386,9 @@ frontend/src/views/
   PublicSite.tsx                      ← thin slug→component router only
   public/
     DaffodilsPublicSchool.tsx         ← Daffodils: navy/gold/rose, Nursery–VIII, Mesra Ranchi
+    PremchandMahtoInterCollege.tsx    ← Premchand Mahto IC: royal-blue/gold serif, +2 XI–XII, 3 streams (Sci/Com/Arts), JAC, Mesra Neori
+    PremchandHighSchool.tsx           ← Premchand High School: same blue/gold serif, Estd 1981, Class I–X Matric (JAC), Manav Vikas Sanstha, Mesra Neori Vikas
     VivekMemorialHighSchool.tsx       ← (to be built when needed)
-    PremchandMahtoIC.tsx              ← (to be built when needed)
-    PremchandHighSchool.tsx           ← (to be built when needed)
 ```
 
 ### How the router works
@@ -399,6 +399,8 @@ looks it up in a `SCHOOL_SITES` map. Unknown slugs render a generic "being set u
 ```ts
 const SCHOOL_SITES: Record<string, Component> = {
   daffodilspublicschool:   DaffodilsPublicSchool,
+  premchandmahtoic:        PremchandMahtoInterCollege,
+  premchandhighschool:     PremchandHighSchool,
   vivekmemorialhighschool: VivekMemorialHighSchool,  // add here when built
 }
 ```
