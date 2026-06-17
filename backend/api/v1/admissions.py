@@ -1,5 +1,6 @@
 """Admissions pipeline — enquiry→application→docs_pending→approved→enrolled/rejected."""
 
+from datetime import date
 from typing import Optional
 from uuid import UUID
 
@@ -28,7 +29,7 @@ VALID_TRANSITIONS: dict[str, list[str]] = {
 
 class EnquiryCreate(BaseModel):
     applicant_name: str
-    applicant_dob: Optional[str] = None
+    applicant_dob: Optional[date] = None
     applying_class_id: Optional[UUID] = None
     parent_name: Optional[str] = None
     parent_phone: Optional[str] = None

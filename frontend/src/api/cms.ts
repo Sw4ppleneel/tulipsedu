@@ -64,11 +64,35 @@ async function publicGet<T>(path: string): Promise<T> {
   return res.json() as Promise<T>
 }
 
+async function publicPost<T>(path: string, body: unknown): Promise<T> {
+  const slug = publicSlug()
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (slug) headers['X-Tenant-Slug'] = slug
+  const res = await fetch(`/api/v1${path}`, { method: 'POST', headers, body: JSON.stringify(body) })
+  if (!res.ok) throw new Error(`Request failed (${res.status})`)
+  return res.json() as Promise<T>
+}
+
 // Public (unauthenticated, tenant-scoped)
 export const cmsPublic = {
   schoolInfo: () => publicGet<SchoolInfo>('/public/school-info'),
   pages: () => publicGet<CmsPage[]>('/public/pages'),
   announcements: () => publicGet<CmsAnnouncement[]>('/public/announcements'),
+}
+
+// Public admission enquiry — tenant resolved from the site's slug (X-Tenant-Slug).
+// An enquiry submitted on a school's site is scoped to that tenant only.
+export interface EnquiryInput {
+  applicant_name: string
+  applicant_dob?: string
+  parent_name?: string
+  parent_phone?: string
+  notes?: string
+}
+
+export const admissionsPublic = {
+  submitEnquiry: (d: EnquiryInput) =>
+    publicPost<{ id: string; status: string; message: string }>('/admissions/enquiry', d),
 }
 
 // Admin (authenticated)
