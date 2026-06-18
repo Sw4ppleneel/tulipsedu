@@ -461,8 +461,10 @@ Grade scale (CBSE): A1≥91, A2≥81, B1≥71, B2≥61, C1≥51, C2≥41, D≥33
 > | PAYROLL_RUN_CREATED | no consumer (payroll audit signal; payload run_id, period, payslips) | ✅ emitted |
 > | PAYROLL_FINALIZED | no consumer (payroll audit signal; payload run_id) | ✅ emitted |
 > | *(scheduled, hourly)* `scheduler.fee_overdue_scan` | overdue monthly ledger → parent FEE_OVERDUE; emits FEE_OVERDUE_REMINDED | ✅ live |
-> | EXAM_PUBLISHED | report-card **PDF** generation | ⏳ blocked (R2 + PDF dep) |
-> | ADMISSION_APPROVED *(new)* | create student + assign fees + provision parent access | ⏳ not built |
+> | EXAM_PUBLISHED | report-card **PDF** download (staff + parent; reportlab) | ✅ live (2026-06-18) |
+> | ADMISSION_ENQUIRY_RECEIVED | no consumer (public web form → pipeline; staff act on board) | ✅ emitted |
+> | ADMISSION_DOCUMENT_UPLOADED | no consumer (applicant attached a supporting doc; payload admission_id, document_name) | ✅ emitted |
+> | ADMISSION_APPROVED | `admissions.enrol` orchestrated txn: create student + fee ledger + enrol | ✅ live |
 >
 > Idempotency: every notification insert is `ON CONFLICT DO NOTHING` against
 > `notifications_dedup_idx (tenant_id, recipient_type, recipient_id, type, ref)`, so
@@ -510,6 +512,12 @@ Payload: tenant_id, exam_term_id, count
 ## PARENT_LOGIN
 Producer: services/parent.py
 Payload: tenant_id, parent_id
+
+## ADMISSION_DOCUMENT_UPLOADED
+Producer: api/v1/admissions.py (public, token-gated)
+Payload: tenant_id, admission_id, document_name
+Emitted when a public applicant attaches a supporting document (e.g. matric
+marksheet) to their enquiry. Feature-gated per tenant by `feature_flags.admission_docs`.
 
 ---
 
@@ -620,6 +628,22 @@ Payload: tenant_id, parent_id
 ## File Uploads
 
 ### POST /api/v1/uploads/url — Implemented (R2 presigned PUT URL; returns 501 until R2 configured)
+
+## Admissions
+
+### POST /api/v1/admissions/enquiry — Implemented (public, no JWT; tenant from slug). Returns `upload_token` when the tenant has `feature_flags.admission_docs`.
+### POST /api/v1/admissions/documents/upload-url — Implemented (public; authorised by the admission upload token, not a user JWT). Feature-gated; PDF/JPG/PNG only; key `{tenant}/admissions/{admission_id}/{uuid}.{ext}`; 300s presigned PUT.
+### POST /api/v1/admissions/documents/confirm — Implemented (public, token-gated). HEADs the object (≤5 MB, allowed type — else delete + 413) and appends {name,url,key} to `admissions.documents`; emits ADMISSION_DOCUMENT_UPLOADED.
+### GET /api/v1/admissions — Implemented (staff: principal/VP; pipeline list)
+### GET /api/v1/admissions/:id — Implemented (staff)
+### PATCH /api/v1/admissions/:id/status — Implemented (staff; guarded transitions)
+### POST /api/v1/admissions/:id/enrol — Implemented (principal; orchestrated student+ledger txn)
+
+**Public-upload security model:** uploads are never proxied through the app. An applicant
+submits the enquiry first (creating the row), receiving a 30-min HMAC-signed token scoped to
+that one admission_id + tenant. The upload-url/confirm endpoints verify that token themselves
+(they are JWT-exempt) and only mint URLs for the enquiry's own R2 prefix. Per-tenant gate via
+`feature_flags.admission_docs` (currently: premchandmahtoic only).
 
 ---
 

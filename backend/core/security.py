@@ -35,5 +35,22 @@ def create_refresh_token(data: dict[str, Any]) -> str:
     return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
 
 
+def create_upload_token(admission_id: Any, tenant_id: Any, minutes: int = 30) -> str:
+    """Short-lived token authorising document uploads for ONE admission enquiry.
+
+    Not an access token (type != "access"), so the tenant middleware rejects it
+    on protected routes — the admission upload endpoints are JWT-exempt and verify
+    this token themselves.
+    """
+    payload = {
+        "type": "admission_upload",
+        "admission_id": str(admission_id),
+        "tenant_id": str(tenant_id),
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=minutes),
+        "iat": datetime.now(timezone.utc),
+    }
+    return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
+
+
 def decode_token(token: str) -> dict[str, Any]:
     return jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])

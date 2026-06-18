@@ -5,7 +5,7 @@
 Project: Tulips.edu
 Phase: Phase 2 — Workflow ERP (lifecycle state machines)
 Current Sprint: Sprint 5 — W14 Analytics, W11 Rollover, W10 Admissions
-Last Updated: 2026-06-15
+Last Updated: 2026-06-18
 
 ---
 
@@ -13,6 +13,49 @@ Last Updated: 2026-06-15
 
 Current Phase: Phase 2 Workflow ERP — lifecycle state machines in progress
 Current Sprint: Sprint 5 — W14 Analytics (next), W11 Rollover, W10 Admissions
+
+## ✅ DEPLOYED 2026-06-18 — admissions public form polish + document upload (migration 034)
+
+1. **W13 report-card PDF — now DEPLOYED.** The previously-built-but-undeployed staff +
+   parent report-card PDF endpoints are live (was 404, now 401 auth-gated). reportlab already
+   on the image; no migration. Code + frontend only.
+2. **Public admission form reworked → collapsible dropdown.** The inline form was too heavy
+   on the page; it now sits collapsed behind an "Apply Online — Start Admission Enquiry"
+   button and drops down via a max-height CSS transition (no animation lib). All 3 school sites.
+3. **Admission document upload (migration 034, PC Inter College only).** Decided model:
+   *upload-after-submit, token-gated* (safest). Flow: applicant submits enquiry → backend
+   returns a 30-min HMAC token scoped to that admission → browser uploads each file directly
+   to R2 via a presigned PUT → confirm endpoint HEAD-checks (≤5 MB, PDF/JPG/PNG, else
+   delete+413) and appends {name,url,key} to the new `admissions.documents` JSONB. Public
+   upload endpoints are JWT-exempt and verify the token themselves; gated per-tenant by
+   `feature_flags.admission_docs` (set TRUE for `premchandmahtoic` only). Docs collected:
+   Class 10 (Matric) Marksheet*, Transfer Certificate*, Caste/Category Certificate. Other
+   schools collect docs internally (no upload UI).
+   - Event: **ADMISSION_DOCUMENT_UPLOADED** (registered in worker, no consumer yet).
+   - Endpoints: `POST /admissions/documents/upload-url`, `POST /admissions/documents/confirm`;
+     `POST /admissions/enquiry` now returns `upload_token` for docs-enabled tenants.
+   - New `core/r2.py` shared R2 client (uploads.py left untouched).
+4. **Bug fix (latent, surfaced by #3): JSONB `feature_flags` decoded as a string.** No JSONB
+   codec on the asyncpg pool, so `request.state.feature_flags` was the raw JSON string; it
+   only ever worked because the column was always NULL (`None or {}` → dict). Populating it
+   broke `.get()` (and would have broken `/me/features` + the live payments flag path). Fixed
+   at the single chokepoint — the tenant middleware now `json.loads` the JSONB string once.
+   JSONB *writes* are untouched (still pass JSON strings).
+
+**UI fixes (frontend-only, deployed 2026-06-18):**
+- Circular logo crop for Premchand Mahto IC + Premchand High School — the square logo was
+  leaking past the rounded chip; chip is now a circle with `overflow:hidden` and the image is
+  cropped to the circle (`objectFit:cover`, `border-radius:50%`). Daffodils unchanged.
+- App-wide horizontal-scroll fix: `html,body{overflow-x:clip;max-width:100%}` in globals.css.
+  Used `clip` (not `hidden`) so it doesn't create a scroll container — `position:sticky`
+  (PortalShell + ParentPortal headers) and the public sites' `position:fixed` navs still work.
+
+Verified on prod: migration 034 recorded + `documents` column present; flag TRUE only for
+premchandmahtoic; gating matrix (enquiry token only for docs school; upload-url 403 off-feature
+/ 401 bad-token / 415 bad-type / 200 valid); full E2E (enquiry→presigned PUT→confirm→documents
+JSONB) round-trip with a dummy PDF, then test object + 5 test rows deleted. `/me/features`
+returns 401 (not 500) confirming the flag-parse fix. Doc-upload UI ("Supporting Documents") in
+the live bundle; all containers healthy.
 
 Completed (Phase 1, all deployed to *.tulipsedu.in, 4 schools seeded):
 - Auth + Tenant Isolation + RBAC (6 staff roles + parent, migration 018)

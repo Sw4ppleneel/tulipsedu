@@ -1,18 +1,28 @@
 """Admissions pipeline — enquiry→application→docs_pending→approved→enrolled/rejected."""
 
+import json
 from datetime import date
 from typing import Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from jose import JWTError
 from pydantic import BaseModel
 
+from config import settings
 from core.events import emit
 from core.rbac import require_roles
+from core.r2 import R2ClientError, r2_client, r2_enabled
+from core.security import create_upload_token, decode_token
 from services.finance import generate_ledger
 from models.finance import GenerateLedgerRequest
 
 router = APIRouter(prefix="/admissions", tags=["admissions"])
+
+# Public admission-document upload constraints (matric marksheet, TC, etc.).
+ADMISSION_DOC_CONTENT_TYPES = {"application/pdf", "image/jpeg", "image/png"}
+_EXT_FOR_TYPE = {"application/pdf": "pdf", "image/jpeg": "jpg", "image/png": "png"}
+MAX_ADMISSION_DOC_BYTES = 5 * 1024 * 1024  # 5 MB per document
 
 _STAFF = Depends(require_roles("principal", "vice_principal"))
 _PRINCIPAL = Depends(require_roles("principal"))
@@ -73,7 +83,127 @@ async def create_enquiry(data: EnquiryCreate, request: Request):
             "admission_id": str(row["id"]),
             "applicant_name": data.applicant_name,
         })
-    return {"id": str(row["id"]), "status": row["status"], "message": "Enquiry received. We will contact you shortly."}
+
+    resp = {
+        "id": str(row["id"]),
+        "status": row["status"],
+        "message": "Enquiry received. We will contact you shortly.",
+    }
+    # Schools that collect documents online (feature-gated) get a short-lived
+    # token so the applicant can upload supporting files for THIS enquiry only.
+    flags = getattr(request.state, "feature_flags", {}) or {}
+    if flags.get("admission_docs"):
+        resp["upload_token"] = create_upload_token(row["id"], tid)
+    return resp
+
+
+# ── Public admission-document upload (no auth; admission-scoped token) ─────────
+
+class DocUploadUrlRequest(BaseModel):
+    token: str
+    filename: str
+    content_type: str
+
+
+class DocConfirmRequest(BaseModel):
+    token: str
+    object_key: str
+    name: str
+
+
+def _verify_upload_token(token: str, tenant_id) -> dict:
+    """Validate an admission upload token; returns its claims or raises 401/403."""
+    try:
+        claims = decode_token(token)
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Upload link expired. Please submit the form again.")
+    if claims.get("type") != "admission_upload":
+        raise HTTPException(status_code=401, detail="Invalid upload token.")
+    if str(claims.get("tenant_id")) != str(tenant_id):
+        raise HTTPException(status_code=403, detail="Tenant mismatch.")
+    return claims
+
+
+def _require_docs_enabled(request: Request):
+    flags = getattr(request.state, "feature_flags", {}) or {}
+    if not flags.get("admission_docs"):
+        raise HTTPException(status_code=403, detail="Online document upload is not enabled for this school.")
+    if not r2_enabled():
+        raise HTTPException(status_code=501, detail="File uploads are not configured.")
+
+
+@router.post("/documents/upload-url")
+async def admission_doc_upload_url(body: DocUploadUrlRequest, request: Request):
+    """Mint a presigned PUT URL for one admission document. The object is keyed
+    under the enquiry so it can only land in that admission's namespace."""
+    tid = request.state.tenant_id
+    _require_docs_enabled(request)
+    claims = _verify_upload_token(body.token, tid)
+    admission_id = claims["admission_id"]
+
+    if body.content_type not in ADMISSION_DOC_CONTENT_TYPES:
+        raise HTTPException(status_code=415, detail="Only PDF, JPG, or PNG files are allowed.")
+
+    ext = _EXT_FOR_TYPE[body.content_type]
+    key = f"{tid}/admissions/{admission_id}/{uuid4()}.{ext}"
+    client = r2_client()
+    upload_url = client.generate_presigned_url(
+        "put_object",
+        Params={"Bucket": settings.r2_bucket_name, "Key": key, "ContentType": body.content_type},
+        ExpiresIn=300,
+    )
+    public_url = f"{settings.r2_public_url.rstrip('/')}/{key}"
+    return {"upload_url": upload_url, "object_key": key, "public_url": public_url}
+
+
+@router.post("/documents/confirm")
+async def admission_doc_confirm(body: DocConfirmRequest, request: Request):
+    """Verify the uploaded object (type + size) and attach its metadata to the
+    enquiry. Rejects + deletes anything outside the allowlist/size cap."""
+    tid = request.state.tenant_id
+    _require_docs_enabled(request)
+    claims = _verify_upload_token(body.token, tid)
+    admission_id = claims["admission_id"]
+
+    prefix = f"{tid}/admissions/{admission_id}/"
+    if not body.object_key.startswith(prefix):
+        raise HTTPException(status_code=403, detail="Object does not belong to this enquiry.")
+
+    client = r2_client()
+    try:
+        head = client.head_object(Bucket=settings.r2_bucket_name, Key=body.object_key)
+    except R2ClientError:
+        raise HTTPException(status_code=404, detail="Uploaded file not found.")
+
+    size = head.get("ContentLength", 0)
+    ctype = head.get("ContentType", "")
+    if size == 0 or size > MAX_ADMISSION_DOC_BYTES or ctype not in ADMISSION_DOC_CONTENT_TYPES:
+        client.delete_object(Bucket=settings.r2_bucket_name, Key=body.object_key)
+        raise HTTPException(
+            status_code=413,
+            detail=f"File rejected — must be PDF/JPG/PNG up to {MAX_ADMISSION_DOC_BYTES // (1024 * 1024)} MB.",
+        )
+
+    public_url = f"{settings.r2_public_url.rstrip('/')}/{body.object_key}"
+    doc = {"name": body.name[:120], "url": public_url, "key": body.object_key}
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            UPDATE admissions
+               SET documents = documents || $1::jsonb, updated_at = NOW()
+             WHERE id = $2 AND tenant_id = $3
+             RETURNING id
+            """,
+            json.dumps([doc]), UUID(admission_id), tid,
+        )
+        if not row:
+            raise HTTPException(status_code=404, detail="Enquiry not found.")
+        await emit(conn, "ADMISSION_DOCUMENT_UPLOADED", tid, {
+            "admission_id": str(admission_id),
+            "document_name": doc["name"],
+        })
+    return {"ok": True, "url": public_url, "name": doc["name"]}
 
 
 # ── Staff routes ───────────────────────────────────────────────────────────────
@@ -91,7 +221,7 @@ async def list_admissions(
         rows = await conn.fetch(
             """
             SELECT a.id, a.status, a.applicant_name, a.applicant_dob,
-                   a.parent_name, a.parent_phone, a.notes,
+                   a.parent_name, a.parent_phone, a.notes, a.documents,
                    a.public_enquiry, a.rejected_reason, a.student_id,
                    a.created_at, a.updated_at,
                    c.name AS class_name

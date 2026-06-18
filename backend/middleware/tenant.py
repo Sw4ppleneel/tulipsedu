@@ -1,3 +1,4 @@
+import json
 import logging
 
 from fastapi import Request
@@ -18,6 +19,10 @@ _JWT_EXEMPT = frozenset({
     "/api/v1/parent/auth/request-otp",
     "/api/v1/parent/auth/verify-otp",
     "/api/v1/parent/auth/login",
+    # Public admission-document upload — authorised by a short-lived, admission-
+    # scoped upload token verified inside the handler (not a user JWT).
+    "/api/v1/admissions/documents/upload-url",
+    "/api/v1/admissions/documents/confirm",
 })
 
 # Path prefixes that are JWT-exempt (public CMS + admissions enquiry)
@@ -56,7 +61,16 @@ class TenantMiddleware(BaseHTTPMiddleware):
 
         request.state.tenant_id = tenant["id"]
         request.state.tenant_slug = tenant["slug"]
-        request.state.feature_flags = tenant["feature_flags"] or {}
+        # asyncpg returns JSONB as a raw string (no codec registered on the pool);
+        # decode it once here so every reader of request.state.feature_flags gets a
+        # dict. NULL → {}.
+        raw_flags = tenant["feature_flags"]
+        if isinstance(raw_flags, str):
+            try:
+                raw_flags = json.loads(raw_flags)
+            except (ValueError, TypeError):
+                raw_flags = {}
+        request.state.feature_flags = raw_flags or {}
 
         jwt_exempt = path in _JWT_EXEMPT or any(path.startswith(p) for p in _JWT_EXEMPT_PREFIXES)
         if not jwt_exempt:

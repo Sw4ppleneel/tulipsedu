@@ -47,6 +47,9 @@
 
 /* ── Reset ─────────────────────────────────────────────────────────────────── */
 *,*::before,*::after{box-sizing:border-box}
+/* Kill stray horizontal scroll app-wide. `clip` (not `hidden`) clips the x-axis
+   without creating a scroll container, so position:sticky / fixed keep working. */
+html,body{overflow-x:clip;max-width:100%}
 body{margin:0;font-family:var(--font);font-size:14px;line-height:1.55;color:var(--gray-900);background:var(--gray-50);-webkit-font-smoothing:antialiased}
 h1,h2,h3,h4,h5{margin:0;font-weight:700;font-family:var(--font-display);letter-spacing:-.01em}
 p{margin:0}

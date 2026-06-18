@@ -68,6 +68,7 @@ HANDLERS: dict[str, list[Handler]] = {
     "ACADEMIC_YEAR_ROLLED_OVER": [],
     # Admissions pipeline lifecycle — in-app only until SMS/WhatsApp wired (W12).
     "ADMISSION_ENQUIRY_RECEIVED": [],
+    "ADMISSION_DOCUMENT_UPLOADED": [],
     "ADMISSION_STATUS_CHANGED":   [],
     "ADMISSION_APPROVED":         [],
     # Stale non-terminal admission → notify principal + VP to act.

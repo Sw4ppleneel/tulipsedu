@@ -90,9 +90,37 @@ export interface EnquiryInput {
   notes?: string
 }
 
+export interface EnquiryResult {
+  id: string
+  status: string
+  message: string
+  upload_token?: string   // present only when the school collects documents online
+}
+
 export const admissionsPublic = {
   submitEnquiry: (d: EnquiryInput) =>
-    publicPost<{ id: string; status: string; message: string }>('/admissions/enquiry', d),
+    publicPost<EnquiryResult>('/admissions/enquiry', d),
+
+  // Document upload (token-gated, tied to a just-created enquiry).
+  getDocUploadUrl: (token: string, filename: string, content_type: string) =>
+    publicPost<{ upload_url: string; object_key: string; public_url: string }>(
+      '/admissions/documents/upload-url', { token, filename, content_type }),
+
+  confirmDoc: (token: string, object_key: string, name: string) =>
+    publicPost<{ ok: boolean; url: string; name: string }>(
+      '/admissions/documents/confirm', { token, object_key, name }),
+
+  // Upload one file to a presigned R2 URL, then register it against the enquiry.
+  async uploadDocument(token: string, label: string, file: File): Promise<void> {
+    const { upload_url, object_key } = await this.getDocUploadUrl(token, file.name, file.type)
+    const put = await fetch(upload_url, {
+      method: 'PUT',
+      headers: { 'Content-Type': file.type },
+      body: file,
+    })
+    if (!put.ok) throw new Error(`Upload failed (${put.status})`)
+    await this.confirmDoc(token, object_key, label)
+  },
 }
 
 // Admin (authenticated)
