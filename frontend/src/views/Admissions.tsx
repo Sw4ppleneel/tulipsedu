@@ -3,6 +3,7 @@ import { listAdmissions, advanceStatus, enrolStudent } from '../api/admissions'
 import type { Admission, AdmissionStatus } from '../api/admissions'
 import { listAcademicYears, listClasses } from '../api/students'
 import type { AcademicYear, Class, Section } from '../types/student'
+import { isValidIndianMobile, INVALID_PHONE_MSG } from '../utils/phone'
 
 const COLUMNS: { status: AdmissionStatus; label: string; color: string; bg: string }[] = [
   { status: 'enquiry',     label: 'Enquiry',      color: '#374151', bg: '#f9fafb' },
@@ -78,7 +79,7 @@ function EnrolModal({
     if (!yearId || !classId || !sectionId) { setError('Select year, class and section'); return }
     if (!rollNo.trim()) { setError('Roll number is required'); return }
     if (!gender) { setError('Select gender'); return }
-    if (!/^\d{10}$/.test(phone.trim())) { setError('Parent phone must be a 10-digit number'); return }
+    if (!isValidIndianMobile(phone)) { setError(INVALID_PHONE_MSG); return }
     if (!dob) { setError('Date of birth is required'); return }
     setBusy(true); setError('')
     try {
@@ -122,9 +123,9 @@ function EnrolModal({
           <input value={rollNo} onInput={e => setRollNo((e.target as HTMLInputElement).value)} placeholder="Roll number *" style={INP} required />
           <select value={gender} onChange={e => setGender((e.target as HTMLSelectElement).value)} style={INP} required>
             <option value="">Gender *</option>
-            <option value="male">Male</option>
-            <option value="female">Female</option>
-            <option value="other">Other</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+            <option value="Other">Other</option>
           </select>
           <input value={phone} onInput={e => setPhone((e.target as HTMLInputElement).value)} placeholder="Parent phone (10 digits) *" style={INP} inputMode="numeric" maxLength={10} required />
           <input type="date" value={dob} onInput={e => setDob((e.target as HTMLInputElement).value)} style={INP} required />

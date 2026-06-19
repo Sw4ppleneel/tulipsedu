@@ -1,6 +1,7 @@
 import { useState } from 'preact/hooks'
 import { createStaff } from '../api/staff'
 import type { StaffCreate } from '../types/staff'
+import { isValidIndianMobile, INVALID_PHONE_MSG } from '../utils/phone'
 
 interface Props {
   onCreated: () => void
@@ -34,6 +35,7 @@ export function StaffForm({ onCreated, onCancel }: Props) {
   async function handleSubmit(e: Event) {
     e.preventDefault()
     setError('')
+    if (!isValidIndianMobile(form.phone_number)) { setError(INVALID_PHONE_MSG); return }
     setLoading(true)
     try {
       const payload: StaffCreate = { ...form }

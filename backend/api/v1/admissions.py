@@ -69,6 +69,11 @@ class EnrolRequest(BaseModel):
     parent_phone: Optional[str] = None
     date_of_birth: Optional[date] = None
 
+    @field_validator("parent_phone")
+    @classmethod
+    def validate_phone(cls, v: Optional[str]) -> Optional[str]:
+        return normalize_indian_mobile(v) if v else v
+
 
 # ── Public enquiry endpoint (no auth) ─────────────────────────────────────────
 
@@ -334,16 +339,18 @@ async def enrol_student(admission_id: UUID, body: EnrolRequest, request: Request
             # surface as a 500).
             gender = body.gender.strip()
             roll_number = body.roll_number.strip()
-            parent_phone = (body.parent_phone or adm["parent_phone"] or "").strip()
+            raw_phone = (body.parent_phone or adm["parent_phone"] or "").strip()
             date_of_birth = body.date_of_birth or adm["applicant_dob"]
             if not gender:
                 raise HTTPException(status_code=400, detail="Gender is required to enrol")
             if not roll_number:
                 raise HTTPException(status_code=400, detail="Roll number is required to enrol")
-            if not parent_phone:
+            if not raw_phone:
                 raise HTTPException(status_code=400, detail="Parent phone is required to enrol")
-            if len(parent_phone) > 10:
-                raise HTTPException(status_code=400, detail="Parent phone must be a 10-digit number")
+            try:
+                parent_phone = normalize_indian_mobile(raw_phone)
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc))
             if not date_of_birth:
                 raise HTTPException(status_code=400, detail="Date of birth is required to enrol")
 

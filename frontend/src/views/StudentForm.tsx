@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'preact/hooks'
 import { createStudent } from '../api/students'
 import type { AcademicYear, Class, Section, StudentCreate } from '../types/student'
+import { isValidIndianMobile, INVALID_PHONE_MSG } from '../utils/phone'
 
 interface Props {
   academicYears: AcademicYear[]
@@ -45,6 +46,7 @@ export function StudentForm({ academicYears, classes, onCreated, onCancel }: Pro
   async function handleSubmit(e: Event) {
     e.preventDefault()
     setError('')
+    if (!isValidIndianMobile(form.parent_phone)) { setError(INVALID_PHONE_MSG); return }
     setLoading(true)
     try {
       await createStudent(form)

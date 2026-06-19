@@ -5,7 +5,7 @@
 Project: Tulips.edu
 Phase: Phase 2 — Workflow ERP (lifecycle state machines)
 Current Sprint: Sprint 5 — W14 Analytics, W11 Rollover, W10 Admissions
-Last Updated: 2026-06-18
+Last Updated: 2026-06-19
 
 ---
 
@@ -865,6 +865,22 @@ Migration 031. Full write-up in ARCHITECTURE.md.
 - (RESOLVED) Roll numbers not unique → constraint already enforced (migration 006)
 - (RESOLVED) Attendance locked after submit → edit-after-submit shipped (Step 2)
 - (RESOLVED) Timetable teacher field → `timetable_slots.staff_id` exists (migration 013)
+- ⚠️ **Admission-number auto-generation is a PLACEHOLDER — do NOT rely on it yet.**
+  `enrol_student` (`api/v1/admissions.py`) currently mints `adm_no` as zero-padded `MAX(...)+1`
+  when the principal leaves the field blank. Two problems:
+  1. **We don't know each school's admission-number convention.** Real schools use varied
+     formats — `2026/001`, `PHS-1234`, class/section-prefixed, registration-register serials,
+     etc. A generic 4-digit sequence will diverge from (or collide with) their real register.
+     **Decision pending: gather each tenant's convention first**, then either require the
+     principal to enter `adm_no` at enrol (per their scheme) or make the format a per-tenant
+     config. Until then, treat auto-gen as a fallback only — prefer manual entry.
+  2. **Latent 500:** the `CAST(REGEXP_REPLACE(admission_no,'[^0-9]','','g') AS INTEGER)` throws
+     `invalid input syntax for type integer` if any existing student's `admission_no` is fully
+     non-numeric (the regex yields `''`, and `CAST('' AS INTEGER)` errors), aborting the enrol
+     transaction. Also a per-tenant race: two concurrent enrolments can read the same MAX →
+     `unique_tenant_admission_no` violation. When the convention is known, harden alongside it
+     (filter to purely-numeric rows + serialize per-tenant via advisory lock, keeping
+     uniqueness on `(tenant_id, admission_no)`).
 - Feature flags (`tenants.features` JSONB) mandated by CLAUDE.md but NOT built — see W4.
   (ROADMAP previously mislabelled migration 023 as this; 023 is the transport fee filter.)
 - Domain events are recorded but not consumed (no worker) — the central Phase-2 gap (W1–W2).
