@@ -7,10 +7,11 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from jose import JWTError
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from config import settings
 from core.events import emit
+from core.phone import normalize_indian_mobile
 from core.rbac import require_roles
 from core.r2 import R2ClientError, r2_client, r2_enabled
 from core.security import create_upload_token, decode_token
@@ -44,6 +45,12 @@ class EnquiryCreate(BaseModel):
     parent_name: Optional[str] = None
     parent_phone: Optional[str] = None
     notes: Optional[str] = None
+
+    @field_validator("parent_phone")
+    @classmethod
+    def validate_phone(cls, v: Optional[str]) -> Optional[str]:
+        # Public form — validate when provided, allow blank (enquiry may omit it).
+        return normalize_indian_mobile(v) if v else v
 
 
 class StatusAdvance(BaseModel):

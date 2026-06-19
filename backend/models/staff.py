@@ -4,6 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, field_validator
 
+from core.phone import normalize_indian_mobile
+
 
 class StaffCreate(BaseModel):
     employee_no: str
@@ -19,10 +21,7 @@ class StaffCreate(BaseModel):
     @field_validator("phone_number")
     @classmethod
     def normalize_phone(cls, v: str) -> str:
-        digits = "".join(c for c in v if c.isdigit() or c == "+")
-        if not digits:
-            raise ValueError("Invalid phone number")
-        return digits
+        return normalize_indian_mobile(v)
 
 
 class StaffUpdate(BaseModel):
@@ -35,6 +34,11 @@ class StaffUpdate(BaseModel):
     date_of_birth: Optional[date] = None
     user_id: Optional[UUID] = None
     is_active: Optional[bool] = None
+
+    @field_validator("phone_number")
+    @classmethod
+    def normalize_phone(cls, v: Optional[str]) -> Optional[str]:
+        return normalize_indian_mobile(v) if v is not None else v
 
 
 class StaffResponse(BaseModel):

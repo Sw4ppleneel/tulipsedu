@@ -4,6 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, field_validator
 
+from core.phone import normalize_indian_mobile
+
 
 class AcademicYearCreate(BaseModel):
     name: str
@@ -63,10 +65,7 @@ class StudentCreate(BaseModel):
     @field_validator("parent_phone")
     @classmethod
     def validate_phone(cls, v: str) -> str:
-        digits = "".join(c for c in v if c.isdigit())
-        if len(digits) != 10:
-            raise ValueError("Parent phone must be exactly 10 digits")
-        return digits
+        return normalize_indian_mobile(v)
 
     @field_validator("gender")
     @classmethod
@@ -89,6 +88,11 @@ class StudentUpdate(BaseModel):
     is_hosteler: Optional[bool] = None
     is_transport: Optional[bool] = None
     is_active: Optional[bool] = None
+
+    @field_validator("parent_phone")
+    @classmethod
+    def validate_phone(cls, v: Optional[str]) -> Optional[str]:
+        return normalize_indian_mobile(v) if v is not None else v
 
 
 class StudentResponse(BaseModel):
