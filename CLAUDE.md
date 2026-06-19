@@ -2,6 +2,19 @@
 
 This file provides strict, non-negotiable architectural guidance to Claude Code when editing, refactoring, or generating code within this repository.
 
+# ⚠️ Current Data State (2026-06-19)
+
+**ALL DATA — including everything on PRODUCTION (`swap@62.72.13.103`) — is MOCK/seed data.**
+There are no real students, parents, staff, fees, or payments yet; the four live tenants
+(`daffodilspublicschool`, `premchandhighschool`, `premchandmahtoic`, `vivekmemorialhighschool`)
+are seeded demos for testing and demos. Consequences:
+
+* Destructive prod data operations (wiping/regenerating fees, deleting students, etc.) are
+  **low-risk right now** — but still confirm scope and keep operations tenant-scoped + reversible.
+* No real PII or real money is involved yet; the ₹1 "test" fees and seed logins are deliberate.
+* **Revisit this note before first real onboarding.** Once a real institution's data lands on
+  prod, this section must be removed and prod data treated as production-grade (no ad-hoc mutations).
+
 # Project Overview
 
 Tulips.edu is a multi-tenant School ERP SaaS built for rural and semi-urban Indian institutions (500–5,000 students).
