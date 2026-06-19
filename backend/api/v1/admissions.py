@@ -55,8 +55,12 @@ class EnrolRequest(BaseModel):
     academic_year_id: UUID
     class_id: UUID
     section_id: UUID
-    roll_number: Optional[str] = None
+    roll_number: str
+    gender: str
     adm_no: Optional[str] = None
+    # Defaulted from the admission record when omitted; students.* are NOT NULL.
+    parent_phone: Optional[str] = None
+    date_of_birth: Optional[date] = None
 
 
 # ── Public enquiry endpoint (no auth) ─────────────────────────────────────────
@@ -317,6 +321,25 @@ async def enrol_student(admission_id: UUID, body: EnrolRequest, request: Request
             if adm["status"] != "approved":
                 raise HTTPException(status_code=409, detail=f"Admission must be in 'approved' status; currently '{adm['status']}'")
 
+            # students.gender / parent_phone / date_of_birth / roll_number are all
+            # NOT NULL. The admissions record may not carry phone/dob, so fall back
+            # to it and reject up front with a 400 (never let a NOT NULL violation
+            # surface as a 500).
+            gender = body.gender.strip()
+            roll_number = body.roll_number.strip()
+            parent_phone = (body.parent_phone or adm["parent_phone"] or "").strip()
+            date_of_birth = body.date_of_birth or adm["applicant_dob"]
+            if not gender:
+                raise HTTPException(status_code=400, detail="Gender is required to enrol")
+            if not roll_number:
+                raise HTTPException(status_code=400, detail="Roll number is required to enrol")
+            if not parent_phone:
+                raise HTTPException(status_code=400, detail="Parent phone is required to enrol")
+            if len(parent_phone) > 10:
+                raise HTTPException(status_code=400, detail="Parent phone must be a 10-digit number")
+            if not date_of_birth:
+                raise HTTPException(status_code=400, detail="Date of birth is required to enrol")
+
             # Generate admission number if not provided
             if body.adm_no:
                 adm_no = body.adm_no.strip()
@@ -332,15 +355,15 @@ async def enrol_student(admission_id: UUID, body: EnrolRequest, request: Request
                 """
                 INSERT INTO students
                   (tenant_id, admission_no, first_name, last_name, date_of_birth,
-                   academic_year_id, class_id, section_id, roll_number)
-                VALUES ($1, $2, $3, '', $4::date, $5, $6, $7, $8)
+                   academic_year_id, class_id, section_id, roll_number, gender, parent_phone)
+                VALUES ($1, $2, $3, '', $4::date, $5, $6, $7, $8, $9, $10)
                 RETURNING id, admission_no
                 """,
                 tid, adm_no,
                 adm["applicant_name"],  # first_name = full name for now
-                adm["applicant_dob"],
+                date_of_birth,
                 body.academic_year_id, body.class_id, body.section_id,
-                body.roll_number,
+                roll_number, gender, parent_phone,
             )
 
             # Generate fee ledger for this student + year

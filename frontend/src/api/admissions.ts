@@ -22,7 +22,10 @@ export interface EnrolPayload {
   academic_year_id: string
   class_id: string
   section_id: string
-  roll_number?: string
+  roll_number: string
+  gender: string
+  parent_phone?: string
+  date_of_birth?: string
   adm_no?: string
 }
 

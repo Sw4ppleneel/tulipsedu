@@ -56,6 +56,9 @@ function EnrolModal({
   const [sectionId, setSectionId] = useState('')
   const [rollNo, setRollNo] = useState('')
   const [admNo, setAdmNo] = useState('')
+  const [gender, setGender] = useState('')
+  const [phone, setPhone] = useState(admission.parent_phone ?? '')
+  const [dob, setDob] = useState(admission.applicant_dob ?? '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
@@ -73,13 +76,20 @@ function EnrolModal({
   async function submit(e: Event) {
     e.preventDefault()
     if (!yearId || !classId || !sectionId) { setError('Select year, class and section'); return }
+    if (!rollNo.trim()) { setError('Roll number is required'); return }
+    if (!gender) { setError('Select gender'); return }
+    if (!/^\d{10}$/.test(phone.trim())) { setError('Parent phone must be a 10-digit number'); return }
+    if (!dob) { setError('Date of birth is required'); return }
     setBusy(true); setError('')
     try {
       const r = await enrolStudent(admission.id, {
         academic_year_id: yearId,
         class_id: classId,
         section_id: sectionId,
-        roll_number: rollNo.trim() || undefined,
+        roll_number: rollNo.trim(),
+        gender,
+        parent_phone: phone.trim(),
+        date_of_birth: dob,
         adm_no: admNo.trim() || undefined,
       })
       onDone({ adm_no: r.adm_no })
@@ -109,7 +119,15 @@ function EnrolModal({
               {selectedClass.sections.map((s: Section) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           )}
-          <input value={rollNo} onInput={e => setRollNo((e.target as HTMLInputElement).value)} placeholder="Roll number (optional)" style={INP} />
+          <input value={rollNo} onInput={e => setRollNo((e.target as HTMLInputElement).value)} placeholder="Roll number *" style={INP} required />
+          <select value={gender} onChange={e => setGender((e.target as HTMLSelectElement).value)} style={INP} required>
+            <option value="">Gender *</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+            <option value="other">Other</option>
+          </select>
+          <input value={phone} onInput={e => setPhone((e.target as HTMLInputElement).value)} placeholder="Parent phone (10 digits) *" style={INP} inputMode="numeric" maxLength={10} required />
+          <input type="date" value={dob} onInput={e => setDob((e.target as HTMLInputElement).value)} style={INP} required />
           <input value={admNo} onInput={e => setAdmNo((e.target as HTMLInputElement).value)} placeholder="Admission no. (auto-generated if blank)" style={INP} />
           {error && <p style={{ color: '#c00', fontSize: '0.8rem', margin: 0 }}>{error}</p>}
           <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
