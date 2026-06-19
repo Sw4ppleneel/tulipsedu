@@ -178,7 +178,8 @@ async def import_fee_structure_excel(
             """
             INSERT INTO fee_heads (tenant_id, name, fee_type)
             VALUES ($1, $2, $3)
-            ON CONFLICT (tenant_id, name) DO UPDATE SET fee_type = EXCLUDED.fee_type
+            ON CONFLICT (tenant_id, name)
+            DO UPDATE SET fee_type = EXCLUDED.fee_type, is_active = TRUE
             RETURNING id, (xmax = 0) AS inserted
             """,
             tenant_id, head_name, fee_type,
