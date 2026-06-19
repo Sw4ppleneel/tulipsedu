@@ -91,7 +91,8 @@
       "Bash(lsof -nP -iTCP:8000 -sTCP:LISTEN)",
       "Bash(lsof -nP -iTCP:5173 -sTCP:LISTEN)",
       "Bash(nslookup premchandmahtoic.tulipsedu.in)",
-      "Bash(/Users/swapneelpremchand/.claude/jobs/58132317/tmp/xlsxvenv/bin/python -)"
+      "Bash(/Users/swapneelpremchand/.claude/jobs/58132317/tmp/xlsxvenv/bin/python -)",
+      "Bash(graphify export *)"
     ]
   }
 }
