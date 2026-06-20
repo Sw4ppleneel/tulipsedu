@@ -20,3 +20,9 @@ select = ["E", "F", "I"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = [
+    "live: read-only invariant audit against the REAL tenants (no writes). Run with -m live.",
+]
+# Default gate run excludes the live audit: `pytest -m 'not live'`
+# Live audit (cron / on-demand):                `pytest -m live`

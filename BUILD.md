@@ -893,6 +893,23 @@ Migration 031. Full write-up in ARCHITECTURE.md.
 
 ---
 
+# Pre-Onboarding (before the first REAL school goes live)
+
+- **Load test with Locust (capacity check).** The whole stack runs on one ~₹2,000/month VPS
+  (4 gunicorn workers, asyncpg pool max 20). Before a real institution leans on it, validate the
+  box survives the realistic *spiky* load — not a uniform sweep of all endpoints:
+  - Attendance-mark burst at ~9am (every teacher at once; offline IndexedDB queues flushing on
+    reconnect) — the signature ClassSwipe scenario.
+  - Login storm (staff + parents at day start).
+  - Fee-collection window (accountant collect + parent UPI claims).
+  - Report-card / receipt **PDF generation** (reportlab, CPU-heavy — likeliest to pin the box).
+  - Dashboard aggregates under concurrent principals.
+  Run against a **throwaway `qa-test` tenant off-hours** (same prod-safety rule as the test suite)
+  or a staging replica — NOT against the live box during school hours. A focused ~5-scenario
+  `locustfile.py` (or k6) beats a broad sweep. Goal: find the capacity ceiling so we know when to
+  scale. (Correctness-under-concurrency for money is already covered by
+  `backend/scripts/money_concurrency_test.py`.)
+
 # Pending Post-Launch
 
 - SSL auto-renew cron: `certbot renew --quiet && docker compose -f ~/tulips/docker-compose.prod.yml exec nginx nginx -s reload`
