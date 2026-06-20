@@ -437,6 +437,28 @@ Never start future modules before the current slice is functional.
 
 Server: `swap@62.72.13.103`, repo lives at `~/tulips/`.
 
+## Pre-deploy gate (run BEFORE any deploy)
+
+```bash
+scripts/predeploy_gate.sh && <deploy sequence below>
+```
+
+Builds a disposable backend+Postgres from the current source and runs the L1 write-path
+suite (`pytest -m "not live"`, ephemeral `qa-test` tenant, cascade-cleaned). Exits non-zero on
+any red test — only deploy if it passes. Never touches prod. The L3 live-data audit is separate
+(read-only, runs on cron — see below).
+
+## Live-data audit (daily cron on prod)
+
+`backend/scripts/audit_live_tenants.py` runs 13 read-only invariant checks over every real tenant
+and exits non-zero on any violation. Installed crontab entry:
+
+```
+0 2 * * *  docker exec tulips-backend-1 python scripts/audit_live_tenants.py >> ~/tulips/audit.log 2>&1 || echo "LIVE AUDIT FAILED $(date)" >> ~/tulips/audit-alerts.log
+```
+
+Check `~/tulips/audit-alerts.log` for violations (wire to a real alert channel later).
+
 ## rsync inode warning — DO NOT ignore
 
 `rsync` creates a **new inode** when it overwrites a file, even if the content is identical.
