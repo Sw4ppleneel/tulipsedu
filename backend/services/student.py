@@ -470,7 +470,7 @@ async def import_students(
             class_str    = str(row[idx["class"]]).strip()
             section_str  = str(row[idx["section"]]).strip()
             roll_no      = str(row[idx["roll no"]]).strip()
-            gender       = str(row[idx["gender"]]).strip().upper()
+            gender_in    = str(row[idx["gender"]]).strip()
             parent_phone = str(row[idx["parent phone"]]).strip()
             is_hosteler  = False
             if hosteler_col is not None:
@@ -490,8 +490,13 @@ async def import_students(
             else:
                 dob = datetime.strptime(str(dob_raw).strip(), "%Y-%m-%d").date()
 
-            if gender not in ("M", "F"):
-                raise ValueError(f"Gender must be M or F, got '{gender}'")
+            # Accept M/F or full words; store canonical Male/Female/Other so the
+            # Excel-import and the JSON-create (StudentCreate) paths agree on one
+            # representation (the live audit asserts Male/Female/Other).
+            gender = {"M": "Male", "F": "Female", "MALE": "Male", "FEMALE": "Female",
+                      "O": "Other", "OTHER": "Other"}.get(gender_in.upper())
+            if gender is None:
+                raise ValueError(f"Gender must be M/F/Male/Female/Other, got '{gender_in}'")
 
             class_id = class_map.get(class_str.lower())
             if not class_id:
