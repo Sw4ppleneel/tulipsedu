@@ -36,3 +36,7 @@ htmlcov/
 
 # Docs source (keep compiled docs, exclude raw word docs)
 *.docx
+
+# Tooling output (knowledge graph, agent worktrees) — never source
+graphify-out/
+.claude/worktrees/
