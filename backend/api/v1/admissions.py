@@ -15,7 +15,7 @@ from core.phone import normalize_indian_mobile
 from core.rbac import require_roles
 from core.r2 import R2ClientError, r2_client, r2_enabled
 from core.security import create_upload_token, decode_token
-from services.finance import generate_ledger
+from services.finance import generate_ledger, _derive_month_year_pairs
 from models.finance import GenerateLedgerRequest
 
 router = APIRouter(prefix="/admissions", tags=["admissions"])
@@ -380,18 +380,20 @@ async def enrol_student(admission_id: UUID, body: EnrolRequest, request: Request
                 roll_number, gender, parent_phone,
             )
 
-            # Generate fee ledger for this student + year
-            try:
-                await generate_ledger(
-                    conn, tid,
-                    GenerateLedgerRequest(
-                        academic_year_id=body.academic_year_id,
-                        class_id=body.class_id,
-                        section_id=body.section_id,
-                    ),
-                )
-            except Exception:
-                pass  # If no schedules exist yet, skip silently
+            # Generate fee ledger for this student + year. generate_ledger scans all
+            # active students in the year with ON CONFLICT DO NOTHING, so it is
+            # idempotent for already-enrolled peers and a no-op when no fee schedules
+            # exist yet. Runs inside the enrol transaction so a real failure rolls the
+            # whole enrolment back rather than silently enrolling a student with no fees.
+            pairs = await _derive_month_year_pairs(conn, tid, body.academic_year_id)
+            await generate_ledger(
+                conn, tid,
+                GenerateLedgerRequest(
+                    academic_year_id=body.academic_year_id,
+                    month_year_pairs=pairs,
+                    include_annual=True,
+                ),
+            )
 
             # Mark admission as enrolled
             await conn.execute(
