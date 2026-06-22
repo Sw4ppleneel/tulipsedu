@@ -35,16 +35,24 @@ services:
     environment:
       DATABASE_URL: postgresql://tulips:tulips@gate-db:5432/tulipsedu
       BASE_URL: http://gate-backend:8000
-    # install runtime + dev deps, wait for the app, run the write-path suite
+    # install runtime deps (from requirements.txt — pyproject has no [project]
+    # dependencies/[build-system], so `pip install -e .` would NOT pull them) plus
+    # the test deps, wait for the app, then run the write-path suite.
     command:
       - sh
       - -c
       - |
-        pip install -q -e '.[dev]' &&
-        python -c "import time,urllib.request as u; [u.urlopen('http://gate-backend:8000/health') or time.sleep(1) for _ in range(1)]" 2>/dev/null;
-        for i in $(seq 1 30); do
-          python -c "import urllib.request as u; u.urlopen('http://gate-backend:8000/health')" 2>/dev/null && break || sleep 2;
-        done;
+        set -e
+        pip install -q -r requirements.txt pytest pytest-asyncio httpx openpyxl
+        python - <<'PY'
+        import sys, time, urllib.request as u
+        for _ in range(60):
+            try:
+                u.urlopen('http://gate-backend:8000/health'); sys.exit(0)
+            except Exception:
+                time.sleep(2)
+        sys.exit("gate-backend never became healthy")
+        PY
         pytest -m "not live" -q
     depends_on:
       - gate-backend
