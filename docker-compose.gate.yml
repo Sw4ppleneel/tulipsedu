@@ -1,0 +1,50 @@
+# Disposable stack for the pre-deploy gate (scripts/predeploy_gate.sh).
+# Builds the backend from source against a throwaway Postgres, then a test
+# runner executes the L1 write-path suite (-m "not live") against it. Nothing
+# here touches prod — it is a self-contained, `down -v`-able stack.
+services:
+  gate-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: tulips
+      POSTGRES_PASSWORD: tulips
+      POSTGRES_DB: tulipsedu
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tulips -d tulipsedu"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  gate-backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.prod
+    environment:
+      # entrypoint applies migrations then starts gunicorn on :8000
+      DATABASE_URL: postgresql://tulips:tulips@gate-db:5432/tulipsedu
+      SECRET_KEY: gate-secret-not-prod
+    depends_on:
+      gate-db:
+        condition: service_healthy
+
+  gate-tests:
+    image: python:3.12-slim
+    working_dir: /repo/backend
+    volumes:
+      - ./:/repo
+    environment:
+      DATABASE_URL: postgresql://tulips:tulips@gate-db:5432/tulipsedu
+      BASE_URL: http://gate-backend:8000
+    # install runtime + dev deps, wait for the app, run the write-path suite
+    command:
+      - sh
+      - -c
+      - |
+        pip install -q -e '.[dev]' &&
+        python -c "import time,urllib.request as u; [u.urlopen('http://gate-backend:8000/health') or time.sleep(1) for _ in range(1)]" 2>/dev/null;
+        for i in $(seq 1 30); do
+          python -c "import urllib.request as u; u.urlopen('http://gate-backend:8000/health')" 2>/dev/null && break || sleep 2;
+        done;
+        pytest -m "not live" -q
+    depends_on:
+      - gate-backend
