@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from 'preact/hooks'
+import { useCallback, useEffect, useMemo, useState } from 'preact/hooks'
 import qrcode from 'qrcode-generator'
 import {
   getStudentLedger, getStudentResults, getStudentSummary, getStudentTimetable, listMyStudents,
   listParentNotifications, submitParentPayment, listParentPayments, downloadReportCard,
 } from '../api/parent'
 import type {
-  FeeLedgerEntry, LinkedStudent, ParentNotification, ParentPayment, StudentSummary,
+  FeeLedgerEntry, HomeworkItem, LinkedStudent, ParentNotification, ParentPayment, StudentSummary,
   TermResultSheet,
 } from '../api/parent'
 import type { WeeklyTimetable } from '../api/timetable'
@@ -227,19 +227,28 @@ function AttendanceSection({ summary, absences }: { summary: StudentSummary; abs
   )
 }
 
-// ── Generic feed (homework / announcements) ───────────────────────────────────
-function FeedSection({ items, empty }: { items: { id: string; title: string; sub: string }[]; empty: string }) {
+// ── Homework / announcement post card (title + message + attachments) ─────────
+function PostCard({ h }: { h: HomeworkItem }) {
   return (
-    <div style={{ maxWidth: 560, margin: '0 auto', padding: '1rem' }}>
-      {items.length === 0
-        ? <EmptyState icon={<Icon name="homework" size={28} />} title={empty} />
-        : items.map(i => (
-          <Card key={i.id} pad={false} style={{ marginBottom: '.5rem', padding: '.7rem 1rem' }}>
-            <div style={{ fontWeight: 600, fontSize: '.86rem' }}>{i.title}</div>
-            <div class="text-xs text-muted">{i.sub}</div>
-          </Card>
-        ))}
-    </div>
+    <Card pad={false} style={{ marginBottom: '.5rem', padding: '.7rem 1rem' }}>
+      <div style={{ fontWeight: 600, fontSize: '.86rem' }}>{h.title}</div>
+      {(h.subject || h.due_date) && (
+        <div class="text-xs text-muted">{h.subject ?? ''}{h.due_date ? ` · due ${fmtDate(h.due_date)}` : ''}</div>
+      )}
+      {h.description && (
+        <div style={{ fontSize: '.8rem', marginTop: '.3rem', whiteSpace: 'pre-wrap', color: '#374151' }}>{h.description}</div>
+      )}
+      {h.attachment_urls?.length > 0 && (
+        <div style={{ marginTop: '.4rem', display: 'flex', flexWrap: 'wrap', gap: '.3rem' }}>
+          {h.attachment_urls.map((a, i) => (
+            <a key={i} href={a.url} target="_blank" rel="noreferrer"
+              style={{ fontSize: '.7rem', color: '#14463A', background: '#E7EFEA', borderRadius: 4, padding: '1px 7px', textDecoration: 'none', fontWeight: 500 }}>
+              📎 {a.name}
+            </a>
+          ))}
+        </div>
+      )}
+    </Card>
   )
 }
 
@@ -434,18 +443,38 @@ export function ParentPortalView({ onLogout }: { onLogout: () => void }) {
   const [section, setSection] = useState<Sec | null>(null)
   const { isInstallable, triggerInstall } = usePwaInstall()
 
-  useEffect(() => {
-    Promise.all([listMyStudents(), listParentNotifications().catch(() => [])])
-      .then(async ([ss, ns]) => {
-        setStudents(ss); setNotifs(ns)
-        const results = await Promise.all(ss.map(s => getStudentSummary(s.id)))
-        const map: Record<string, StudentSummary> = {}
-        ss.forEach((s, i) => { map[s.id] = results[i] })
-        setSummaries(map)
-      })
-      .catch(e => setErr(e instanceof Error ? e.message : 'Failed to load'))
-      .finally(() => setLoading(false))
+  // Silent on refetch so a background refresh never flips back to the spinner.
+  const refresh = useCallback(async (silent = false) => {
+    try {
+      const [ss, ns] = await Promise.all([listMyStudents(), listParentNotifications().catch(() => [])])
+      setStudents(ss); setNotifs(ns)
+      const results = await Promise.all(ss.map(s => getStudentSummary(s.id)))
+      const map: Record<string, StudentSummary> = {}
+      ss.forEach((s, i) => { map[s.id] = results[i] })
+      setSummaries(map)
+    } catch (e) {
+      if (!silent) setErr(e instanceof Error ? e.message : 'Failed to load')
+    } finally {
+      if (!silent) setLoading(false)
+    }
   }, [])
+
+  useEffect(() => { refresh() }, [refresh])
+
+  // Keep the portal fresh without a re-login: refetch when the tab regains focus
+  // / becomes visible, plus a slow poll. (New homework/announcements/fees show up
+  // on their own instead of only after sign-out → sign-in.)
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === 'visible') refresh(true) }
+    const poll = window.setInterval(() => refresh(true), 60_000)
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+    return () => {
+      window.clearInterval(poll)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
+    }
+  }, [refresh])
 
   const student = students[idx]
   const summary = student ? summaries[student.id] : undefined
@@ -457,31 +486,40 @@ export function ParentPortalView({ onLogout }: { onLogout: () => void }) {
         return <FeesSection student={student} schoolName={summary.school_name} upi={summary.school_upi_id} />
       case 'attendance':
         return <AttendanceSection summary={summary} absences={notifs.filter(n => n.type === 'ABSENT')} />
-      case 'homework':
+      case 'homework': {
+        // Homework + resource posts (announcements have their own tab below).
+        const hw = summary.recent_homework.filter(h => h.post_type !== 'announcement')
         return (
           <div style={{ maxWidth: 560, margin: '0 auto', padding: '1rem' }}>
-            {summary.recent_homework.length === 0
+            {hw.length === 0
               ? <EmptyState icon={<Icon name="homework" size={28} />} title="No homework yet" />
-              : summary.recent_homework.map(h => (
-                <Card key={h.id} pad={false} style={{ marginBottom: '.5rem', padding: '.7rem 1rem' }}>
-                  <div style={{ fontWeight: 600, fontSize: '.86rem' }}>{h.title}</div>
-                  <div class="text-xs text-muted">{h.subject ?? ''}{h.due_date ? ` · due ${fmtDate(h.due_date)}` : ''}</div>
-                  {h.attachment_urls?.length > 0 && (
-                    <div style={{ marginTop: '.35rem', display: 'flex', flexWrap: 'wrap', gap: '.3rem' }}>
-                      {h.attachment_urls.map((a, i) => (
-                        <a key={i} href={a.url} target="_blank" rel="noreferrer"
-                          style={{ fontSize: '.7rem', color: '#14463A', background: '#E7EFEA', borderRadius: 4, padding: '1px 7px', textDecoration: 'none', fontWeight: 500 }}>
-                          📎 {a.name}
-                        </a>
-                      ))}
-                    </div>
-                  )}
-                </Card>
-              ))}
+              : hw.map(h => <PostCard key={h.id} h={h} />)}
           </div>
         )
-      case 'announcements':
-        return <FeedSection empty="No notices yet" items={notifs.map(n => ({ id: n.id, title: n.title, sub: `${n.body} · ${fmtDate(n.created_at)}` }))} />
+      }
+      case 'announcements': {
+        // Teacher announcement POSTS (carry message + attachments) followed by
+        // in-app notifications. Previously this tab only showed notifications, so
+        // announcement attachments were unreachable on the parent side.
+        const anns = summary.recent_homework.filter(h => h.post_type === 'announcement')
+        return (
+          <div style={{ maxWidth: 560, margin: '0 auto', padding: '1rem' }}>
+            {anns.length === 0 && notifs.length === 0
+              ? <EmptyState icon={<Icon name="homework" size={28} />} title="No notices yet" />
+              : (
+                <>
+                  {anns.map(h => <PostCard key={h.id} h={h} />)}
+                  {notifs.map(n => (
+                    <Card key={n.id} pad={false} style={{ marginBottom: '.5rem', padding: '.7rem 1rem' }}>
+                      <div style={{ fontWeight: 600, fontSize: '.86rem' }}>{n.title}</div>
+                      <div class="text-xs text-muted">{n.body} · {fmtDate(n.created_at)}</div>
+                    </Card>
+                  ))}
+                </>
+              )}
+          </div>
+        )
+      }
       case 'results':
         return <ResultsSection studentId={student.id} />
       case 'timetable':
