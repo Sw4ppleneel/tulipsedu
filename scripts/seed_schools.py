@@ -82,7 +82,7 @@ HW_POSTS = [
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 def rng_name(gender: str) -> tuple[str, str]:
-    first = random.choice(MALE_NAMES if gender == "M" else FEMALE_NAMES)
+    first = random.choice(MALE_NAMES if gender == "Male" else FEMALE_NAMES)
     last  = random.choice(SURNAMES)
     return first, last
 
@@ -272,7 +272,7 @@ async def seed_school(conn: asyncpg.Connection, school: dict) -> None:
         seid = section_ids[cname]
         ids  = []
         for roll in range(1, 7):
-            gender = "M" if roll % 2 == 1 else "F"
+            gender = "Male" if roll % 2 == 1 else "Female"
             fname, lname = rng_name(gender)
             adm = f"{slug[:4].upper()}{cname[-1]}{roll:02d}"
             roll_str = str(roll)
