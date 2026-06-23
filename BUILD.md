@@ -12,7 +12,34 @@ Last Updated: 2026-06-19
 # PROJECT STATE
 
 Current Phase: Phase 2 Workflow ERP — lifecycle state machines in progress
-Current Sprint: Sprint 5 — W14 Analytics (next), W11 Rollover, W10 Admissions
+Current Sprint: Sprint 5 — W14 Analytics (next), W11 Rollover, W10 Admissions, Exam module enhancements
+
+## 🔧 BUILT 2026-06-23 — Exam: simple terms + component weightage (migration 036)
+
+**Migration 036**: relaxes `exam_terms.term_type` CHECK to include `'term'` (generic);
+adds `exam_components.weightage NUMERIC(5,2) NOT NULL DEFAULT 100 CHECK (>0)`;
+backfills `weightage = max_marks` so existing results are numerically preserved.
+
+**Backend changes**:
+- `configure_components` accepts `weightage` per component; mirrors `max_marks=100` into
+  `exam_marks_config` (subject total is now scored /100).
+- `save_component_marks` roll-up uses weighted formula:
+  `ROUND(SUM(marks/max*weightage) / SUM(weightage) * 100, 2)` into `mark_entries`.
+- `get_component_marks_grid` computes weighted total /100 client-side-ready.
+- `_VALID_TERM_TYPES` includes `'term'`; `ExamTermCreate.term_type` defaults to `'term'`.
+- `ExamComponentCreate`/`Response` gain `weightage` field.
+
+**Frontend changes**:
+- Manage Terms tab: "+ Add Term" button creates `Term {N+1}` (generic `term` type).
+  Removed TYPE column (no longer relevant for generic terms).
+- Component editor: new Weightage column per component; shows total weightage sum.
+- Marks grid: Total column shows `/100` (weighted percentage); live client-side calc matches backend.
+- `exam.ts`: `createTerm()` API function; `ExamComponent` type gains `weightage`.
+
+**Seed script**: terms renamed from "Unit Test 1 / Half Yearly / ..." to "Term 1/2/3"
+with `term_type='term'`, max_marks=100 for marks config.
+
+NOT YET DEPLOYED. Deploy will auto-apply migration 036 via entrypoint.
 
 ## ✅ DEPLOYED 2026-06-18 — admissions public form polish + document upload (migration 034)
 

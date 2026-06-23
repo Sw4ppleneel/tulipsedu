@@ -93,6 +93,12 @@ export function listTerms(params: { academic_year_id?: string } = {}): Promise<E
   return request<ExamTerm[]>(`/exams/terms?${p}`)
 }
 
+export function createTerm(data: {
+  academic_year_id: string; name: string; term_type?: string; sort_order?: number
+}): Promise<ExamTerm> {
+  return request<ExamTerm>('/exams/terms', { method: 'POST', body: JSON.stringify(data) })
+}
+
 export function listMarksConfig(exam_term_id: string): Promise<MarksConfig[]> {
   return request<MarksConfig[]>(`/exams/marks-config?exam_term_id=${exam_term_id}`)
 }
@@ -157,6 +163,7 @@ export interface ExamComponent {
   id: string
   name: string
   max_marks: string
+  weightage: string
   sort_order: number
 }
 
@@ -185,7 +192,7 @@ export function listComponents(exam_term_id: string, exam_subject_id: string): P
 export function configureComponents(data: {
   exam_term_id: string
   exam_subject_id: string
-  components: { name: string; max_marks: number; sort_order: number }[]
+  components: { name: string; max_marks: number; weightage: number; sort_order: number }[]
 }): Promise<ExamComponent[]> {
   return request<ExamComponent[]>('/exams/components', { method: 'PUT', body: JSON.stringify(data) })
 }

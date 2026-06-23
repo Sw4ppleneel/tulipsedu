@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks'
 import {
-  listSubjects, listTerms, listMarksConfig, getMarks, saveMarks, getTermResults,
+  listSubjects, listTerms, createTerm, listMarksConfig, getMarks, saveMarks, getTermResults,
   listComponents, configureComponents, getComponentGrid, saveComponentMarks,
   transitionTermStatus, downloadReportCard,
 } from '../api/exam'
@@ -44,13 +44,16 @@ function StatusChip({ status }: { status: string }) {
 // ── Tab: Terms Management ─────────────────────────────────────────────────────
 
 function TermsTab({
-  terms, onUpdate, canManage,
+  terms, onUpdate, onAdd, canManage, academicYearId,
 }: {
   terms: ExamTerm[]
   onUpdate: (updated: ExamTerm) => void
+  onAdd: (created: ExamTerm) => void
   canManage: boolean
+  academicYearId: string | null
 }) {
   const [busy, setBusy] = useState<string | null>(null)
+  const [adding, setAdding] = useState(false)
   const [err, setErr] = useState('')
 
   async function advance(termId: string, nextStatus: string) {
@@ -63,39 +66,61 @@ function TermsTab({
     } finally { setBusy(null) }
   }
 
-  if (terms.length === 0) return <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>No exam terms configured yet. Import an exam setup Excel to create terms.</p>
+  async function addTerm() {
+    if (!academicYearId) return
+    setAdding(true); setErr('')
+    try {
+      const n = terms.length + 1
+      const created = await createTerm({
+        academic_year_id: academicYearId,
+        name: `Term ${n}`,
+        term_type: 'term',
+        sort_order: n - 1,
+      })
+      onAdd(created)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Failed to create term')
+    } finally { setAdding(false) }
+  }
 
   return (
     <div>
       {err && <p style={{ color: '#dc2626', fontSize: '0.8rem', marginBottom: '0.75rem' }}>{err}</p>}
-      <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
-        <div style={{ display: 'flex', padding: '0 1rem', height: 36, background: '#f9fafb', borderBottom: '1px solid #e5e7eb', fontSize: '0.72rem', fontWeight: 600, color: '#6b7280', alignItems: 'center', gap: '0.75rem' }}>
-          <span style={{ flex: 1 }}>TERM</span>
-          <span style={{ width: 80 }}>TYPE</span>
-          <span style={{ width: 90 }}>STATUS</span>
-          {canManage && <span style={{ width: 260 }}>ACTIONS</span>}
+      {terms.length === 0 && <p style={{ color: '#9ca3af', fontSize: '0.875rem', marginBottom: '0.75rem' }}>No exam terms yet.</p>}
+      {terms.length > 0 && (
+        <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden', marginBottom: '0.75rem' }}>
+          <div style={{ display: 'flex', padding: '0 1rem', height: 36, background: '#f9fafb', borderBottom: '1px solid #e5e7eb', fontSize: '0.72rem', fontWeight: 600, color: '#6b7280', alignItems: 'center', gap: '0.75rem' }}>
+            <span style={{ flex: 1 }}>TERM</span>
+            <span style={{ width: 90 }}>STATUS</span>
+            {canManage && <span style={{ width: 260 }}>ACTIONS</span>}
+          </div>
+          {terms.map(t => {
+            const actions = NEXT_ACTION[t.status] ?? []
+            return (
+              <div key={t.id} style={{ display: 'flex', padding: '0.625rem 1rem', borderBottom: '1px solid #f3f4f6', gap: '0.75rem', alignItems: 'center', fontSize: '0.8rem' }}>
+                <span style={{ flex: 1, fontWeight: 500 }}>{t.name}</span>
+                <span style={{ width: 90 }}><StatusChip status={t.status ?? (t.is_published ? 'published' : 'draft')} /></span>
+                {canManage && (
+                  <div style={{ width: 260, display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                    {actions.map(a => (
+                      <button key={a.next} onClick={() => advance(t.id, a.next)} disabled={busy === t.id}
+                        style={{ padding: '0.3rem 0.625rem', background: a.btnBg, color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, opacity: busy === t.id ? 0.6 : 1 }}>
+                        {busy === t.id ? '…' : a.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
-        {terms.map(t => {
-          const actions = NEXT_ACTION[t.status] ?? []
-          return (
-            <div key={t.id} style={{ display: 'flex', padding: '0.625rem 1rem', borderBottom: '1px solid #f3f4f6', gap: '0.75rem', alignItems: 'center', fontSize: '0.8rem' }}>
-              <span style={{ flex: 1, fontWeight: 500 }}>{t.name}</span>
-              <span style={{ width: 80, color: '#6b7280', textTransform: 'capitalize' }}>{t.term_type.replace('_', ' ')}</span>
-              <span style={{ width: 90 }}><StatusChip status={t.status ?? (t.is_published ? 'published' : 'draft')} /></span>
-              {canManage && (
-                <div style={{ width: 260, display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                  {actions.map(a => (
-                    <button key={a.next} onClick={() => advance(t.id, a.next)} disabled={busy === t.id}
-                      style={{ padding: '0.3rem 0.625rem', background: a.btnBg, color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, opacity: busy === t.id ? 0.6 : 1 }}>
-                      {busy === t.id ? '…' : a.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
+      )}
+      {canManage && (
+        <button onClick={addTerm} disabled={adding || !academicYearId}
+          style={{ padding: '0.4rem 1rem', background: '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, opacity: adding ? 0.6 : 1 }}>
+          {adding ? 'Adding…' : '+ Add Term'}
+        </button>
+      )}
       <p style={{ marginTop: '0.75rem', fontSize: '0.75rem', color: '#9ca3af' }}>
         Lifecycle: <strong>Draft</strong> → <strong>Open</strong> (teachers enter marks) → <strong>Locked</strong> (no more edits) → <strong>Published</strong> (parents see results). Principal can reopen a locked/published term if needed.
       </p>
@@ -111,12 +136,12 @@ const GRADE_COLOR: Record<string, string> = {
 // ── Tab: Marks Entry ──────────────────────────────────────────────────────────
 
 interface PendingEntry { student_id: string; student_name: string; roll_number: string; marks: string; absent: boolean }
-interface CompDef { name: string; max_marks: string }
+interface CompDef { name: string; max_marks: string; weightage: string }
 
 const DEFAULT_DEFS: CompDef[] = [
-  { name: 'Unit Test', max_marks: '10' },
-  { name: 'Oral', max_marks: '10' },
-  { name: 'Theory', max_marks: '80' },
+  { name: 'Unit Test', max_marks: '10', weightage: '10' },
+  { name: 'Oral', max_marks: '10', weightage: '10' },
+  { name: 'Theory', max_marks: '80', weightage: '80' },
 ]
 
 function MarksEntryTab({
@@ -162,7 +187,7 @@ function MarksEntryTab({
       if (comps.length > 0) {
         const g = await getComponentGrid({ exam_term_id: term, exam_subject_id: subject, class_id: cls, section_id: sec })
         setGrid(g.students)
-        setDefs(comps.map(c => ({ name: c.name, max_marks: c.max_marks })))
+        setDefs(comps.map(c => ({ name: c.name, max_marks: c.max_marks, weightage: c.weightage })))
         setRows([])
       } else {
         const existing: MarkEntry[] = await getMarks({ exam_term_id: term, exam_subject_id: subject, class_id: cls, section_id: sec })
@@ -188,7 +213,7 @@ function MarksEntryTab({
     setErr('')
     const parsed = defs
       .filter(d => d.name.trim() && d.max_marks !== '')
-      .map((d, i) => ({ name: d.name.trim(), max_marks: +d.max_marks, sort_order: i + 1 }))
+      .map((d, i) => ({ name: d.name.trim(), max_marks: +d.max_marks, weightage: +(d.weightage || d.max_marks), sort_order: i + 1 }))
     if (parsed.length === 0) { setErr('Add at least one component'); return }
     try {
       await configureComponents({ exam_term_id: term, exam_subject_id: subject, components: parsed })
@@ -232,7 +257,12 @@ function MarksEntryTab({
     setGrid(prev => prev.map(r => {
       if (r.student_id !== sid) return r
       const marks = { ...r.marks, [compId]: val === '' ? null : +val }
-      const total = components.reduce((s, c) => s + (marks[c.id] ?? 0), 0)
+      const wTotal = components.reduce((s, c) => s + +c.weightage, 0)
+      const wSum = components.reduce((s, c) => {
+        const m = marks[c.id]
+        return m != null ? s + m / +c.max_marks * +c.weightage : s
+      }, 0)
+      const total = wTotal > 0 ? Math.round(wSum / wTotal * 10000) / 100 : 0
       return { ...r, marks, total }
     }))
   }
@@ -290,7 +320,7 @@ function MarksEntryTab({
         <div style={{ marginBottom: '0.875rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.78rem', color: '#6b7280' }}>
             {hasComponents ? (
-              <span>Components: <strong>{components.map(c => `${c.name} (${+c.max_marks})`).join(' + ')}</strong> = <strong>{totalMax}</strong></span>
+              <span>Components: <strong>{components.map(c => `${c.name} (max ${+c.max_marks}, wt ${+c.weightage})`).join(' + ')}</strong> — scored /100</span>
             ) : (
               <span>No components set — entering a single mark out of {selectedConfig?.max_marks ?? '?'}.</span>
             )}
@@ -302,8 +332,14 @@ function MarksEntryTab({
           {showConfig && (
             <div style={{ marginTop: '0.625rem', padding: '0.875rem', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 6 }}>
               <p style={{ margin: '0 0 0.5rem', fontSize: '0.74rem', color: '#6b7280' }}>
-                Define how this subject is assessed this term. Components sum to the subject total (e.g. Unit Test 10 + Oral 10 + Theory 80 = 100).
+                Define components with a max marks and a weightage. The subject total is computed as a weighted percentage out of 100.
               </p>
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.4rem', fontSize: '0.7rem', fontWeight: 600, color: '#6b7280' }}>
+                <span style={{ flex: 1 }}>Name</span>
+                <span style={{ width: 70, textAlign: 'center' }}>Max</span>
+                <span style={{ width: 80, textAlign: 'center' }}>Weightage</span>
+                <span style={{ width: 24 }} />
+              </div>
               {defs.map((d, i) => (
                 <div key={i} style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.4rem', alignItems: 'center' }}>
                   <input value={d.name} placeholder="Component name"
@@ -312,12 +348,15 @@ function MarksEntryTab({
                   <input type="number" min={1} value={d.max_marks} placeholder="Max"
                     onInput={e => setDefs(p => p.map((x, j) => j === i ? { ...x, max_marks: (e.target as HTMLInputElement).value } : x))}
                     style={{ ...INP, width: 70 }} />
-                  <button onClick={() => setDefs(p => p.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: '1rem' }}>×</button>
+                  <input type="number" min={1} value={d.weightage} placeholder="Wt"
+                    onInput={e => setDefs(p => p.map((x, j) => j === i ? { ...x, weightage: (e.target as HTMLInputElement).value } : x))}
+                    style={{ ...INP, width: 80 }} />
+                  <button onClick={() => setDefs(p => p.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: '1rem', width: 24 }}>×</button>
                 </div>
               ))}
               <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '0.5rem' }}>
-                <button onClick={() => setDefs(p => [...p, { name: '', max_marks: '' }])} style={{ background: 'none', border: '1px solid #d1d5db', borderRadius: 4, padding: '0.3rem 0.625rem', fontSize: '0.75rem', cursor: 'pointer' }}>+ Add component</button>
-                <span style={{ fontSize: '0.74rem', color: '#6b7280' }}>Total: <strong>{defs.reduce((s, d) => s + (+d.max_marks || 0), 0)}</strong></span>
+                <button onClick={() => setDefs(p => [...p, { name: '', max_marks: '', weightage: '' }])} style={{ background: 'none', border: '1px solid #d1d5db', borderRadius: 4, padding: '0.3rem 0.625rem', fontSize: '0.75rem', cursor: 'pointer' }}>+ Add component</button>
+                <span style={{ fontSize: '0.74rem', color: '#6b7280' }}>Total weightage: <strong>{defs.reduce((s, d) => s + (+d.weightage || 0), 0)}</strong></span>
                 <button onClick={saveComponentDefs} style={{ marginLeft: 'auto', background: '#14463A', color: '#fff', border: 'none', borderRadius: 4, padding: '0.4rem 1rem', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>Save components</button>
               </div>
             </div>
@@ -347,7 +386,7 @@ function MarksEntryTab({
                   <th style={{ ...TH, textAlign: 'left' }}>Student</th>
                   <th style={{ ...TH, width: 60 }}>Absent</th>
                   {components.map(c => <th key={c.id} style={{ ...TH, width: 80 }}>{c.name}<br /><span style={{ fontWeight: 400, color: '#9ca3af' }}>/{+c.max_marks}</span></th>)}
-                  <th style={{ ...TH, width: 80 }}>Total<br /><span style={{ fontWeight: 400, color: '#9ca3af' }}>/{totalMax}</span></th>
+                  <th style={{ ...TH, width: 80 }}>Total<br /><span style={{ fontWeight: 400, color: '#9ca3af' }}>/100</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -584,8 +623,14 @@ export function ExamView({ role }: { role?: string }) {
     })
   }, [])
 
+  const currentYear = years.find(y => y.is_current) ?? years[0] ?? null
+
   function handleTermUpdate(updated: ExamTerm) {
     setTerms(prev => prev.map(t => t.id === updated.id ? updated : t))
+  }
+
+  function handleTermAdd(created: ExamTerm) {
+    setTerms(prev => [...prev, created])
   }
 
   const TAB_BTN = (active: boolean): preact.JSX.CSSProperties => ({
@@ -604,7 +649,7 @@ export function ExamView({ role }: { role?: string }) {
         <button style={TAB_BTN(tab === 'entry')} onClick={() => setTab('entry')}>Marks Entry</button>
         <button style={TAB_BTN(tab === 'results')} onClick={() => setTab('results')}>Results</button>
       </div>
-      {tab === 'terms' && canManage && <TermsTab terms={terms} onUpdate={handleTermUpdate} canManage={canManage} />}
+      {tab === 'terms' && canManage && <TermsTab terms={terms} onUpdate={handleTermUpdate} onAdd={handleTermAdd} canManage={canManage} academicYearId={currentYear?.id ?? null} />}
       {tab === 'entry' && <MarksEntryTab terms={terms} subjects={subjects} classes={classes} />}
       {tab === 'results' && <ResultsTab terms={terms} classes={classes} />}
     </div>

@@ -377,7 +377,7 @@ Constraints: UNIQUE (tenant_id, academic_year_id, class_id, name)
 
 ## exam_terms
 
-Fields: id, tenant_id, academic_year_id, name, term_type (unit_test/half_yearly/annual/practical/project/internal), start_date, end_date, is_published, sort_order, created_at
+Fields: id, tenant_id, academic_year_id, name, term_type (unit_test/half_yearly/annual/practical/project/internal/term), start_date, end_date, is_published, status (draft/marks_open/locked/published), sort_order, created_at
 
 Constraints: UNIQUE (tenant_id, academic_year_id, name)
 
@@ -419,11 +419,31 @@ Indexes: (tenant_id, is_published, published_at DESC)
 
 ---
 
+## exam_components
+
+Fields: id, tenant_id, exam_term_id, exam_subject_id, name, max_marks, weightage (default 100), sort_order, created_at
+
+Constraints: UNIQUE (tenant_id, exam_term_id, exam_subject_id, name)
+
+Component marks roll up into mark_entries via weighted formula: SUM(marks/max * weightage) / SUM(weightage) * 100, producing a 0-100 subject total.
+
+---
+
+## exam_component_marks
+
+Fields: id, tenant_id, student_id, exam_component_id, marks_obtained, is_absent, entered_by, created_at, updated_at
+
+Constraints: UNIQUE (tenant_id, student_id, exam_component_id)
+
+---
+
 ## exam_marks_config
 
 Fields: id, tenant_id, exam_term_id, exam_subject_id, max_marks, passing_marks (default 33), weightage (default 100), created_at
 
 Constraints: UNIQUE (tenant_id, exam_term_id, exam_subject_id)
+
+When components are configured, max_marks is set to 100 (the weighted % total).
 
 ---
 
