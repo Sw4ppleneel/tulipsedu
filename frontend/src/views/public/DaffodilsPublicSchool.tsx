@@ -166,8 +166,8 @@ function Navbar({ slug, name, onStaffLogin, onParentLogin }: { slug: string; nam
       <div style={{ background: C.navyDk, borderBottom: '1px solid rgba(201,162,39,.18)', padding: '.32rem 1.25rem' }}>
         <div style={{ maxWidth: 1120, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '.3rem' }}>
           <div style={{ display: 'flex', gap: '1.4rem', fontSize: '.72rem', color: 'rgba(255,255,255,.68)' }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.35rem' }}><Ico name="phone" size={12} stroke={C.gold} /> +91 XXXXX XXXXX</span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.35rem' }}><Ico name="mail" size={12} stroke={C.gold} /> info@daffodilsranchi.edu.in</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.35rem' }}><Ico name="phone" size={12} stroke={C.gold} /> +91 89875 00395</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.35rem' }}><Ico name="mail" size={12} stroke={C.gold} /> daffodilspublicschool@gmail.com</span>
           </div>
           <div style={{ display: 'flex', gap: '.6rem' }}>
             <button onClick={onParentLogin} style={{ background: 'none', border: `1px solid ${C.gold}`, color: C.gold, borderRadius: 5, padding: '.22rem .7rem', cursor: 'pointer', fontSize: '.7rem', fontFamily: FONT, fontWeight: 600 }}>Parent Login</button>
@@ -379,7 +379,7 @@ function PrincipalMessage({ slug }: { slug: string }) {
         <div style={{ maxWidth: 320, margin: '0 auto', width: '100%' }}>
           <SchoolImage slug={slug} file="principal.jpg" label="Principal's Photo" ratio={110} radius={14} />
           <div style={{ textAlign: 'center', marginTop: '1rem' }}>
-            <div style={{ fontWeight: 700, color: C.navy, fontSize: '1rem' }}>[Principal's Name]</div>
+            <div style={{ fontWeight: 700, color: C.navy, fontSize: '1rem' }}>Dr. Prabha Rani</div>
             <div style={{ color: C.maroon, fontSize: '.8rem', fontWeight: 600 }}>Principal, Daffodils Public School</div>
           </div>
         </div>
@@ -439,15 +439,15 @@ function Academics() {
 // ── Gallery ───────────────────────────────────────────────────────────────────
 function Gallery({ slug }: { slug: string }) {
   const photos: { file: string; label: string }[] = [
-    { file: 'gallery1.png', label: 'School Building — Main Block' },
-    { file: 'gallery2.png', label: 'School Assembly Ground' },
-    { file: 'gallery3.png', label: 'Smart Classroom' },
-    { file: 'gallery4.png', label: 'Library Reading Corner' },
-    { file: 'gallery5.png', label: 'Annual Day Celebration' },
-    { file: 'gallery6.png', label: 'Sports & Games' },
-    { file: 'gallery7.png', label: 'Art & Craft Class' },
-    { file: 'gallery8.png', label: 'Students at Prayer' },
-    { file: 'gallery9.png', label: 'Independence Day' },
+    { file: 'gallery1.png', label: 'Our Faculty & Staff' },
+    { file: 'gallery2.png', label: 'Morning Prayer Assembly' },
+    { file: 'gallery3.png', label: 'Annual Day — Principal\'s Address' },
+    { file: 'gallery4.png', label: 'Annual Day — Stage Performance' },
+    { file: 'gallery5.png', label: 'Cultural Celebration' },
+    { file: 'gallery6.png', label: 'Students at Assembly' },
+    { file: 'gallery7.png', label: 'School Transport Fleet' },
+    { file: 'gallery8.png', label: 'Foundation Day Inauguration' },
+    { file: 'gallery9.png', label: 'Gandhi & Shastri Jayanti — In the News' },
   ]
   return (
     <Section id="gallery" bg={C.cream}>
@@ -537,9 +537,9 @@ function Admissions() {
 // ── Contact ───────────────────────────────────────────────────────────────────
 function Contact() {
   const info: { icon: IcoName; label: string; lines: string[] }[] = [
-    { icon: 'mapPin', label: 'Address', lines: ['Daffodils Public School', 'Mesra, Ranchi — 835215', 'Jharkhand, India'] },
-    { icon: 'phone', label: 'Phone', lines: ['+91 XXXXX XXXXX', '+91 XXXXX XXXXX'] },
-    { icon: 'mail', label: 'Email', lines: ['info@daffodilsranchi.edu.in', 'admissions@daffodilsranchi.edu.in'] },
+    { icon: 'mapPin', label: 'Address', lines: ['Daffodils Public School', 'Mesra, Neori Vikas, Ranchi — 835217', 'Jharkhand, India'] },
+    { icon: 'phone', label: 'Phone', lines: ['+91 89875 00395'] },
+    { icon: 'mail', label: 'Email', lines: ['daffodilspublicschool@gmail.com'] },
     { icon: 'clock', label: 'Office Hours', lines: ['Monday – Saturday', '9:00 AM to 4:00 PM'] },
   ]
   return (
@@ -556,8 +556,11 @@ function Contact() {
           ))}
         </div>
         <div>
-          <ImgPlaceholder label="Google Maps — Daffodils Public School, Mesra Ranchi" ratio={72} radius={14} />
-          <a href="https://maps.google.com/?q=Mesra+Ranchi+Jharkhand" target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '.35rem', marginTop: '.85rem', color: C.navy, fontWeight: 600, fontSize: '.82rem', textDecoration: 'none' }}>
+          <div style={{ position: 'relative', paddingBottom: '72%', borderRadius: 14, overflow: 'hidden' }}>
+            <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3663.5!2d85.4389!3d23.4095!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x39f4e5940dffb491%3A0x384f92ceef714a49!2sDaffodils%20public%20school!5e0!3m2!1sen!2sin!4v1"
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 0 }} loading="lazy" referrerPolicy="no-referrer-when-downgrade" />
+          </div>
+          <a href="https://maps.app.goo.gl/m18oKhR5NCvmwwnr8" target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '.35rem', marginTop: '.85rem', color: C.navy, fontWeight: 600, fontSize: '.82rem', textDecoration: 'none' }}>
             Open in Google Maps <Ico name="externalLink" size={14} stroke={C.navy} />
           </a>
         </div>
@@ -596,7 +599,7 @@ function Footer({ slug, name, onStaffLogin, onParentLogin }: { slug: string; nam
         <div>
           <div style={{ color: C.gold, fontWeight: 700, fontSize: '.78rem', letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: '1rem' }}>Contact</div>
           <p style={{ fontSize: '.82rem', lineHeight: 1.85, margin: 0 }}>
-            Mesra, Ranchi — 835215<br />Jharkhand, India<br />+91 XXXXX XXXXX<br />info@daffodilsranchi.edu.in
+            Mesra, Neori Vikas, Ranchi — 835217<br />Jharkhand, India<br />+91 89875 00395<br />daffodilspublicschool@gmail.com
           </p>
         </div>
 
