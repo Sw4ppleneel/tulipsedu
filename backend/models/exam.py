@@ -33,7 +33,7 @@ class ExamSubjectResponse(BaseModel):
 class ExamTermCreate(BaseModel):
     academic_year_id: UUID
     name: str
-    term_type: str
+    term_type: str = "term"
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     sort_order: int = 0
@@ -113,6 +113,7 @@ class MarkEntryResponse(BaseModel):
 class ExamComponentCreate(BaseModel):
     name: str
     max_marks: Decimal = Field(gt=0)
+    weightage: Decimal = Field(default=Decimal("100"), gt=0)
     sort_order: int = 0
 
 
@@ -126,6 +127,7 @@ class ExamComponentResponse(BaseModel):
     id: UUID
     name: str
     max_marks: Decimal
+    weightage: Decimal
     sort_order: int
 
 

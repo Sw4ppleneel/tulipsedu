@@ -332,10 +332,9 @@ async def seed_school(conn: asyncpg.Connection, school: dict) -> None:
 
     # 8. Exam terms
     terms = [
-        ("Unit Test 1",  "unit_test",   "2025-07-01", "2025-07-07",  True,  1),
-        ("Half Yearly",  "half_yearly", "2025-09-15", "2025-09-25",  True,  2),
-        ("Unit Test 2",  "unit_test",   "2025-11-01", "2025-11-07",  False, 3),
-        ("Annual Exam",  "annual",      "2026-02-01", "2026-02-15",  False, 4),
+        ("Term 1",  "term",  "2025-07-01", "2025-07-07",  True,  0),
+        ("Term 2",  "term",  "2025-09-15", "2025-09-25",  True,  1),
+        ("Term 3",  "term",  "2025-11-01", "2025-11-07",  False, 2),
     ]
     term_ids = {}
     for t_name, t_type, t_start, t_end, t_pub, t_sort in terms:
@@ -360,14 +359,14 @@ async def seed_school(conn: asyncpg.Connection, school: dict) -> None:
         if tid2:
             term_ids[t_name] = tid2
 
-    # 9. Marks config + mark entries (Unit Test 1, Grade 9)
-    ut1_id  = term_ids.get("Unit Test 1")
-    hy_id   = term_ids.get("Half Yearly")
+    # 9. Marks config + mark entries (Term 1 & Term 2, Grade 9)
+    t1_id   = term_ids.get("Term 1")
+    t2_id   = term_ids.get("Term 2")
     g9_cid  = class_ids.get("Grade 9")
     g9_sids = student_ids_by_class.get("Grade 9", [])
     admin_uid = await conn.fetchval("SELECT id FROM users WHERE tenant_id=$1 AND role='principal'", tid)
 
-    for t_id, max_m, pass_m in [(ut1_id, 25, 8), (hy_id, 80, 27)]:
+    for t_id, max_m, pass_m in [(t1_id, 100, 33), (t2_id, 100, 33)]:
         if not t_id or not g9_cid:
             continue
         for subj in SUBJECTS[:6]:

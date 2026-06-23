@@ -333,17 +333,16 @@ async def get_marks_for_term_subject(
 async def configure_components(
     conn: asyncpg.Connection, tenant_id: uuid.UUID, req: ConfigureComponentsRequest
 ) -> list[ExamComponentResponse]:
-    """Define the components for a (term, subject). Components sum to the subject
-    total; the total is mirrored into exam_marks_config so the results engine
-    (which reads mark_entries + exam_marks_config) keeps working unchanged."""
+    """Define the components for a (term, subject). Each component carries a
+    weightage; the subject total is computed as a weighted percentage out of 100:
+    SUM(marks/max * weightage) / SUM(weightage) * 100.
+    We mirror max_marks=100 into exam_marks_config so downstream results stay /100."""
     if not req.components:
         raise ExamError("At least one component is required")
 
-    total = sum((c.max_marks for c in req.components), Decimal("0"))
     keep_names = [c.name for c in req.components]
 
     async with conn.transaction():
-        # Remove components no longer in the list (cascades their marks)
         await conn.execute(
             """
             DELETE FROM exam_components
@@ -356,25 +355,26 @@ async def configure_components(
             await conn.execute(
                 """
                 INSERT INTO exam_components
-                    (tenant_id, exam_term_id, exam_subject_id, name, max_marks, sort_order)
-                VALUES ($1,$2,$3,$4,$5,$6)
+                    (tenant_id, exam_term_id, exam_subject_id, name, max_marks, weightage, sort_order)
+                VALUES ($1,$2,$3,$4,$5,$6,$7)
                 ON CONFLICT (tenant_id, exam_term_id, exam_subject_id, name)
-                DO UPDATE SET max_marks = EXCLUDED.max_marks, sort_order = EXCLUDED.sort_order
+                DO UPDATE SET max_marks = EXCLUDED.max_marks,
+                              weightage = EXCLUDED.weightage,
+                              sort_order = EXCLUDED.sort_order
                 """,
                 tenant_id, req.exam_term_id, req.exam_subject_id,
-                c.name, c.max_marks, c.sort_order,
+                c.name, c.max_marks, c.weightage, c.sort_order,
             )
-        # Mirror the total into marks-config (33% pass mark, full weightage)
+        # Subject total is now scored out of 100 (weighted %); passing = 33
         await conn.execute(
             """
             INSERT INTO exam_marks_config
                 (tenant_id, exam_term_id, exam_subject_id, max_marks, passing_marks, weightage)
-            VALUES ($1,$2,$3,$4,$5,100)
+            VALUES ($1,$2,$3,100,33,100)
             ON CONFLICT (tenant_id, exam_term_id, exam_subject_id)
-            DO UPDATE SET max_marks = EXCLUDED.max_marks, passing_marks = EXCLUDED.passing_marks
+            DO UPDATE SET max_marks = 100, passing_marks = 33
             """,
             tenant_id, req.exam_term_id, req.exam_subject_id,
-            total, (total * Decimal("0.33")).quantize(Decimal("1")),
         )
 
     return await list_components(conn, tenant_id, req.exam_term_id, req.exam_subject_id)
@@ -388,7 +388,7 @@ async def list_components(
 ) -> list[ExamComponentResponse]:
     rows = await conn.fetch(
         """
-        SELECT id, name, max_marks, sort_order FROM exam_components
+        SELECT id, name, max_marks, weightage, sort_order FROM exam_components
         WHERE tenant_id = $1 AND exam_term_id = $2 AND exam_subject_id = $3
         ORDER BY sort_order, name
         """,
@@ -425,14 +425,19 @@ async def save_component_marks(
             ],
         )
 
-        # Roll the per-component marks up into mark_entries so results/grades work.
+        # Roll up into mark_entries using weighted formula: out of 100.
+        # SUM(marks/max_marks * weightage) / SUM(weightage) * 100
         affected = list({e.student_id for e in req.entries})
         await conn.execute(
             """
             INSERT INTO mark_entries
                 (tenant_id, student_id, exam_term_id, exam_subject_id, marks_obtained, is_absent, entered_by)
             SELECT $1, ecm.student_id, $2, $3,
-                   SUM(CASE WHEN ecm.is_absent THEN 0 ELSE COALESCE(ecm.marks_obtained, 0) END),
+                   ROUND(
+                     SUM(CASE WHEN ecm.is_absent THEN 0
+                              ELSE COALESCE(ecm.marks_obtained, 0) / ec.max_marks * ec.weightage END)
+                     / NULLIF(SUM(ec.weightage), 0) * 100
+                   , 2),
                    BOOL_AND(ecm.is_absent),
                    $4
             FROM exam_component_marks ecm
@@ -466,7 +471,7 @@ async def get_component_marks_grid(
     section_id: uuid.UUID,
 ) -> ComponentMarksGrid:
     components = await list_components(conn, tenant_id, exam_term_id, exam_subject_id)
-    total_max = sum((c.max_marks for c in components), Decimal("0"))
+    total_max = Decimal("100")
 
     students = await conn.fetch(
         """
@@ -489,30 +494,32 @@ async def get_component_marks_grid(
     ) if comp_ids else []
     mark_map = {(m["student_id"], m["exam_component_id"]): m for m in marks}
 
+    weight_total = sum((c.weightage for c in components), Decimal("0"))
     rows: list[StudentComponentRow] = []
     for stu in students:
         per: dict[str, Optional[float]] = {}
-        total = Decimal("0")
+        weighted_sum = Decimal("0")
         any_present = False
         all_absent = len(components) > 0
         for c in components:
             m = mark_map.get((stu["id"], c.id))
             if m and not m["is_absent"] and m["marks_obtained"] is not None:
                 per[str(c.id)] = float(m["marks_obtained"])
-                total += Decimal(str(m["marks_obtained"]))
+                weighted_sum += Decimal(str(m["marks_obtained"])) / c.max_marks * c.weightage
                 any_present = True
                 all_absent = False
             else:
                 per[str(c.id)] = None
                 if not (m and m["is_absent"]):
                     all_absent = False
+        pct = float(round(weighted_sum / weight_total * 100, 2)) if (any_present and weight_total) else None
         rows.append(StudentComponentRow(
             student_id=stu["id"],
             roll_number=stu["roll_number"],
             student_name=stu["full_name"],
             marks=per,
             is_absent=all_absent,
-            total=float(total) if any_present else None,
+            total=pct,
         ))
 
     return ComponentMarksGrid(
@@ -755,7 +762,7 @@ async def compute_consolidated_results(
 
 # ── Bulk Setup Import ─────────────────────────────────────────────────────────
 
-_VALID_TERM_TYPES = {"unit_test", "half_yearly", "annual", "practical", "project", "internal"}
+_VALID_TERM_TYPES = {"unit_test", "half_yearly", "annual", "practical", "project", "internal", "term"}
 
 
 async def import_exam_setup(
