@@ -437,16 +437,46 @@ Never start future modules before the current slice is functional.
 
 Server: `swap@62.72.13.103`, repo lives at `~/tulips/`.
 
-## Pre-deploy gate (run BEFORE any deploy)
+## The only way to deploy
 
 ```bash
-scripts/predeploy_gate.sh && <deploy sequence below>
+scripts/deploy.sh                   # full deploy (gate + backend + frontend)
+scripts/deploy.sh --frontend-only   # skip gate + backend build
+scripts/deploy.sh --backend-only    # skip frontend build
+scripts/deploy.sh --skip-gate       # DANGEROUS — only if gate environment is broken
 ```
 
-Builds a disposable backend+Postgres from the current source and runs the L1 write-path
-suite (`pytest -m "not live"`, ephemeral `qa-test` tenant, cascade-cleaned). Exits non-zero on
-any red test — only deploy if it passes. Never touches prod. The L3 live-data audit is separate
-(read-only, runs on cron — see below).
+**Never rsync + docker manually.** `scripts/deploy.sh` is the single entry point.
+It enforces all five safeguards automatically.
+
+## Five safeguards (in order)
+
+| # | Safeguard | Failure action |
+|---|-----------|----------------|
+| 1 | **Pre-deploy gate** — L1 write-path suite (`pytest -m "not live"`) in a disposable docker stack | Aborts before touching prod |
+| 2 | **Migration check + DB backup** — detects pending migrations; takes a `backup_db.sh` snapshot before the migration lands | Aborts if backup fails |
+| 3 | **Rsync** | Aborts on network/permission error |
+| 4 | **Health check with rollback** — polls `/health` 20 × 3 s; if backend never responds, re-tags `tulips-backend:rollback` and restores it | Auto-rollback to previous image |
+| 5 | **Smoke tests** — `scripts/smoke_test.sh` checks backend + nginx endpoints | Exits non-zero with a warning |
+
+## Manual rollback (if needed after a deploy)
+
+```bash
+ssh swap@62.72.13.103 "cd ~/tulips && \
+  docker tag tulips-backend:rollback tulips-backend:latest && \
+  docker compose -f docker-compose.prod.yml up -d --no-build backend worker"
+```
+
+To restore from a DB backup (last resort — only if migration corrupted data):
+
+```bash
+# List available backups
+ssh swap@62.72.13.103 "ls -lh ~/tulips/backups/"
+# Restore
+ssh swap@62.72.13.103 \
+  "gunzip -c ~/tulips/backups/tulipsedu-YYYY-MM-DD-HHMM.sql.gz | \
+   docker exec -i tulips-postgres-1 psql -U tulips -d tulipsedu"
+```
 
 ## Live-data audit (daily cron on prod)
 
@@ -457,54 +487,19 @@ and exits non-zero on any violation. Installed crontab entry:
 0 2 * * *  docker exec tulips-backend-1 python scripts/audit_live_tenants.py >> ~/tulips/audit.log 2>&1 || echo "LIVE AUDIT FAILED $(date)" >> ~/tulips/audit-alerts.log
 ```
 
-Check `~/tulips/audit-alerts.log` for violations (wire to a real alert channel later).
+Check `~/tulips/audit-alerts.log` for violations.
 
 ## rsync inode warning — DO NOT ignore
 
-`rsync` creates a **new inode** when it overwrites a file, even if the content is identical.
-Docker bind-mounted files (e.g. `nginx.prod.conf`, `index.html`) are attached to the
-**original inode**. After an rsync overwrite the container still sees the old file; the
-new one is orphaned on disk.
-
-**Rule**: After any rsync push, always run:
+`rsync` creates a **new inode** when it overwrites a file. Docker bind-mounts are attached to
+the **original inode**. `scripts/deploy.sh` handles this by always restarting nginx after
+a frontend build. If you ever rsync manually, restart nginx:
 
 ```bash
 docker compose -f docker-compose.prod.yml restart nginx
 ```
 
-For config files that are bind-mounted, prefer writing in-place on the server:
-
-```bash
-ssh swap@62.72.13.103 "cat > ~/tulips/nginx.prod.conf" < nginx.prod.conf
-```
-
-This overwrites the same inode and Docker picks it up without a restart.
-
-## Standard deploy sequence (backend-only change, no migration, no frontend)
-
-```bash
-rsync -az --exclude='backend/.env' --exclude='backend/.venv' \
-  --exclude='__pycache__' --exclude='*.pyc' \
-  --exclude='frontend/node_modules' --exclude='frontend/dist' \
-  ~/Tulips.edu/ swap@62.72.13.103:~/tulips/
-
-ssh swap@62.72.13.103 "cd ~/tulips && \
-  docker compose -f docker-compose.prod.yml build backend && \
-  docker compose -f docker-compose.prod.yml up -d backend"
-```
-
-## Full deploy (migration + backend + frontend)
-
-```bash
-# rsync (same exclusions as above)
-ssh swap@62.72.13.103 "cd ~/tulips && \
-  docker compose -f docker-compose.prod.yml build backend worker && \
-  docker compose -f docker-compose.prod.yml up -d backend && \
-  docker compose -f docker-compose.prod.yml run --rm frontend_build && \
-  docker compose -f docker-compose.prod.yml restart nginx"
-```
-
-## Health check (no curl in slim image)
+## Health check (manual)
 
 ```bash
 ssh swap@62.72.13.103 "docker exec tulips-backend-1 \
