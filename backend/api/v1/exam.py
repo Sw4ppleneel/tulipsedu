@@ -181,8 +181,9 @@ async def component_marks_grid(
         )
 
 
-@router.post("/component-marks", status_code=200, dependencies=[Depends(load_class_scope)])
+@router.post("/component-marks", status_code=200)
 async def save_component_marks(body: SaveComponentMarksRequest, request: Request):
+    await load_class_scope(request)
     if body.class_id and body.section_id:
         assert_in_scope(request, body.class_id, body.section_id)
     pool = request.app.state.pool
@@ -196,8 +197,9 @@ async def save_component_marks(body: SaveComponentMarksRequest, request: Request
 
 # ── Mark Entry ────────────────────────────────────────────────────────────────
 
-@router.post("/marks", status_code=200, dependencies=[Depends(load_class_scope)])
+@router.post("/marks", status_code=200)
 async def save_marks(body: BulkMarkRequest, request: Request):
+    await load_class_scope(request)
     if body.class_id and body.section_id:
         assert_in_scope(request, body.class_id, body.section_id)
     pool = request.app.state.pool

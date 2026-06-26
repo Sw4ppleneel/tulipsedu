@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks'
 import { markAttendance, openSession, submitSession } from '../api/attendance'
 import { listAcademicYears, listClasses, listStudents } from '../api/students'
 import { getAssignedClasses } from '../api/teacher'
+import { restoreAuthState } from '../api/auth_state'
 import { enqueue, dequeueAll } from '../db/idb'
 import type { AcademicYear, Class, Section, Student } from '../types/student'
 import type { AttendanceMark, AttendanceSession, AttendanceStatus } from '../types/attendance'
@@ -70,6 +71,7 @@ export function AttendanceView({ role }: { role?: string }) {
   const [submitted, setSubmitted] = useState(false)
   const [editing, setEditing]   = useState(false)
   const [error, setError]       = useState('')
+  const [localMarker, setLocalMarker] = useState('')
 
   // A submitted session is read-only until the teacher explicitly chooses to correct it.
   const locked = submitted && !editing
@@ -111,6 +113,7 @@ export function AttendanceView({ role }: { role?: string }) {
     setMarks({})
     setSubmitted(false)
     setEditing(false)
+    setLocalMarker('')
   }
 
   async function handleOpenSession() {
@@ -142,6 +145,10 @@ export function AttendanceView({ role }: { role?: string }) {
 
   async function handleMark(studentId: string, status: AttendanceStatus) {
     setMarks((prev) => ({ ...prev, [studentId]: status }))
+    if (!localMarker) {
+      const auth = restoreAuthState()
+      if (auth?.firstName) setLocalMarker(auth.firstName)
+    }
     const mark: AttendanceMark = { student_id: studentId, status }
 
     if (!session) return
@@ -264,9 +271,9 @@ export function AttendanceView({ role }: { role?: string }) {
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: '#6b7280', marginBottom: '0.25rem' }}>
               <span>
                 {session.class_name} — {session.section_name} | {session.date}
-                {session.marked_by_name && (
+                {(session.marked_by_name || localMarker) && (
                   <span style={{ color: '#9ca3af', marginLeft: '0.5rem' }}>
-                    · Marked by {session.marked_by_name}
+                    · Marked by {session.marked_by_name || localMarker}
                   </span>
                 )}
               </span>
