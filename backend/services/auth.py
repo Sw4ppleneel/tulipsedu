@@ -16,9 +16,10 @@ async def login(
 ) -> TokenResponse:
     row = await conn.fetchrow(
         """
-        SELECT id, password_hash, role, is_active
-        FROM users
-        WHERE tenant_id = $1 AND phone_number = $2
+        SELECT u.id, u.password_hash, u.role, u.is_active, s.first_name
+        FROM users u
+        LEFT JOIN staff s ON s.user_id = u.id AND s.tenant_id = u.tenant_id
+        WHERE u.tenant_id = $1 AND u.phone_number = $2
         """,
         tenant_id,
         req.phone_number,
@@ -35,6 +36,7 @@ async def login(
         "tenant_id": str(tenant_id),
         "tenant_slug": tenant_slug,
         "role": row["role"],
+        "first_name": row["first_name"] or "",
     }
 
     await emit(conn, "STAFF_AUTHENTICATED", tenant_id, {"user_id": str(row["id"])})

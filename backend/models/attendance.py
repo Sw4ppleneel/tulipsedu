@@ -35,6 +35,7 @@ class AttendanceSession(BaseModel):
     class_name: Optional[str] = None
     section_name: Optional[str] = None
     academic_year_name: Optional[str] = None
+    marked_by_name: Optional[str] = None
 
 
 class AttendanceRecord(BaseModel):

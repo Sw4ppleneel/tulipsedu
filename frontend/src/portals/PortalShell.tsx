@@ -18,6 +18,8 @@ export interface PortalConfig {
   name: string
   /** Tenant/school name, shown when no portal-specific subtitle is needed. */
   schoolName?: string
+  /** Staff member's first name for the home screen greeting. */
+  staffName?: string
   sections: PortalSection[]
   /** Staff portals show the notifications bell; parent uses its own surface. */
   showBell?: boolean
@@ -89,12 +91,16 @@ export function PortalShell({ config }: { config: PortalConfig }) {
 }
 
 function PortalHome({ config, onOpen }: { config: PortalConfig; onOpen: (k: string) => void }) {
+  const greeting = config.staffName ? `Hi, ${config.staffName}` : 'Welcome'
   return (
     <div style={{ maxWidth: 1080, margin: '0 auto', padding: '1.75rem 1.25rem' }}>
-      <h1 style={{ fontSize: '1.5rem', marginBottom: '.25rem' }}>
+      <p style={{ margin: '0 0 .1rem', fontSize: '.85rem', color: 'var(--gray-500)', fontWeight: 500 }}>
         {config.schoolName || 'Tulips.edu'}
+      </p>
+      <h1 style={{ fontSize: '1.6rem', margin: '0 0 .25rem', fontFamily: 'var(--font-display)', color: 'var(--gray-900)' }}>
+        {greeting}
       </h1>
-      <p style={{ color: 'var(--gray-500)', marginBottom: '1.5rem', fontSize: '.9rem' }}>
+      <p style={{ color: 'var(--gray-500)', marginBottom: '1.5rem', fontSize: '.875rem' }}>
         {config.name} workspace — choose a section to begin.
       </p>
       <div class="tile-grid">

@@ -3,6 +3,7 @@ export interface AuthState {
   tenantSlug: string
   userId: string
   role: string
+  firstName?: string
 }
 
 const STORAGE_KEY = 'tulips_auth'

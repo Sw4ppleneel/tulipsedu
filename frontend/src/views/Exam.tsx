@@ -5,6 +5,8 @@ import {
   transitionTermStatus, downloadReportCard,
 } from '../api/exam'
 import { listAcademicYears, listClasses, listStudents } from '../api/students'
+import { getAssignedClasses } from '../api/teacher'
+import { restoreAuthState } from '../api/auth_state'
 import type {
   ExamSubject, ExamTerm, MarksConfig, StudentTermResult, MarkEntry,
   ExamComponent, StudentComponentRow,
@@ -234,11 +236,12 @@ const DEFAULT_DEFS: CompDef[] = [
 ]
 
 function MarksEntryTab({
-  terms, subjects, classes,
+  terms, subjects, classes, role,
 }: {
   terms: ExamTerm[]
   subjects: ExamSubject[]
   classes: Class[]
+  role?: string
 }) {
   const [term, setTerm] = useState('')
   const [cls, setCls] = useState('')
@@ -254,6 +257,7 @@ function MarksEntryTab({
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [lastSaved, setLastSaved] = useState('')
   const [err, setErr] = useState('')
 
   const sections: Section[] = classes.find(c => c.id === cls)?.sections ?? []
@@ -310,6 +314,15 @@ function MarksEntryTab({
     } catch (ex) { setErr(ex instanceof Error ? ex.message : 'Failed to save components') }
   }
 
+  function stampSaved() {
+    const auth = restoreAuthState()
+    const name = auth?.firstName || 'you'
+    const now = new Date()
+    const d = now.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+    const t = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+    setLastSaved(`Last saved by ${name} on ${d} at ${t}`)
+  }
+
   async function handleSaveFlat() {
     const maxM = selectedConfig ? +selectedConfig.max_marks : null
     if (maxM != null) {
@@ -325,8 +338,8 @@ function MarksEntryTab({
         student_id: r.student_id, exam_subject_id: subject,
         marks_obtained: r.absent ? null : (r.marks === '' ? null : +r.marks), is_absent: r.absent,
       }))
-      await saveMarks({ exam_term_id: term, entries })
-      setSaved(true); setTimeout(() => setSaved(false), 2500)
+      await saveMarks({ exam_term_id: term, class_id: cls || undefined, section_id: sec || undefined, entries })
+      setSaved(true); stampSaved(); setTimeout(() => setSaved(false), 3000)
     } catch (ex) { setErr(ex instanceof Error ? ex.message : 'Save failed') }
     finally { setSaving(false) }
   }
@@ -351,8 +364,8 @@ function MarksEntryTab({
           marks_obtained: r.is_absent ? null : (r.marks[c.id] ?? null), is_absent: r.is_absent,
         }))
       )
-      await saveComponentMarks({ exam_term_id: term, exam_subject_id: subject, entries })
-      setSaved(true); setTimeout(() => setSaved(false), 2500)
+      await saveComponentMarks({ exam_term_id: term, exam_subject_id: subject, class_id: cls || undefined, section_id: sec || undefined, entries })
+      setSaved(true); stampSaved(); setTimeout(() => setSaved(false), 3000)
       await loadAll()
     } catch (ex) { setErr(ex instanceof Error ? ex.message : 'Save failed') }
     finally { setSaving(false) }
@@ -516,12 +529,13 @@ function MarksEntryTab({
               </tbody>
             </table>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
             <button onClick={handleSaveComponents} disabled={saving || isLocked}
               style={{ padding: '0.5rem 1.25rem', background: isLocked ? '#9ca3af' : '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: isLocked ? 'default' : 'pointer', fontSize: '0.875rem' }}>
               {saving ? 'Saving…' : 'Save Marks'}
             </button>
-            {saved && <span style={{ color: '#1F8A5D', fontSize: '0.8rem', fontWeight: 600 }}>✓ Saved</span>}
+            {saved && <span style={{ color: '#1F8A5D', fontSize: '0.8rem', fontWeight: 600 }}>Saved</span>}
+            {!saved && lastSaved && <span style={{ color: '#9ca3af', fontSize: '0.75rem' }}>{lastSaved}</span>}
           </div>
         </>
       )}
@@ -556,12 +570,13 @@ function MarksEntryTab({
               ))}
             </tbody>
           </table>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
             <button onClick={handleSaveFlat} disabled={saving || isLocked}
               style={{ padding: '0.5rem 1.25rem', background: isLocked ? '#9ca3af' : '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: isLocked ? 'default' : 'pointer', fontSize: '0.875rem' }}>
               {saving ? 'Saving…' : 'Save Marks'}
             </button>
-            {saved && <span style={{ color: '#1F8A5D', fontSize: '0.8rem', fontWeight: 600 }}>✓ Saved</span>}
+            {saved && <span style={{ color: '#1F8A5D', fontSize: '0.8rem', fontWeight: 600 }}>Saved</span>}
+            {!saved && lastSaved && <span style={{ color: '#9ca3af', fontSize: '0.75rem' }}>{lastSaved}</span>}
           </div>
         </>
       )}
@@ -717,7 +732,9 @@ export function ExamView({ role }: { role?: string }) {
   const canManage = role === 'principal' || role === 'vice_principal' || role === 'superadmin'
 
   useEffect(() => {
-    Promise.all([listAcademicYears(), listClasses()]).then(([ayList, clsList]) => {
+    const isTeacher = role === 'teacher' || role === 'class_teacher'
+    const classLoader = isTeacher ? getAssignedClasses() as Promise<Class[]> : listClasses()
+    Promise.all([listAcademicYears(), classLoader]).then(([ayList, clsList]) => {
       setYears(ayList)
       setClasses(clsList)
       const cur = ayList.find(y => y.is_current) ?? ayList[0]
@@ -764,7 +781,7 @@ export function ExamView({ role }: { role?: string }) {
       </div>
       {tab === 'terms' && canManage && <TermsTab terms={terms} onUpdate={handleTermUpdate} onAdd={handleTermAdd} canManage={canManage} academicYearId={currentYear?.id ?? null} />}
       {tab === 'subjects' && canManage && <SubjectsTab subjects={subjects} classes={classes} academicYearId={currentYear?.id ?? null} onAdd={handleSubjectAdd} />}
-      {tab === 'entry' && <MarksEntryTab terms={terms} subjects={subjects} classes={classes} />}
+      {tab === 'entry' && <MarksEntryTab terms={terms} subjects={subjects} classes={classes} role={role} />}
       {tab === 'results' && <ResultsTab terms={terms} classes={classes} />}
     </div>
   )

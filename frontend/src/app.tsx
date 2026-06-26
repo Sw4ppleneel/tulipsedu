@@ -19,10 +19,10 @@ function getSubdomain(): string {
 // Resolves the role to its dedicated portal (section set + big-button home) on
 // the shared PortalShell. Module gating (GET /me/features) is applied while
 // building the principal config; the backend remains the real authorization gate.
-function StaffPortal({ role, schoolName, onLogout }: { role: string; schoolName: string; onLogout: () => void }) {
+function StaffPortal({ role, schoolName, firstName, onLogout }: { role: string; schoolName: string; firstName: string; onLogout: () => void }) {
   const [features, setFeatures] = useState<FeatureFlags | null>(null)
   useEffect(() => { featuresApi.get().then(setFeatures).catch(() => {}) }, [])
-  const config = buildPortalConfig({ role, schoolName, features, onLogout })
+  const config = buildPortalConfig({ role, schoolName, firstName, features, onLogout })
   return <PortalShell config={config} />
 }
 
@@ -121,6 +121,7 @@ export function App() {
     return initialMode()
   })
   const [userRole, setUserRole] = useState(() => restoreAuthState()?.role ?? '')
+  const [firstName, setFirstName] = useState(() => restoreAuthState()?.firstName ?? '')
 
   function goStaffLogin() {
     history.pushState(null, '', '/app')
@@ -164,13 +165,16 @@ export function App() {
       )
       const claims = decodeJWT(tokens.access_token)
       const role = claims.role as string
+      const fn = (claims.first_name as string) || ''
       setAuthState({
         accessToken: tokens.access_token,
         tenantSlug: (claims.tenant_slug as string) || tenantSlug,
         userId: claims.sub as string,
         role,
+        firstName: fn,
       })
       setUserRole(role)
+      setFirstName(fn)
       setMode('staff-app')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed')
@@ -200,7 +204,7 @@ export function App() {
 
   if (mode === 'public') return <PublicSite onStaffLogin={goStaffLogin} onParentLogin={goParentLogin} />
   if (mode === 'staff-app')
-    return <StaffPortal role={userRole} schoolName={schoolName} onLogout={handleLogout} />
+    return <StaffPortal role={userRole} schoolName={schoolName} firstName={firstName} onLogout={handleLogout} />
 
   if (mode === 'parent-app') return <ParentPortalView onLogout={handleParentLogout} />
   if (mode === 'parent-login') return <ParentLogin onSuccess={handleParentSuccess} onBack={goPublic} />

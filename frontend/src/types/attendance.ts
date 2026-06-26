@@ -13,6 +13,7 @@ export interface AttendanceSession {
   class_name: string | null
   section_name: string | null
   academic_year_name: string | null
+  marked_by_name: string | null
 }
 
 export interface AttendanceRecord {
