@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 
 from core.csv_export import csv_response, require_export_role
-from core.rbac import require_roles
+from core.rbac import assert_in_scope, load_class_scope, require_roles
 from models.student import StudentCreate, StudentListResponse, StudentResponse, StudentUpdate
 from services.student import (
     StudentError,
@@ -16,14 +16,16 @@ from services.student import (
     update_student,
 )
 
-router = APIRouter(
-    prefix="/students",
-    tags=["students"],
-    dependencies=[Depends(require_roles("principal", "vice_principal"))],
-)
+_admin_only = Depends(require_roles("principal", "vice_principal"))
+_roster_read = [
+    Depends(require_roles("principal", "vice_principal", "class_teacher", "teacher")),
+    Depends(load_class_scope),
+]
+
+router = APIRouter(prefix="/students", tags=["students"])
 
 
-@router.post("", response_model=StudentResponse, status_code=201)
+@router.post("", response_model=StudentResponse, status_code=201, dependencies=[_admin_only])
 async def add_student(data: StudentCreate, request: Request):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
@@ -33,7 +35,7 @@ async def add_student(data: StudentCreate, request: Request):
             raise HTTPException(status_code=409, detail=str(e))
 
 
-@router.get("", response_model=StudentListResponse)
+@router.get("", response_model=StudentListResponse, dependencies=_roster_read)
 async def get_students(
     request: Request,
     academic_year_id: Optional[UUID] = Query(None),
@@ -42,6 +44,12 @@ async def get_students(
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ):
+    scope = getattr(request.state, "class_scope", None)
+    if scope is not None:
+        # Teacher/class_teacher: must specify class+section and must be in their scope.
+        if not class_id or not section_id:
+            raise HTTPException(status_code=400, detail="class_id and section_id are required")
+        assert_in_scope(request, class_id, section_id)
     pool = request.app.state.pool
     async with pool.acquire() as conn:
         return await list_students(
@@ -56,7 +64,7 @@ async def get_students(
 
 
 # Export must be declared BEFORE /{student_id} to prevent UUID matching /export.csv
-@router.get("/export.csv")
+@router.get("/export.csv", dependencies=[_admin_only])
 async def export_students_csv(
     request: Request,
     academic_year_id: Optional[UUID] = Query(None),
@@ -91,7 +99,7 @@ async def export_students_csv(
     return csv_response(headers, rows, "students.csv")
 
 
-@router.get("/{student_id}", response_model=StudentResponse)
+@router.get("/{student_id}", response_model=StudentResponse, dependencies=[_admin_only])
 async def get_one(student_id: UUID, request: Request):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
@@ -101,7 +109,7 @@ async def get_one(student_id: UUID, request: Request):
     return student
 
 
-@router.put("/{student_id}", response_model=StudentResponse)
+@router.put("/{student_id}", response_model=StudentResponse, dependencies=[_admin_only])
 async def edit_student(student_id: UUID, data: StudentUpdate, request: Request):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
@@ -114,7 +122,7 @@ async def edit_student(student_id: UUID, data: StudentUpdate, request: Request):
     return student
 
 
-@router.delete("/{student_id}", status_code=204)
+@router.delete("/{student_id}", status_code=204, dependencies=[_admin_only])
 async def remove_student(student_id: UUID, request: Request):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
@@ -123,7 +131,7 @@ async def remove_student(student_id: UUID, request: Request):
         raise HTTPException(status_code=404, detail="Student not found or already inactive")
 
 
-@router.post("/import")
+@router.post("/import", dependencies=[_admin_only])
 async def import_students_xlsx(
     request: Request,
     academic_year_id: UUID = Query(...),

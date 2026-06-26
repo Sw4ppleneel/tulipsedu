@@ -87,6 +87,16 @@ async def get_staff(
     return {"items": items, "total": total}
 
 
+@router.get("/assignments", dependencies=[Depends(require_roles("principal", "vice_principal"))])
+async def all_assignments(
+    request: Request,
+    academic_year_id: Optional[UUID] = Query(None),
+):
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        return await list_all_assignments(conn, request.state.tenant_id, academic_year_id)
+
+
 @router.get("/{staff_id}", response_model=StaffResponse)
 async def get_one(staff_id: UUID, request: Request):
     pool = request.app.state.pool
@@ -136,16 +146,6 @@ async def get_assignments(staff_id: UUID, request: Request):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
         return await list_assignments(conn, request.state.tenant_id, staff_id)
-
-
-@router.get("/assignments", dependencies=[Depends(require_roles("principal", "vice_principal"))])
-async def all_assignments(
-    request: Request,
-    academic_year_id: Optional[UUID] = Query(None),
-):
-    pool = request.app.state.pool
-    async with pool.acquire() as conn:
-        return await list_all_assignments(conn, request.state.tenant_id, academic_year_id)
 
 
 @router.delete(
