@@ -608,24 +608,33 @@ marksheet) to their enquiry. Feature-gated per tenant by `feature_flags.admissio
 
 ## Examinations
 
-### POST /api/v1/exams/subjects — Implemented
-### GET /api/v1/exams/subjects — Implemented
-### POST /api/v1/exams/terms — Implemented
-### GET /api/v1/exams/terms — Implemented
-### PATCH /api/v1/exams/terms/:id/publish — Implemented
-### PUT /api/v1/exams/marks-config — Implemented (upsert)
-### GET /api/v1/exams/marks-config — Implemented
-### POST /api/v1/exams/marks — Implemented (bulk upsert)
+### POST /api/v1/exams/subjects — Implemented (principal/VP only)
+### GET /api/v1/exams/subjects — Implemented (filters: academic_year_id, class_id)
+### POST /api/v1/exams/terms — Implemented (principal/VP only)
+### GET /api/v1/exams/terms — Implemented (filter: academic_year_id)
+### PATCH /api/v1/exams/terms/:id/publish — Implemented (principal/VP only; legacy toggle)
+### POST /api/v1/exams/terms/:id/status — Implemented (principal/VP only; transitions: draft→marks_open→locked→published, reopen paths)
+### PUT /api/v1/exams/marks-config — Implemented (upsert; principal/VP only)
+### GET /api/v1/exams/marks-config — Implemented (filter: exam_term_id)
+### PUT /api/v1/exams/components — Implemented (configure components for term×subject; principal/VP only; clears removed ones)
+### GET /api/v1/exams/components — Implemented (filters: exam_term_id, exam_subject_id)
+### GET /api/v1/exams/component-marks — Implemented (component marks grid for term×subject×class×section)
+### POST /api/v1/exams/component-marks — Implemented (save component marks; rolls up to mark_entries via weighted formula)
+### POST /api/v1/exams/marks — Implemented (bulk upsert flat marks; validates marks ≤ max_marks)
 ### GET /api/v1/exams/marks — Implemented (by term + subject + class-section)
 ### GET /api/v1/exams/results/term — Implemented (term result sheet with grades)
 ### GET /api/v1/exams/results/consolidated — Implemented (weighted across published terms)
+### GET /api/v1/exams/results/report-card.pdf — Implemented (staff download; any publish state; reportlab PDF)
+### POST /api/v1/exams/import — Implemented (two-sheet xlsx: 'Subjects' + 'Terms'; principal/VP only)
 
 ## Parent Portal
 
 ### POST /api/v1/parent/auth/request-otp — Implemented (public, no JWT)
 ### POST /api/v1/parent/auth/verify-otp — Implemented (public, no JWT; returns JWT with role=parent)
+### POST /api/v1/parent/auth/login — Implemented (public, no JWT; admission-number login; returns scoped parent JWT)
 ### GET /api/v1/parent/students — Implemented (lists students auto-linked by parent_phone)
 ### GET /api/v1/parent/students/:id/summary — Implemented (attendance %, fee balance, recent homework)
+### GET /api/v1/parent/students/:id/results/report-card.pdf — Implemented (published terms only; reportlab PDF)
 
 ## CMS Admin
 

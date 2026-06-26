@@ -87,6 +87,16 @@ export function listSubjects(params: { academic_year_id?: string; class_id?: str
   return request<ExamSubject[]>(`/exams/subjects?${p}`)
 }
 
+export function createSubject(data: {
+  academic_year_id: string
+  class_id: string
+  name: string
+  subject_code?: string
+  sort_order?: number
+}): Promise<ExamSubject> {
+  return request<ExamSubject>('/exams/subjects', { method: 'POST', body: JSON.stringify(data) })
+}
+
 export function listTerms(params: { academic_year_id?: string } = {}): Promise<ExamTerm[]> {
   const p = new URLSearchParams()
   if (params.academic_year_id) p.set('academic_year_id', params.academic_year_id)
