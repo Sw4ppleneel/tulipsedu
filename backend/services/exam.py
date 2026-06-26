@@ -276,6 +276,24 @@ async def save_marks(
     req: BulkMarkRequest,
 ) -> dict:
     await _assert_marks_open(conn, tenant_id, req.exam_term_id)
+
+    # Validate marks don't exceed configured max_marks
+    scored = [e for e in req.entries if not e.is_absent and e.marks_obtained is not None]
+    if scored:
+        subject_ids = list({e.exam_subject_id for e in scored})
+        cfg_rows = await conn.fetch(
+            """SELECT exam_subject_id, max_marks FROM exam_marks_config
+               WHERE tenant_id=$1 AND exam_term_id=$2 AND exam_subject_id=ANY($3::uuid[])""",
+            tenant_id, req.exam_term_id, subject_ids,
+        )
+        max_map = {row["exam_subject_id"]: row["max_marks"] for row in cfg_rows}
+        for e in scored:
+            cap = max_map.get(e.exam_subject_id)
+            if cap is not None and e.marks_obtained > cap:
+                raise ExamError(
+                    f"Marks {e.marks_obtained} exceed the configured maximum {cap}"
+                )
+
     await conn.executemany(
         """
         INSERT INTO mark_entries
@@ -407,6 +425,25 @@ async def save_component_marks(
         return {"saved": 0}
 
     await _assert_marks_open(conn, tenant_id, req.exam_term_id)
+
+    # Validate component marks don't exceed each component's max_marks
+    scored = [e for e in req.entries if not e.is_absent and e.marks_obtained is not None]
+    if scored:
+        comp_ids = list({e.exam_component_id for e in scored})
+        comp_rows = await conn.fetch(
+            "SELECT id, name, max_marks FROM exam_components WHERE tenant_id=$1 AND id=ANY($2::uuid[])",
+            tenant_id, comp_ids,
+        )
+        comp_max = {row["id"]: (row["name"], row["max_marks"]) for row in comp_rows}
+        for e in scored:
+            info = comp_max.get(e.exam_component_id)
+            if info is not None:
+                cname, cap = info
+                if e.marks_obtained > cap:
+                    raise ExamError(
+                        f"Marks {e.marks_obtained} for '{cname}' exceed the maximum {cap}"
+                    )
+
     async with conn.transaction():
         await conn.executemany(
             """

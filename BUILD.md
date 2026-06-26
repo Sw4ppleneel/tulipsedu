@@ -14,6 +14,24 @@ Last Updated: 2026-06-19
 Current Phase: Phase 2 Workflow ERP — lifecycle state machines in progress
 Current Sprint: Sprint 5 — W14 Analytics (next), W11 Rollover, W10 Admissions, Exam module enhancements
 
+## 🔧 BUILT 2026-06-26 — Exam: subject management UI + marks validation
+
+**Manage Subjects tab** (principal/VP only) added to ExamView:
+- New tab between "Manage Terms" and "Marks Entry"
+- Class picker + subject name/code form → `POST /exams/subjects`
+- Lists existing subjects per class
+- `createSubject()` API function added to `frontend/src/api/exam.ts`
+
+**Marks > max validation — both layers:**
+- Frontend: `handleSaveFlat` checks each mark ≤ `selectedConfig.max_marks` before submit; error message names the student
+- Frontend: `handleSaveComponents` checks each component mark ≤ `component.max_marks` before submit
+- Backend `save_marks`: fetches `exam_marks_config.max_marks` per subject and raises `ExamError` on violation (409)
+- Backend `save_component_marks`: fetches `exam_components.max_marks` per component and raises `ExamError` (409)
+
+**ARCHITECTURE.md**: Exam API catalog updated with 7 missing endpoints (components, term status, report-card PDFs, import); parent portal section adds admission-number login + report-card PDF.
+
+NOT YET DEPLOYED.
+
 ## 🔧 BUILT 2026-06-23 — Exam: simple terms + component weightage (migration 036)
 
 **Migration 036**: relaxes `exam_terms.term_type` CHECK to include `'term'` (generic);

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks'
 import {
-  listSubjects, listTerms, createTerm, listMarksConfig, getMarks, saveMarks, getTermResults,
+  listSubjects, createSubject, listTerms, createTerm, listMarksConfig, getMarks, saveMarks, getTermResults,
   listComponents, configureComponents, getComponentGrid, saveComponentMarks,
   transitionTermStatus, downloadReportCard,
 } from '../api/exam'
@@ -128,6 +128,95 @@ function TermsTab({
   )
 }
 
+// ── Tab: Manage Subjects ──────────────────────────────────────────────────────
+
+function SubjectsTab({
+  subjects, classes, academicYearId, onAdd,
+}: {
+  subjects: ExamSubject[]
+  classes: Class[]
+  academicYearId: string | null
+  onAdd: (s: ExamSubject) => void
+}) {
+  const [cls, setCls] = useState('')
+  const [name, setName] = useState('')
+  const [code, setCode] = useState('')
+  const [adding, setAdding] = useState(false)
+  const [err, setErr] = useState('')
+
+  const clsSubjects = subjects.filter(s => s.class_id === cls)
+  const INP: preact.JSX.CSSProperties = { padding: '0.375rem 0.5rem', border: '1px solid #d1d5db', borderRadius: 4, fontSize: '0.8rem' }
+  const LBL: preact.JSX.CSSProperties = { fontSize: '0.7rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 2 }
+
+  async function addSubject() {
+    if (!cls || !name.trim() || !academicYearId) return
+    setAdding(true); setErr('')
+    try {
+      const created = await createSubject({
+        academic_year_id: academicYearId,
+        class_id: cls,
+        name: name.trim(),
+        subject_code: code.trim() || undefined,
+        sort_order: clsSubjects.length,
+      })
+      onAdd(created)
+      setName(''); setCode('')
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Failed to create subject')
+    } finally { setAdding(false) }
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: '0.625rem', marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <div>
+          <label style={LBL}>Class</label>
+          <select value={cls} onChange={e => setCls((e.target as HTMLSelectElement).value)} style={{ ...INP, minWidth: 120 }}>
+            <option value="">— select —</option>
+            {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label style={LBL}>Subject Name</label>
+          <input value={name} onInput={e => setName((e.target as HTMLInputElement).value)} placeholder="e.g. Mathematics"
+            style={{ ...INP, minWidth: 160 }} />
+        </div>
+        <div>
+          <label style={LBL}>Code (optional)</label>
+          <input value={code} onInput={e => setCode((e.target as HTMLInputElement).value)} placeholder="e.g. MATH"
+            style={{ ...INP, width: 90 }} />
+        </div>
+        <button onClick={addSubject} disabled={adding || !cls || !name.trim() || !academicYearId}
+          style={{ padding: '0.4rem 1rem', background: '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, opacity: adding || !cls || !name.trim() ? 0.6 : 1 }}>
+          {adding ? 'Adding…' : '+ Add Subject'}
+        </button>
+      </div>
+      {err && <p style={{ color: '#dc2626', fontSize: '0.8rem', marginBottom: '0.5rem' }}>{err}</p>}
+
+      {!cls && <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>Select a class to view and add subjects.</p>}
+
+      {cls && clsSubjects.length === 0 && (
+        <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>No subjects yet for this class. Add one above.</p>
+      )}
+
+      {cls && clsSubjects.length > 0 && (
+        <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', padding: '0 1rem', height: 34, background: '#f9fafb', borderBottom: '1px solid #e5e7eb', fontSize: '0.72rem', fontWeight: 600, color: '#6b7280', alignItems: 'center', gap: '1rem' }}>
+            <span style={{ flex: 1 }}>SUBJECT</span>
+            <span style={{ width: 80 }}>CODE</span>
+          </div>
+          {clsSubjects.map(s => (
+            <div key={s.id} style={{ display: 'flex', padding: '0.5rem 1rem', borderBottom: '1px solid #f3f4f6', gap: '1rem', alignItems: 'center', fontSize: '0.82rem' }}>
+              <span style={{ flex: 1, fontWeight: 500 }}>{s.name}</span>
+              <span style={{ width: 80, color: '#9ca3af' }}>{s.subject_code ?? '—'}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 const GRADE_COLOR: Record<string, string> = {
   A1: '#0D332A', A2: '#0D332A', B1: '#0D332A', B2: '#0D332A',
   C1: '#92400e', C2: '#92400e', D: '#7c3aed', E: '#dc2626', AB: '#6b7280',
@@ -222,6 +311,14 @@ function MarksEntryTab({
   }
 
   async function handleSaveFlat() {
+    const maxM = selectedConfig ? +selectedConfig.max_marks : null
+    if (maxM != null) {
+      const invalid = rows.find(r => !r.absent && r.marks !== '' && +r.marks > maxM)
+      if (invalid) {
+        setErr(`${invalid.student_name}: marks ${invalid.marks} exceed maximum ${maxM}`)
+        return
+      }
+    }
     setSaving(true); setSaved(false); setErr('')
     try {
       const entries = rows.map(r => ({
@@ -235,6 +332,17 @@ function MarksEntryTab({
   }
 
   async function handleSaveComponents() {
+    for (const r of grid) {
+      if (!r.is_absent) {
+        for (const c of components) {
+          const m = r.marks[c.id]
+          if (m != null && m > +c.max_marks) {
+            setErr(`${r.student_name}: marks for ${c.name} (${m}) exceed maximum ${+c.max_marks}`)
+            return
+          }
+        }
+      }
+    }
     setSaving(true); setSaved(false); setErr('')
     try {
       const entries = grid.flatMap(r =>
@@ -599,7 +707,7 @@ function ResultsTab({ terms, classes }: { terms: ExamTerm[]; classes: Class[] })
 // ── Main Exam View ─────────────────────────────────────────────────────────────
 
 export function ExamView({ role }: { role?: string }) {
-  const [tab, setTab] = useState<'terms' | 'entry' | 'results'>('entry')
+  const [tab, setTab] = useState<'terms' | 'subjects' | 'entry' | 'results'>('entry')
   const [years, setYears] = useState<AcademicYear[]>([])
   const [classes, setClasses] = useState<Class[]>([])
   const [terms, setTerms] = useState<ExamTerm[]>([])
@@ -633,6 +741,10 @@ export function ExamView({ role }: { role?: string }) {
     setTerms(prev => [...prev, created])
   }
 
+  function handleSubjectAdd(created: ExamSubject) {
+    setSubjects(prev => [...prev, created])
+  }
+
   const TAB_BTN = (active: boolean): preact.JSX.CSSProperties => ({
     padding: '0.4rem 1rem', border: 'none', borderBottom: active ? '2px solid #14463A' : '2px solid transparent',
     background: 'none', cursor: 'pointer', fontSize: '0.875rem', fontWeight: active ? 600 : 400,
@@ -646,10 +758,12 @@ export function ExamView({ role }: { role?: string }) {
       <h2 style={{ margin: '0 0 0.75rem', fontSize: '1.1rem', fontWeight: 700, color: '#111827' }}>Examinations</h2>
       <div style={{ borderBottom: '1px solid #e5e7eb', marginBottom: '1.25rem', display: 'flex', gap: '0.25rem' }}>
         {canManage && <button style={TAB_BTN(tab === 'terms')} onClick={() => setTab('terms')}>Manage Terms</button>}
+        {canManage && <button style={TAB_BTN(tab === 'subjects')} onClick={() => setTab('subjects')}>Manage Subjects</button>}
         <button style={TAB_BTN(tab === 'entry')} onClick={() => setTab('entry')}>Marks Entry</button>
         <button style={TAB_BTN(tab === 'results')} onClick={() => setTab('results')}>Results</button>
       </div>
       {tab === 'terms' && canManage && <TermsTab terms={terms} onUpdate={handleTermUpdate} onAdd={handleTermAdd} canManage={canManage} academicYearId={currentYear?.id ?? null} />}
+      {tab === 'subjects' && canManage && <SubjectsTab subjects={subjects} classes={classes} academicYearId={currentYear?.id ?? null} onAdd={handleSubjectAdd} />}
       {tab === 'entry' && <MarksEntryTab terms={terms} subjects={subjects} classes={classes} />}
       {tab === 'results' && <ResultsTab terms={terms} classes={classes} />}
     </div>
