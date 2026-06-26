@@ -51,7 +51,10 @@ _SESSION_JOIN = """
         c.name   AS class_name,
         sec.name AS section_name,
         ay.name  AS academic_year_name,
-        COALESCE(st.first_name, 'Staff') AS marked_by_name
+        CASE
+            WHEN sess.marked_by IS NULL THEN NULL
+            ELSE COALESCE(st.first_name, 'Staff')
+        END AS marked_by_name
     FROM attendance_sessions sess
     JOIN classes        c   ON c.id   = sess.class_id
     JOIN sections       sec ON sec.id = sess.section_id
