@@ -130,6 +130,8 @@ export function getMarks(params: {
 
 export function saveMarks(data: {
   exam_term_id: string
+  class_id?: string
+  section_id?: string
   entries: { student_id: string; exam_subject_id: string; marks_obtained?: number | null; is_absent: boolean; remarks?: string }[]
 }): Promise<{ saved: number }> {
   return request<{ saved: number }>('/exams/marks', { method: 'POST', body: JSON.stringify(data) })
@@ -217,6 +219,8 @@ export function getComponentGrid(params: {
 export function saveComponentMarks(data: {
   exam_term_id: string
   exam_subject_id: string
+  class_id?: string
+  section_id?: string
   entries: { student_id: string; exam_component_id: string; marks_obtained?: number | null; is_absent: boolean }[]
 }): Promise<{ saved: number }> {
   return request<{ saved: number }>('/exams/component-marks', { method: 'POST', body: JSON.stringify(data) })

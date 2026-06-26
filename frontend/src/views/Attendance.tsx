@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { markAttendance, openSession, submitSession } from '../api/attendance'
 import { listAcademicYears, listClasses, listStudents } from '../api/students'
+import { getAssignedClasses } from '../api/teacher'
 import { enqueue, dequeueAll } from '../db/idb'
 import type { AcademicYear, Class, Section, Student } from '../types/student'
 import type { AttendanceMark, AttendanceSession, AttendanceStatus } from '../types/attendance'
@@ -51,7 +52,8 @@ function StudentMarkRow({ student, mark, onChange }: { student: Student; mark: A
   )
 }
 
-export function AttendanceView() {
+export function AttendanceView({ role }: { role?: string }) {
+  const isTeacher = role === 'teacher' || role === 'class_teacher'
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([])
   const [classes, setClasses] = useState<Class[]>([])
   const [yearId, setYearId]     = useState('')
@@ -83,9 +85,12 @@ export function AttendanceView() {
     return () => { window.removeEventListener('online', up); window.removeEventListener('offline', dn) }
   }, [])
 
-  // Load years + classes on mount
+  // Load years + classes on mount; teachers only see their assigned classes
   useEffect(() => {
-    Promise.all([listAcademicYears(), listClasses()]).then(([ys, cs]) => {
+    const classLoader = isTeacher
+      ? getAssignedClasses() as Promise<Class[]>
+      : listClasses()
+    Promise.all([listAcademicYears(), classLoader]).then(([ys, cs]) => {
       setAcademicYears(ys)
       setClasses(cs)
       const cur = ys.find((y) => y.is_current)
@@ -257,7 +262,14 @@ export function AttendanceView() {
           {/* Progress bar */}
           <div style={{ marginBottom: '0.875rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: '#6b7280', marginBottom: '0.25rem' }}>
-              <span>{session.class_name} — {session.section_name} | {session.date}</span>
+              <span>
+                {session.class_name} — {session.section_name} | {session.date}
+                {session.marked_by_name && (
+                  <span style={{ color: '#9ca3af', marginLeft: '0.5rem' }}>
+                    · Marked by {session.marked_by_name}
+                  </span>
+                )}
+              </span>
               <span>{marked}/{total} marked ({pct}%)</span>
             </div>
             <div style={{ height: 4, background: '#e5e7eb', borderRadius: 2 }}>

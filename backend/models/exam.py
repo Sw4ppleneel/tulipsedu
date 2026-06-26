@@ -92,6 +92,8 @@ class MarkEntryItem(BaseModel):
 class BulkMarkRequest(BaseModel):
     exam_term_id: UUID
     entries: list[MarkEntryItem]
+    class_id: Optional[UUID] = None
+    section_id: Optional[UUID] = None
 
 
 class MarkEntryResponse(BaseModel):
@@ -142,6 +144,8 @@ class SaveComponentMarksRequest(BaseModel):
     exam_term_id: UUID
     exam_subject_id: UUID
     entries: list[ComponentMarkItem]
+    class_id: Optional[UUID] = None
+    section_id: Optional[UUID] = None
 
 
 class StudentComponentRow(BaseModel):

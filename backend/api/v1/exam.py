@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import Response
 
-from core.rbac import require_roles
+from core.rbac import assert_in_scope, load_class_scope, require_roles
 from models.exam import (
     BulkMarkRequest,
     ComponentMarksGrid,
@@ -181,8 +181,10 @@ async def component_marks_grid(
         )
 
 
-@router.post("/component-marks", status_code=200)
+@router.post("/component-marks", status_code=200, dependencies=[Depends(load_class_scope)])
 async def save_component_marks(body: SaveComponentMarksRequest, request: Request):
+    if body.class_id and body.section_id:
+        assert_in_scope(request, body.class_id, body.section_id)
     pool = request.app.state.pool
     user_id = UUID(request.state.user_id)
     async with pool.acquire() as conn:
@@ -194,8 +196,10 @@ async def save_component_marks(body: SaveComponentMarksRequest, request: Request
 
 # ── Mark Entry ────────────────────────────────────────────────────────────────
 
-@router.post("/marks", status_code=200)
+@router.post("/marks", status_code=200, dependencies=[Depends(load_class_scope)])
 async def save_marks(body: BulkMarkRequest, request: Request):
+    if body.class_id and body.section_id:
+        assert_in_scope(request, body.class_id, body.section_id)
     pool = request.app.state.pool
     user_id = UUID(request.state.user_id)
     async with pool.acquire() as conn:

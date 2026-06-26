@@ -34,16 +34,17 @@ function flagOn(features: FeatureFlags | null, mod: Mod): boolean {
 interface BuildArgs {
   role: string
   schoolName: string
+  firstName?: string
   features: FeatureFlags | null
   onLogout: () => void
   logoUrl?: string | null
 }
 
 export function buildPortalConfig(args: BuildArgs): PortalConfig {
-  const { role, schoolName, features, onLogout, logoUrl } = args
+  const { role, schoolName, firstName, features, onLogout, logoUrl } = args
 
   const base = (name: string, sections: PortalSection[], showBell = true): PortalConfig =>
-    ({ name, schoolName, sections, showBell, logoUrl, onLogout })
+    ({ name, schoolName, staffName: firstName, sections, showBell, logoUrl, onLogout })
 
   const ic = (n: Parameters<typeof Icon>[0]['name']) => <Icon name={n} size={24} />
 
@@ -60,7 +61,7 @@ export function buildPortalConfig(args: BuildArgs): PortalConfig {
   if (role === 'teacher' || role === 'class_teacher') {
     return base('Teacher', [
       { key: 'today',        label: 'Today',         icon: ic('dashboard'),    desc: 'Your classes, pending attendance, notices', render: nav => <TeacherDashboard onGoToAttendance={() => nav('attendance')} /> },
-      { key: 'attendance',   label: 'Attendance',    icon: ic('attendance'),   desc: 'Mark today’s attendance for your classes',  render: () => <AttendanceView /> },
+      { key: 'attendance',   label: 'Attendance',    icon: ic('attendance'),   desc: "Mark today's attendance for your classes",  render: () => <AttendanceView role={role} /> },
       { key: 'homework',     label: 'Homework',      icon: ic('homework'),     desc: 'Assign and review homework',                render: () => <HomeworkView defaultType="homework" /> },
       { key: 'announcements',label: 'Announcements', icon: ic('announcement'), desc: 'Post notices to your classes',              render: () => <HomeworkView defaultType="announcement" /> },
       { key: 'material',     label: 'Study Material',icon: ic('material'),     desc: 'Share study resources',                     render: () => <HomeworkView defaultType="resource" /> },

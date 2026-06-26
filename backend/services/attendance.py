@@ -50,11 +50,14 @@ _SESSION_JOIN = """
         sess.*,
         c.name   AS class_name,
         sec.name AS section_name,
-        ay.name  AS academic_year_name
+        ay.name  AS academic_year_name,
+        COALESCE(st.first_name, 'Staff') AS marked_by_name
     FROM attendance_sessions sess
     JOIN classes        c   ON c.id   = sess.class_id
     JOIN sections       sec ON sec.id = sess.section_id
     JOIN academic_years ay  ON ay.id  = sess.academic_year_id
+    LEFT JOIN users     u   ON u.id   = sess.marked_by
+    LEFT JOIN staff     st  ON st.user_id = u.id AND st.tenant_id = sess.tenant_id
 """
 
 
