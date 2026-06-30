@@ -437,6 +437,26 @@ Never start future modules before the current slice is functional.
 
 Server: `swap@62.72.13.103`, repo lives at `~/tulips/`.
 
+## Branch model & pre-flight discipline (mandatory going forward)
+
+Two long-lived branches on `origin` (GitHub `Sw4ppleneel/tulipsedu`):
+
+* **`dev`** — active development; all feature work branches off and merges back here.
+* **`prod`** — mirrors what is currently deployed on `62.72.13.103`. Only fast-forwarded
+  from `dev` at deploy time.
+
+Two non-negotiable pre-flight steps:
+
+1. **Commit + push git before any rsync/deploy.** `scripts/deploy.sh` rsyncs the working
+   tree to prod — never rsync code that isn't committed and pushed first, so the deployed
+   state is always recoverable from git. Update `prod` to the deployed commit after a
+   successful deploy.
+2. **Back up the prod DB before any destructive DB operation** (wipes, bulk
+   regenerations, migrations that drop/alter data). Run `ssh swap@62.72.13.103 "bash
+   ~/tulips/scripts/backup_db.sh"` and confirm a fresh `~/tulips/backups/tulipsedu-*.sql.gz`
+   exists before proceeding. `scripts/deploy.sh` already backs up before migrations; this
+   rule covers ad-hoc destructive operations run outside the deploy path.
+
 ## The only way to deploy
 
 ```bash

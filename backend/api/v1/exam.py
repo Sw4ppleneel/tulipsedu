@@ -68,6 +68,15 @@ async def list_subjects(
         return await svc.list_subjects(conn, request.state.tenant_id, academic_year_id, class_id)
 
 
+@router.delete("/subjects/{subject_id}", status_code=204, dependencies=[_setup])
+async def remove_subject(subject_id: UUID, request: Request):
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        removed = await svc.deactivate_subject(conn, request.state.tenant_id, subject_id)
+    if not removed:
+        raise HTTPException(404, "Subject not found")
+
+
 # ── Terms ─────────────────────────────────────────────────────────────────────
 
 @router.post(

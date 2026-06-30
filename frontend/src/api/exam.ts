@@ -97,6 +97,10 @@ export function createSubject(data: {
   return request<ExamSubject>('/exams/subjects', { method: 'POST', body: JSON.stringify(data) })
 }
 
+export function deleteSubject(id: string): Promise<void> {
+  return request<void>(`/exams/subjects/${id}`, { method: 'DELETE' })
+}
+
 export function listTerms(params: { academic_year_id?: string } = {}): Promise<ExamTerm[]> {
   const p = new URLSearchParams()
   if (params.academic_year_id) p.set('academic_year_id', params.academic_year_id)

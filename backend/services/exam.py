@@ -90,6 +90,23 @@ async def list_subjects(
     return [ExamSubjectResponse(**dict(r)) for r in rows]
 
 
+async def deactivate_subject(
+    conn: asyncpg.Connection, tenant_id: uuid.UUID, subject_id: uuid.UUID
+) -> bool:
+    """Soft-remove a subject (is_active=FALSE). Preserves any marks/timetable/homework
+    that reference it — list_subjects already filters on is_active, so it disappears
+    from the active picker. Returns False if the subject doesn't exist for this tenant."""
+    row = await conn.fetchrow(
+        """
+        UPDATE exam_subjects SET is_active = FALSE
+        WHERE id = $1 AND tenant_id = $2 AND is_active = TRUE
+        RETURNING id
+        """,
+        subject_id, tenant_id,
+    )
+    return row is not None
+
+
 # ── Exam Terms ────────────────────────────────────────────────────────────────
 
 async def create_term(

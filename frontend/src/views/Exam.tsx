@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks'
 import {
-  listSubjects, createSubject, listTerms, createTerm, listMarksConfig, getMarks, saveMarks, getTermResults,
+  listSubjects, createSubject, deleteSubject, listTerms, createTerm, listMarksConfig, getMarks, saveMarks, getTermResults,
   listComponents, configureComponents, getComponentGrid, saveComponentMarks,
   transitionTermStatus, downloadReportCard,
 } from '../api/exam'
@@ -133,18 +133,31 @@ function TermsTab({
 // ── Tab: Manage Subjects ──────────────────────────────────────────────────────
 
 function SubjectsTab({
-  subjects, classes, academicYearId, onAdd,
+  subjects, classes, academicYearId, onAdd, onRemove,
 }: {
   subjects: ExamSubject[]
   classes: Class[]
   academicYearId: string | null
   onAdd: (s: ExamSubject) => void
+  onRemove: (id: string) => void
 }) {
   const [cls, setCls] = useState('')
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
   const [adding, setAdding] = useState(false)
+  const [removing, setRemoving] = useState('')
   const [err, setErr] = useState('')
+
+  async function removeSubject(s: ExamSubject) {
+    if (!confirm(`Remove "${s.name}" from this class? Existing marks for it are kept.`)) return
+    setRemoving(s.id); setErr('')
+    try {
+      await deleteSubject(s.id)
+      onRemove(s.id)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Failed to remove subject')
+    } finally { setRemoving('') }
+  }
 
   const clsSubjects = subjects.filter(s => s.class_id === cls)
   const INP: preact.JSX.CSSProperties = { padding: '0.375rem 0.5rem', border: '1px solid #d1d5db', borderRadius: 4, fontSize: '0.8rem' }
@@ -206,11 +219,18 @@ function SubjectsTab({
           <div style={{ display: 'flex', padding: '0 1rem', height: 34, background: '#f9fafb', borderBottom: '1px solid #e5e7eb', fontSize: '0.72rem', fontWeight: 600, color: '#6b7280', alignItems: 'center', gap: '1rem' }}>
             <span style={{ flex: 1 }}>SUBJECT</span>
             <span style={{ width: 80 }}>CODE</span>
+            <span style={{ width: 70, textAlign: 'right' }}></span>
           </div>
           {clsSubjects.map(s => (
             <div key={s.id} style={{ display: 'flex', padding: '0.5rem 1rem', borderBottom: '1px solid #f3f4f6', gap: '1rem', alignItems: 'center', fontSize: '0.82rem' }}>
               <span style={{ flex: 1, fontWeight: 500 }}>{s.name}</span>
               <span style={{ width: 80, color: '#9ca3af' }}>{s.subject_code ?? '—'}</span>
+              <span style={{ width: 70, textAlign: 'right' }}>
+                <button onClick={() => removeSubject(s)} disabled={removing === s.id}
+                  style={{ padding: '0.2rem 0.5rem', background: 'none', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 4, cursor: 'pointer', fontSize: '0.72rem', fontWeight: 600, opacity: removing === s.id ? 0.6 : 1 }}>
+                  {removing === s.id ? '…' : 'Remove'}
+                </button>
+              </span>
             </div>
           ))}
         </div>
@@ -762,6 +782,10 @@ export function ExamView({ role }: { role?: string }) {
     setSubjects(prev => [...prev, created])
   }
 
+  function handleSubjectRemove(id: string) {
+    setSubjects(prev => prev.filter(s => s.id !== id))
+  }
+
   const TAB_BTN = (active: boolean): preact.JSX.CSSProperties => ({
     padding: '0.4rem 1rem', border: 'none', borderBottom: active ? '2px solid #14463A' : '2px solid transparent',
     background: 'none', cursor: 'pointer', fontSize: '0.875rem', fontWeight: active ? 600 : 400,
@@ -780,7 +804,7 @@ export function ExamView({ role }: { role?: string }) {
         <button style={TAB_BTN(tab === 'results')} onClick={() => setTab('results')}>Results</button>
       </div>
       {tab === 'terms' && canManage && <TermsTab terms={terms} onUpdate={handleTermUpdate} onAdd={handleTermAdd} canManage={canManage} academicYearId={currentYear?.id ?? null} />}
-      {tab === 'subjects' && canManage && <SubjectsTab subjects={subjects} classes={classes} academicYearId={currentYear?.id ?? null} onAdd={handleSubjectAdd} />}
+      {tab === 'subjects' && canManage && <SubjectsTab subjects={subjects} classes={classes} academicYearId={currentYear?.id ?? null} onAdd={handleSubjectAdd} onRemove={handleSubjectRemove} />}
       {tab === 'entry' && <MarksEntryTab terms={terms} subjects={subjects} classes={classes} role={role} />}
       {tab === 'results' && <ResultsTab terms={terms} classes={classes} />}
     </div>
