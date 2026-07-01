@@ -53,3 +53,7 @@ export function clearAuthState() {
   _state = null
   try { localStorage.removeItem(STORAGE_KEY) } catch {}
 }
+
+let _sectionLabel = 'Section'
+export function getSectionLabel(): string { return _sectionLabel }
+export function setSectionLabel(label: string) { _sectionLabel = label }

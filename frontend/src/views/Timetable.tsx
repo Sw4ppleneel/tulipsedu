@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'preact/hooks'
 import { getClassTimetable, upsertSlot, deleteSlot } from '../api/timetable'
 import { listAcademicYears, listClasses } from '../api/students'
+import { getSectionLabel } from '../api/auth_state'
 import { listStaff } from '../api/staff'
 import type { WeeklyTimetable, TimetableSlot, SlotUpsert } from '../api/timetable'
 import type { AcademicYear, Class, Section } from '../types/student'
@@ -235,7 +236,7 @@ export function TimetableView() {
           {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
         <select value={sec} onChange={e => selectSection((e.target as HTMLSelectElement).value)} style={{ padding: '0.4rem 0.625rem', border: '1px solid #d1d5db', borderRadius: 4, fontSize: '0.8rem' }} disabled={!cls}>
-          <option value="">Section</option>
+          <option value="">{getSectionLabel()}</option>
           {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
       </div>

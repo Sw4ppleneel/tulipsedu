@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks'
 import { login } from './api/client'
-import { clearAuthState, decodeJWT, restoreAuthState, setAuthState } from './api/auth_state'
+import { clearAuthState, decodeJWT, restoreAuthState, setAuthState, setSectionLabel } from './api/auth_state'
 import { loginByAdmissionNo } from './api/parent'
 import { ParentPortalView } from './views/ParentPortal'
 import { PublicSite } from './views/PublicSite'
@@ -21,7 +21,7 @@ function getSubdomain(): string {
 // building the principal config; the backend remains the real authorization gate.
 function StaffPortal({ role, schoolName, firstName, onLogout }: { role: string; schoolName: string; firstName: string; onLogout: () => void }) {
   const [features, setFeatures] = useState<FeatureFlags | null>(null)
-  useEffect(() => { featuresApi.get().then(setFeatures).catch(() => {}) }, [])
+  useEffect(() => { featuresApi.get().then(f => { setFeatures(f); setSectionLabel(f.section_label ?? 'Section') }).catch(() => {}) }, [])
   const config = buildPortalConfig({ role, schoolName, firstName, features, onLogout })
   return <PortalShell config={config} />
 }

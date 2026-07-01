@@ -6,7 +6,7 @@ import {
 } from '../api/exam'
 import { listAcademicYears, listClasses, listStudents } from '../api/students'
 import { getAssignedClasses } from '../api/teacher'
-import { restoreAuthState } from '../api/auth_state'
+import { restoreAuthState, getSectionLabel } from '../api/auth_state'
 import type {
   ExamSubject, ExamTerm, MarksConfig, StudentTermResult, MarkEntry,
   ExamComponent, StudentComponentRow,
@@ -441,7 +441,7 @@ function MarksEntryTab({
           </select>
         </div>
         <div>
-          <label style={LBL}>Section</label>
+          <label style={LBL}>{getSectionLabel()}</label>
           <select value={sec} onChange={e => setSec((e.target as HTMLSelectElement).value)} style={{ ...INP, width: '100%' }} disabled={!cls}>
             <option value="">— select —</option>
             {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -658,7 +658,7 @@ function ResultsTab({ terms, classes }: { terms: ExamTerm[]; classes: Class[] })
           </select>
         </div>
         <div>
-          <label style={LBL}>Section</label>
+          <label style={LBL}>{getSectionLabel()}</label>
           <select value={sec} onChange={e => setSec((e.target as HTMLSelectElement).value)} style={{ ...INP, width: '100%' }} disabled={!cls}>
             <option value="">— select —</option>
             {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}

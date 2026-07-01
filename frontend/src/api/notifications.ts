@@ -23,6 +23,7 @@ export interface FeatureFlags {
   timetable: boolean
   exams: boolean
   cms: boolean
+  section_label: string
 }
 
 export const notificationsApi = {

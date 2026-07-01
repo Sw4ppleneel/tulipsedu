@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'preact/hooks'
 import { assignClass, listAssignments, listStaff, removeAssignment } from '../api/staff'
 import { listAcademicYears, listClasses } from '../api/students'
+import { getSectionLabel } from '../api/auth_state'
 import {
   createRun, downloadPayslipPdf, finalizeRun, getRunPayslips, getSalary,
   listRuns, listStaffPayslips, setSalary, updatePayslip,
@@ -173,7 +174,7 @@ function StaffDrawer({ staff, years, classes, onClose }: {
               {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
             <select value={sectionId} onChange={e => setSectionId((e.target as HTMLSelectElement).value)} style={INP} disabled={!classId}>
-              <option value="">Section</option>
+              <option value="">{getSectionLabel()}</option>
               {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
             <input value={subject} onInput={e => setSubject((e.target as HTMLInputElement).value)} placeholder="Subject (optional)" style={{ ...INP, width: 130 }} />

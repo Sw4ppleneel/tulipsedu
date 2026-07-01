@@ -25,6 +25,7 @@ class FeatureFlags(BaseModel):
     timetable: bool
     exams: bool
     cms: bool
+    section_label: str = "Section"
 
 
 @router.get("/features", response_model=FeatureFlags)
@@ -33,4 +34,7 @@ async def get_features(request: Request) -> FeatureFlags:
     if isinstance(flags, str):  # asyncpg returns JSONB as text (no codec set)
         flags = json.loads(flags or "{}")
     # absent => on
-    return FeatureFlags(**{m: bool(flags.get(m, True)) for m in MODULE_FLAGS})
+    return FeatureFlags(
+        **{m: bool(flags.get(m, True)) for m in MODULE_FLAGS},
+        section_label=str(flags.get("section_label", "Section")),
+    )

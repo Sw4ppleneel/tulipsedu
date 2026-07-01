@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks'
 import { markAttendance, openSession, submitSession } from '../api/attendance'
 import { listAcademicYears, listClasses, listStudents } from '../api/students'
 import { getAssignedClasses } from '../api/teacher'
-import { restoreAuthState } from '../api/auth_state'
+import { restoreAuthState, getSectionLabel } from '../api/auth_state'
 import { enqueue, dequeueAll } from '../db/idb'
 import type { AcademicYear, Class, Section, Student } from '../types/student'
 import type { AttendanceMark, AttendanceSession, AttendanceStatus } from '../types/attendance'
@@ -248,7 +248,7 @@ export function AttendanceView({ role }: { role?: string }) {
             {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
           <select value={sectionId} onChange={(e) => { setSectionId((e.target as HTMLSelectElement).value); resetSession() }} style={{ ...SEL, minWidth: 80 }} disabled={!classId}>
-            <option value="">Section</option>
+            <option value="">{getSectionLabel()}</option>
             {sections.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
           <input type="date" value={dateStr} onChange={(e) => { setDateStr((e.target as HTMLInputElement).value); resetSession() }} style={SEL} />

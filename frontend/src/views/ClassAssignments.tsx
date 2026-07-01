@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'preact/hooks'
 import { assignClass, listAllAssignments, listStaff, removeAssignment } from '../api/staff'
 import { listAcademicYears, listClasses } from '../api/students'
+import { getSectionLabel } from '../api/auth_state'
 import type { Assignment } from '../types/staff'
 import type { AcademicYear, Class, Section } from '../types/student'
 import type { Staff } from '../types/staff'
@@ -134,7 +135,7 @@ export function ClassAssignmentsView() {
             </select>
           </div>
           <div>
-            <label style={{ fontSize: '0.72rem', fontWeight: 600, display: 'block', marginBottom: 2 }}>Section</label>
+            <label style={{ fontSize: '0.72rem', fontWeight: 600, display: 'block', marginBottom: 2 }}>{getSectionLabel()}</label>
             <select value={formSection} onChange={e => setFormSection((e.target as HTMLSelectElement).value)} style={{ ...INP, width: '100%' }} disabled={!formClass} required>
               <option value="">— select —</option>
               {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}

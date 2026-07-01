@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'preact/hooks'
 import { createStudent } from '../api/students'
 import type { AcademicYear, Class, Section, StudentCreate } from '../types/student'
+import { getSectionLabel } from '../api/auth_state'
 import { isValidIndianMobile, INVALID_PHONE_MSG } from '../utils/phone'
 
 interface Props {
@@ -97,7 +98,7 @@ export function StudentForm({ academicYears, classes, onCreated, onCancel }: Pro
             </select>
           </div>
           <div>
-            <label style={LABEL}>Section</label>
+            <label style={LABEL}>{getSectionLabel()}</label>
             <select
               value={form.section_id}
               onChange={(e) => set('section_id', (e.target as HTMLSelectElement).value)}
