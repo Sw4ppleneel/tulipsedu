@@ -390,7 +390,7 @@ function CollectTab() {
       {ledger && (
         <div>
           <p style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.75rem' }}>{ledger.student_name} · {ledger.admission_no} · {ledger.class_section}</p>
-          <p style={{ fontSize: '0.8rem', color: '#6b7280', marginBottom: '0.5rem' }}>Select months to pay:</p>
+          <p style={{ fontSize: '0.8rem', color: '#6b7280', marginBottom: '0.5rem' }}>Select dues to pay:</p>
           {ledger.pending.length === 0 && <p style={{ fontSize: '0.8rem', color: '#1F8A5D' }}>✓ No pending dues</p>}
           {ledger.pending.map((e) => (
             <label key={e.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0', borderBottom: '1px solid #f3f4f6', fontSize: '0.8rem', cursor: 'pointer' }}>
