@@ -291,6 +291,72 @@ async def generate_ledger(
     return {"created": created, "skipped": len(entries) - created, "students": len(students)}
 
 
+async def generate_ledger_for_new_student(
+    conn: asyncpg.Connection,
+    tenant_id: uuid.UUID,
+    student_id: uuid.UUID,
+    academic_year_id: uuid.UUID,
+    class_id: uuid.UUID,
+    is_transport: bool,
+    is_hosteler: bool,
+) -> int:
+    """Auto-apply fee schedules when a single student is enrolled. Idempotent."""
+    schedules = await conn.fetch(
+        """
+        SELECT fs.*, fh.fee_type, fs.student_filter
+        FROM fee_schedules fs
+        JOIN fee_heads fh ON fh.id = fs.fee_head_id
+        WHERE fs.tenant_id = $1 AND fs.academic_year_id = $2 AND fh.is_active = TRUE
+          AND (fs.class_id IS NULL OR fs.class_id = $3)
+        """,
+        tenant_id, academic_year_id, class_id,
+    )
+    if not schedules:
+        return 0
+    pairs = await _derive_month_year_pairs(conn, tenant_id, academic_year_id)
+    entries: list[tuple] = []
+    for sched in schedules:
+        sf = sched["student_filter"]
+        if sf == "transport" and not is_transport:
+            continue
+        if sf == "hosteler" and not is_hosteler:
+            continue
+        if sched["fee_type"] == "monthly":
+            for my in pairs:
+                entries.append((tenant_id, student_id, sched["fee_head_id"],
+                                 academic_year_id, my.month, my.year, sched["amount"]))
+        else:
+            base_year = pairs[0].year if pairs else 2025
+            entries.append((tenant_id, student_id, sched["fee_head_id"],
+                             academic_year_id, None, base_year, sched["amount"]))
+    if not entries:
+        return 0
+    await conn.executemany(
+        """INSERT INTO fee_ledger
+               (tenant_id, student_id, fee_head_id, academic_year_id, period_month, period_year, amount_due)
+           VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING""",
+        entries,
+    )
+    return len(entries)
+
+
+async def generate_year_ledger(
+    conn: asyncpg.Connection,
+    tenant_id: uuid.UUID,
+    academic_year_id: uuid.UUID,
+) -> dict:
+    """Regenerate ledger for ALL active students in a year (idempotent)."""
+    pairs = await _derive_month_year_pairs(conn, tenant_id, academic_year_id)
+    return await generate_ledger(
+        conn, tenant_id,
+        GenerateLedgerRequest(
+            academic_year_id=academic_year_id,
+            month_year_pairs=pairs,
+            include_annual=True,
+        ),
+    )
+
+
 async def _derive_month_year_pairs(
     conn: asyncpg.Connection, tenant_id: uuid.UUID, academic_year_id: uuid.UUID
 ) -> list[MonthYearPair]:

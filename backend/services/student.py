@@ -6,6 +6,7 @@ from typing import Optional
 import asyncpg
 
 from core.events import emit
+from services.finance import generate_ledger_for_new_student, generate_year_ledger
 from models.student import (
     AcademicYearCreate,
     AcademicYearResponse,
@@ -328,6 +329,10 @@ async def create_student(
         "student_id": str(row["id"]),
         "admission_no": data.admission_no,
     })
+    await generate_ledger_for_new_student(
+        conn, tenant_id, row["id"], data.academic_year_id,
+        data.class_id, bool(data.is_transport), bool(data.is_hosteler),
+    )
     return StudentResponse(**dict(row))
 
 
@@ -543,4 +548,6 @@ async def import_students(
         except Exception as exc:
             errors.append(f"Row {row_num}: {exc}")
 
+    if created + updated > 0:
+        await generate_year_ledger(conn, tenant_id, academic_year_id)
     return {"created": created, "updated": updated, "errors": errors}
