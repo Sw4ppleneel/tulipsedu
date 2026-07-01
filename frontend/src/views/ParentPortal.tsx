@@ -101,6 +101,9 @@ function FeesSection({ student, schoolName, upi }: { student: LinkedStudent; sch
   const [ledger, setLedger] = useState<FeeLedgerEntry[] | null>(null)
   const [payments, setPayments] = useState<ParentPayment[] | null>(null)
   const [pay, setPay] = useState<{ amount: number; ledgerIds: string[]; note: string } | null>(null)
+  // one-time groups: which are expanded + which entries are checked
+  const [onetimeOpen, setOnetimeOpen] = useState<Set<string>>(new Set())
+  const [onetimeSelected, setOnetimeSelected] = useState<Record<string, Set<string>>>({})
 
   async function reload() {
     const [l, p] = await Promise.all([getStudentLedger(student.id), listParentPayments()])
@@ -123,6 +126,17 @@ function FeesSection({ student, schoolName, upi }: { student: LinkedStudent; sch
     }))
   }, [ledger])
 
+  const monthlyGroups = dueGroups.filter(g => g.entries[0].period_month !== null)
+  const onetimeGroups = dueGroups.filter(g => g.entries[0].period_month === null)
+
+  function toggleOnetimeItem(groupKey: string, id: string, checked: boolean) {
+    setOnetimeSelected(prev => {
+      const cur = new Set(prev[groupKey] ?? [])
+      checked ? cur.add(id) : cur.delete(id)
+      return { ...prev, [groupKey]: cur }
+    })
+  }
+
   const claimedPending = (payments ?? []).some(p => p.status === 'pending_verification')
 
   if (!ledger || !payments) return <Spinner label="Loading fees…" />
@@ -140,24 +154,83 @@ function FeesSection({ student, schoolName, upi }: { student: LinkedStudent; sch
       {tab === 'due' ? (
         dueGroups.length === 0
           ? <EmptyState icon={<Icon name="fees" size={30} />} title="No dues" hint="All fees are cleared." />
-          : dueGroups.map(g => (
-            <Card key={g.key} pad={false} style={{ marginBottom: '.75rem', padding: '.9rem 1rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontWeight: 700, fontFamily: 'var(--font-display)' }}>{g.label}</div>
-                  <div class="text-xs text-muted">{g.entries.map(e => e.fee_head_name).join(' · ')}</div>
+          : <>
+            {/* Monthly groups — pay the whole month at once */}
+            {monthlyGroups.map(g => (
+              <Card key={g.key} pad={false} style={{ marginBottom: '.75rem', padding: '.9rem 1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <div style={{ fontWeight: 700, fontFamily: 'var(--font-display)' }}>{g.label}</div>
+                    <div class="text-xs text-muted">{g.entries.map(e => e.fee_head_name).join(' · ')}</div>
+                  </div>
+                  <div style={{ fontWeight: 800, color: 'var(--c-accent-dk)', fontSize: '1.15rem' }}>{inr(g.total)}</div>
                 </div>
-                <div style={{ fontWeight: 800, color: 'var(--c-accent-dk)', fontSize: '1.15rem' }}>{inr(g.total)}</div>
-              </div>
-              <button
-                class="btn btn-accent" style={{ width: '100%', marginTop: '.7rem' }}
-                disabled={!upi}
-                onClick={() => setPay({ amount: g.total, ledgerIds: g.entries.map(e => e.id), note: `${schoolName} | ${student.first_name} ${student.last_name} | Adm ${student.admission_no} | ${g.label}` })}
-              >
-                {upi ? `Pay ${inr(g.total)} via UPI` : 'Pay at school office'}
-              </button>
-            </Card>
-          ))
+                <button
+                  class="btn btn-accent" style={{ width: '100%', marginTop: '.7rem' }}
+                  disabled={!upi}
+                  onClick={() => setPay({ amount: g.total, ledgerIds: g.entries.map(e => e.id), note: `${schoolName} | ${student.first_name} | Adm ${student.admission_no} | ${g.label}` })}
+                >
+                  {upi ? `Pay ${inr(g.total)} via UPI` : 'Pay at school office'}
+                </button>
+              </Card>
+            ))}
+
+            {/* One-time / annual groups — expandable with per-item selection */}
+            {onetimeGroups.map(g => {
+              const isOpen = onetimeOpen.has(g.key)
+              const sel = onetimeSelected[g.key] ?? new Set<string>()
+              const selEntries = g.entries.filter(e => sel.has(e.id))
+              const selTotal = selEntries.reduce((s, e) => s + e.amount_due, 0)
+
+              return (
+                <Card key={g.key} pad={false} style={{ marginBottom: '.75rem', padding: '.9rem 1rem' }}>
+                  {/* Header row — tap to expand */}
+                  <div
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
+                    onClick={() => setOnetimeOpen(prev => { const n = new Set(prev); n.has(g.key) ? n.delete(g.key) : n.add(g.key); return n })}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 700, fontFamily: 'var(--font-display)' }}>One-time fees</div>
+                      <div class="text-xs text-muted">{g.entries.length} items · {inr(g.total)} total</div>
+                    </div>
+                    <span style={{ color: 'var(--gray-400)', fontSize: '.85rem', userSelect: 'none' }}>{isOpen ? '▲' : '▼'}</span>
+                  </div>
+
+                  {isOpen && (
+                    <div style={{ marginTop: '.75rem', borderTop: '1px solid var(--gray-100)', paddingTop: '.5rem' }}>
+                      {g.entries.map(e => (
+                        <label key={e.id} style={{ display: 'flex', alignItems: 'center', gap: '.6rem', padding: '.4rem 0', cursor: 'pointer', borderBottom: '1px solid var(--gray-50)' }}>
+                          <input
+                            type="checkbox"
+                            checked={sel.has(e.id)}
+                            onChange={ev => toggleOnetimeItem(g.key, e.id, (ev.target as HTMLInputElement).checked)}
+                          />
+                          <span style={{ flex: 1, fontSize: '.82rem' }}>{e.fee_head_name}</span>
+                          <span style={{ fontWeight: 700, color: 'var(--c-accent-dk)', fontSize: '.85rem', flexShrink: 0 }}>{inr(e.amount_due)}</span>
+                        </label>
+                      ))}
+                      <button
+                        class="btn btn-accent"
+                        style={{ width: '100%', marginTop: '.75rem' }}
+                        disabled={!upi || sel.size === 0}
+                        onClick={() => sel.size > 0 && setPay({
+                          amount: selTotal,
+                          ledgerIds: Array.from(sel),
+                          note: `${schoolName} | ${student.first_name} | Adm ${student.admission_no} | ${sel.size} fee${sel.size !== 1 ? 's' : ''}`,
+                        })}
+                      >
+                        {sel.size === 0
+                          ? 'Select items to pay'
+                          : upi
+                            ? `Pay ${inr(selTotal)} (${sel.size} item${sel.size !== 1 ? 's' : ''}) via UPI`
+                            : 'Pay at school office'}
+                      </button>
+                    </div>
+                  )}
+                </Card>
+              )
+            })}
+          </>
       ) : (
         payments.length === 0
           ? <EmptyState icon={<Icon name="fees" size={30} />} title="No payments yet" hint="Payments you submit appear here for approval." />
