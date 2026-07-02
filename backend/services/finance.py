@@ -68,18 +68,32 @@ async def toggle_fee_head(
 async def upsert_fee_schedule(
     conn: asyncpg.Connection, tenant_id: uuid.UUID, data: FeeScheduleCreate
 ) -> FeeScheduleResponse:
-    row = await conn.fetchrow(
-        """
-        INSERT INTO fee_schedules
-            (tenant_id, fee_head_id, academic_year_id, class_id, amount, due_day_of_month)
-        VALUES ($1, $2, $3, $4, $5, $6)
-        ON CONFLICT (tenant_id, fee_head_id, academic_year_id, class_id)
-        DO UPDATE SET amount = EXCLUDED.amount, due_day_of_month = EXCLUDED.due_day_of_month
-        RETURNING *
-        """,
-        tenant_id, data.fee_head_id, data.academic_year_id,
-        data.class_id, data.amount, data.due_day_of_month,
-    )
+    if data.class_id is None:
+        row = await conn.fetchrow(
+            """
+            INSERT INTO fee_schedules
+                (tenant_id, fee_head_id, academic_year_id, class_id, amount, due_day_of_month)
+            VALUES ($1, $2, $3, NULL, $4, $5)
+            ON CONFLICT (tenant_id, fee_head_id, academic_year_id) WHERE class_id IS NULL
+            DO UPDATE SET amount = EXCLUDED.amount, due_day_of_month = EXCLUDED.due_day_of_month
+            RETURNING *
+            """,
+            tenant_id, data.fee_head_id, data.academic_year_id,
+            data.amount, data.due_day_of_month,
+        )
+    else:
+        row = await conn.fetchrow(
+            """
+            INSERT INTO fee_schedules
+                (tenant_id, fee_head_id, academic_year_id, class_id, amount, due_day_of_month)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            ON CONFLICT (tenant_id, fee_head_id, academic_year_id, class_id) WHERE class_id IS NOT NULL
+            DO UPDATE SET amount = EXCLUDED.amount, due_day_of_month = EXCLUDED.due_day_of_month
+            RETURNING *
+            """,
+            tenant_id, data.fee_head_id, data.academic_year_id,
+            data.class_id, data.amount, data.due_day_of_month,
+        )
     full = await conn.fetchrow(
         """
         SELECT fs.*, fh.name AS fee_head_name, fh.fee_type, c.name AS class_name
@@ -193,18 +207,33 @@ async def import_fee_structure_excel(
         if class_str.lower() not in ("all", "", "none") and class_id is None:
             raise FinanceError(f"Row {row_num}: class '{class_str}' not found")
 
-        # Upsert schedule
-        sched_row = await conn.fetchrow(
-            """
-            INSERT INTO fee_schedules
-                (tenant_id, fee_head_id, academic_year_id, class_id, amount, student_filter)
-            VALUES ($1, $2, $3, $4, $5, $6)
-            ON CONFLICT (tenant_id, fee_head_id, academic_year_id, class_id)
-            DO UPDATE SET amount = EXCLUDED.amount, student_filter = EXCLUDED.student_filter
-            RETURNING (xmax = 0) AS inserted
-            """,
-            tenant_id, head_row["id"], academic_year_id, class_id, amount, student_filter,
-        )
+        # Upsert schedule — two partial indexes handle NULL vs non-NULL class_id
+        # (PostgreSQL B-tree: NULL != NULL, so a single index on class_id can't
+        # deduplicate ALL-classes rows; we target the right partial index instead).
+        if class_id is None:
+            sched_row = await conn.fetchrow(
+                """
+                INSERT INTO fee_schedules
+                    (tenant_id, fee_head_id, academic_year_id, class_id, amount, student_filter)
+                VALUES ($1, $2, $3, NULL, $4, $5)
+                ON CONFLICT (tenant_id, fee_head_id, academic_year_id) WHERE class_id IS NULL
+                DO UPDATE SET amount = EXCLUDED.amount, student_filter = EXCLUDED.student_filter
+                RETURNING (xmax = 0) AS inserted
+                """,
+                tenant_id, head_row["id"], academic_year_id, amount, student_filter,
+            )
+        else:
+            sched_row = await conn.fetchrow(
+                """
+                INSERT INTO fee_schedules
+                    (tenant_id, fee_head_id, academic_year_id, class_id, amount, student_filter)
+                VALUES ($1, $2, $3, $4, $5, $6)
+                ON CONFLICT (tenant_id, fee_head_id, academic_year_id, class_id) WHERE class_id IS NOT NULL
+                DO UPDATE SET amount = EXCLUDED.amount, student_filter = EXCLUDED.student_filter
+                RETURNING (xmax = 0) AS inserted
+                """,
+                tenant_id, head_row["id"], academic_year_id, class_id, amount, student_filter,
+            )
         if sched_row["inserted"]:
             created_schedules += 1
         else:
