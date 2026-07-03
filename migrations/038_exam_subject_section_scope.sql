@@ -14,6 +14,7 @@
 
 ALTER TABLE exam_subjects ADD COLUMN section_id UUID REFERENCES sections(id) ON DELETE CASCADE;
 
+-- unique_exam_subject is a TABLE CONSTRAINT (not a standalone index) — must use ALTER TABLE.
 ALTER TABLE exam_subjects DROP CONSTRAINT IF EXISTS unique_exam_subject;
 DROP INDEX IF EXISTS unique_exam_subject;
 
