@@ -58,15 +58,15 @@ async def create_subject(
         row = await conn.fetchrow(
             """
             INSERT INTO exam_subjects
-                (tenant_id, academic_year_id, class_id, name, subject_code, sort_order)
-            VALUES ($1,$2,$3,$4,$5,$6)
+                (tenant_id, academic_year_id, class_id, section_id, name, subject_code, sort_order)
+            VALUES ($1,$2,$3,$4,$5,$6,$7)
             RETURNING *
             """,
-            tenant_id, data.academic_year_id, data.class_id,
+            tenant_id, data.academic_year_id, data.class_id, data.section_id,
             data.name, data.subject_code, data.sort_order,
         )
     except asyncpg.UniqueViolationError:
-        raise ExamError("A subject with this name already exists for this class and year")
+        raise ExamError("A subject with this name already exists for this class/stream and year")
     return ExamSubjectResponse(**dict(row))
 
 
@@ -75,6 +75,7 @@ async def list_subjects(
     tenant_id: uuid.UUID,
     academic_year_id: Optional[uuid.UUID] = None,
     class_id: Optional[uuid.UUID] = None,
+    section_id: Optional[uuid.UUID] = None,
 ) -> list[ExamSubjectResponse]:
     rows = await conn.fetch(
         """
@@ -606,9 +607,10 @@ async def compute_term_results(
         FROM exam_marks_config emc
         JOIN exam_subjects es ON es.id = emc.exam_subject_id
         WHERE emc.tenant_id = $1 AND emc.exam_term_id = $2 AND es.class_id = $3
+          AND (es.section_id IS NULL OR es.section_id = $4)
         ORDER BY es.sort_order, es.name
         """,
-        tenant_id, exam_term_id, class_id,
+        tenant_id, exam_term_id, class_id, section_id,
     )
 
     students = await conn.fetch(
@@ -709,8 +711,13 @@ async def compute_consolidated_results(
         tenant_id, academic_year_id,
     )
     subjects = await conn.fetch(
-        "SELECT * FROM exam_subjects WHERE tenant_id = $1 AND academic_year_id = $2 AND class_id = $3 AND is_active = TRUE ORDER BY sort_order, name",
-        tenant_id, academic_year_id, class_id,
+        """
+        SELECT * FROM exam_subjects
+        WHERE tenant_id = $1 AND academic_year_id = $2 AND class_id = $3 AND is_active = TRUE
+          AND (section_id IS NULL OR section_id = $4)
+        ORDER BY sort_order, name
+        """,
+        tenant_id, academic_year_id, class_id, section_id,
     )
     students = await conn.fetch(
         """
@@ -850,6 +857,12 @@ async def import_exam_setup(
     class_rows = await conn.fetch("SELECT id, name FROM classes WHERE tenant_id = $1", tenant_id)
     class_map = {r["name"].strip().lower(): r["id"] for r in class_rows}
 
+    section_rows = await conn.fetch(
+        "SELECT s.id, c.name AS class_name, s.name AS section_name FROM sections s JOIN classes c ON c.id = s.class_id WHERE s.tenant_id = $1",
+        tenant_id,
+    )
+    section_map = {(r["class_name"].strip().lower(), r["section_name"].strip().lower()): r["id"] for r in section_rows}
+
     # ── Subjects ──────────────────────────────────────────────────────────────
     subj_rows = list(subj_ws.iter_rows(values_only=True))
     if len(subj_rows) < 2:
@@ -861,8 +874,9 @@ async def import_exam_setup(
         raise ExamError(f"Subjects sheet missing columns: {missing}")
 
     si = {n: subj_hdr.index(n) for n in ("class", "subject")}
-    code_col  = subj_hdr.index("subject code") if "subject code" in subj_hdr else None
-    order_col = subj_hdr.index("sort order")   if "sort order"   in subj_hdr else None
+    code_col    = subj_hdr.index("subject code") if "subject code" in subj_hdr else None
+    order_col   = subj_hdr.index("sort order")   if "sort order"   in subj_hdr else None
+    section_col = subj_hdr.index("section")       if "section"       in subj_hdr else None
 
     subjects_created = subjects_updated = 0
     subj_errors: list[str] = []
@@ -879,17 +893,38 @@ async def import_exam_setup(
             if not class_id:
                 raise ValueError(f"Class '{class_str}' not found")
 
-            result = await conn.fetchrow(
-                """
-                INSERT INTO exam_subjects
-                    (tenant_id, academic_year_id, class_id, name, subject_code, sort_order)
-                VALUES ($1,$2,$3,$4,$5,$6)
-                ON CONFLICT (tenant_id, academic_year_id, class_id, name)
-                DO UPDATE SET subject_code = EXCLUDED.subject_code, sort_order = EXCLUDED.sort_order
-                RETURNING id, (xmax = 0) AS inserted
-                """,
-                tenant_id, academic_year_id, class_id, subject, code, sort_order,
-            )
+            section_str = str(row[section_col]).strip() if section_col is not None and row[section_col] else ""
+            section_id: Optional[uuid.UUID] = None
+            if section_str:
+                section_id = section_map.get((class_str.lower(), section_str.lower()))
+                if not section_id:
+                    raise ValueError(f"Section '{section_str}' not found in class '{class_str}'")
+
+            # Two partial indexes handle NULL vs non-NULL section_id (same pattern as fee_schedules).
+            if section_id is None:
+                result = await conn.fetchrow(
+                    """
+                    INSERT INTO exam_subjects
+                        (tenant_id, academic_year_id, class_id, section_id, name, subject_code, sort_order)
+                    VALUES ($1,$2,$3,NULL,$4,$5,$6)
+                    ON CONFLICT (tenant_id, academic_year_id, class_id, name) WHERE section_id IS NULL
+                    DO UPDATE SET subject_code = EXCLUDED.subject_code, sort_order = EXCLUDED.sort_order
+                    RETURNING id, (xmax = 0) AS inserted
+                    """,
+                    tenant_id, academic_year_id, class_id, subject, code, sort_order,
+                )
+            else:
+                result = await conn.fetchrow(
+                    """
+                    INSERT INTO exam_subjects
+                        (tenant_id, academic_year_id, class_id, section_id, name, subject_code, sort_order)
+                    VALUES ($1,$2,$3,$4,$5,$6,$7)
+                    ON CONFLICT (tenant_id, academic_year_id, class_id, section_id, name) WHERE section_id IS NOT NULL
+                    DO UPDATE SET subject_code = EXCLUDED.subject_code, sort_order = EXCLUDED.sort_order
+                    RETURNING id, (xmax = 0) AS inserted
+                    """,
+                    tenant_id, academic_year_id, class_id, section_id, subject, code, sort_order,
+                )
             imported_subject_ids.append(result["id"])
             if result["inserted"]:
                 subjects_created += 1

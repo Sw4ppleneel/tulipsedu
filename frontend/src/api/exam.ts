@@ -5,6 +5,7 @@ export interface ExamSubject {
   tenant_id: string
   academic_year_id: string
   class_id: string
+  section_id: string | null
   name: string
   subject_code: string | null
   sort_order: number
@@ -90,6 +91,7 @@ export function listSubjects(params: { academic_year_id?: string; class_id?: str
 export function createSubject(data: {
   academic_year_id: string
   class_id: string
+  section_id?: string
   name: string
   subject_code?: string
   sort_order?: number

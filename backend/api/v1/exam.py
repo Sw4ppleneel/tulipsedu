@@ -62,10 +62,11 @@ async def list_subjects(
     request: Request,
     academic_year_id: Optional[UUID] = Query(None),
     class_id: Optional[UUID] = Query(None),
+    section_id: Optional[UUID] = Query(None),
 ):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
-        return await svc.list_subjects(conn, request.state.tenant_id, academic_year_id, class_id)
+        return await svc.list_subjects(conn, request.state.tenant_id, academic_year_id, class_id, section_id)
 
 
 @router.delete("/subjects/{subject_id}", status_code=204, dependencies=[_setup])

@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 class ExamSubjectCreate(BaseModel):
     academic_year_id: UUID
     class_id: UUID
+    section_id: Optional[UUID] = None
     name: str
     subject_code: Optional[str] = None
     sort_order: int = 0
@@ -21,6 +22,7 @@ class ExamSubjectResponse(BaseModel):
     tenant_id: UUID
     academic_year_id: UUID
     class_id: UUID
+    section_id: Optional[UUID]
     name: str
     subject_code: Optional[str]
     sort_order: int

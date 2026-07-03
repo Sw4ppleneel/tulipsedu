@@ -142,11 +142,16 @@ function SubjectsTab({
   onRemove: (id: string) => void
 }) {
   const [cls, setCls] = useState('')
+  const [sec, setSec] = useState('')
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
   const [adding, setAdding] = useState(false)
   const [removing, setRemoving] = useState('')
   const [err, setErr] = useState('')
+
+  const sections: Section[] = classes.find(c => c.id === cls)?.sections ?? []
+  // Reset section when class changes
+  function handleClsChange(newCls: string) { setCls(newCls); setSec('') }
 
   async function removeSubject(s: ExamSubject) {
     if (!confirm(`Remove "${s.name}" from this class? Existing marks for it are kept.`)) return
@@ -170,6 +175,7 @@ function SubjectsTab({
       const created = await createSubject({
         academic_year_id: academicYearId,
         class_id: cls,
+        section_id: sec || undefined,
         name: name.trim(),
         subject_code: code.trim() || undefined,
         sort_order: clsSubjects.length,
@@ -181,16 +187,27 @@ function SubjectsTab({
     } finally { setAdding(false) }
   }
 
+  const sectionLbl = getSectionLabel()
+
   return (
     <div>
       <div style={{ display: 'flex', gap: '0.625rem', marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
         <div>
           <label style={LBL}>Class</label>
-          <select value={cls} onChange={e => setCls((e.target as HTMLSelectElement).value)} style={{ ...INP, minWidth: 120 }}>
+          <select value={cls} onChange={e => handleClsChange((e.target as HTMLSelectElement).value)} style={{ ...INP, minWidth: 120 }}>
             <option value="">— select —</option>
             {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>
+        {sections.length > 1 && (
+          <div>
+            <label style={LBL}>{sectionLbl} (optional)</label>
+            <select value={sec} onChange={e => setSec((e.target as HTMLSelectElement).value)} style={{ ...INP, minWidth: 110 }}>
+              <option value="">All {sectionLbl}s</option>
+              {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </div>
+        )}
         <div>
           <label style={LBL}>Subject Name</label>
           <input value={name} onInput={e => setName((e.target as HTMLInputElement).value)} placeholder="e.g. Mathematics"
@@ -219,20 +236,27 @@ function SubjectsTab({
           <div style={{ display: 'flex', padding: '0 1rem', height: 34, background: '#f9fafb', borderBottom: '1px solid #e5e7eb', fontSize: '0.72rem', fontWeight: 600, color: '#6b7280', alignItems: 'center', gap: '1rem' }}>
             <span style={{ flex: 1 }}>SUBJECT</span>
             <span style={{ width: 80 }}>CODE</span>
+            <span style={{ width: 90 }}>{sectionLbl.toUpperCase()}</span>
             <span style={{ width: 70, textAlign: 'right' }}></span>
           </div>
-          {clsSubjects.map(s => (
-            <div key={s.id} style={{ display: 'flex', padding: '0.5rem 1rem', borderBottom: '1px solid #f3f4f6', gap: '1rem', alignItems: 'center', fontSize: '0.82rem' }}>
-              <span style={{ flex: 1, fontWeight: 500 }}>{s.name}</span>
-              <span style={{ width: 80, color: '#9ca3af' }}>{s.subject_code ?? '—'}</span>
-              <span style={{ width: 70, textAlign: 'right' }}>
-                <button onClick={() => removeSubject(s)} disabled={removing === s.id}
-                  style={{ padding: '0.2rem 0.5rem', background: 'none', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 4, cursor: 'pointer', fontSize: '0.72rem', fontWeight: 600, opacity: removing === s.id ? 0.6 : 1 }}>
-                  {removing === s.id ? '…' : 'Remove'}
-                </button>
-              </span>
-            </div>
-          ))}
+          {clsSubjects.map(s => {
+            const scopeSection = s.section_id ? sections.find(sec => sec.id === s.section_id) : null
+            return (
+              <div key={s.id} style={{ display: 'flex', padding: '0.5rem 1rem', borderBottom: '1px solid #f3f4f6', gap: '1rem', alignItems: 'center', fontSize: '0.82rem' }}>
+                <span style={{ flex: 1, fontWeight: 500 }}>{s.name}</span>
+                <span style={{ width: 80, color: '#9ca3af' }}>{s.subject_code ?? '—'}</span>
+                <span style={{ width: 90, color: scopeSection ? '#1d4ed8' : '#9ca3af', fontSize: '0.75rem' }}>
+                  {scopeSection ? scopeSection.name : `All`}
+                </span>
+                <span style={{ width: 70, textAlign: 'right' }}>
+                  <button onClick={() => removeSubject(s)} disabled={removing === s.id}
+                    style={{ padding: '0.2rem 0.5rem', background: 'none', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 4, cursor: 'pointer', fontSize: '0.72rem', fontWeight: 600, opacity: removing === s.id ? 0.6 : 1 }}>
+                    {removing === s.id ? '…' : 'Remove'}
+                  </button>
+                </span>
+              </div>
+            )
+          })}
         </div>
       )}
     </div>
@@ -281,7 +305,7 @@ function MarksEntryTab({
   const [err, setErr] = useState('')
 
   const sections: Section[] = classes.find(c => c.id === cls)?.sections ?? []
-  const clsSubjects = subjects.filter(s => s.class_id === cls)
+  const clsSubjects = subjects.filter(s => s.class_id === cls && (s.section_id === null || s.section_id === sec))
   const selectedConfig = configs.find(c => c.exam_subject_id === subject)
   const hasComponents = components.length > 0
   const ready = term && subject && cls && sec
@@ -442,14 +466,14 @@ function MarksEntryTab({
         </div>
         <div>
           <label style={LBL}>{getSectionLabel()}</label>
-          <select value={sec} onChange={e => setSec((e.target as HTMLSelectElement).value)} style={{ ...INP, width: '100%' }} disabled={!cls}>
+          <select value={sec} onChange={e => { setSec((e.target as HTMLSelectElement).value); setSubject('') }} style={{ ...INP, width: '100%' }} disabled={!cls}>
             <option value="">— select —</option>
             {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         </div>
         <div>
           <label style={LBL}>Subject</label>
-          <select value={subject} onChange={e => setSubject((e.target as HTMLSelectElement).value)} style={{ ...INP, width: '100%' }} disabled={!cls}>
+          <select value={subject} onChange={e => setSubject((e.target as HTMLSelectElement).value)} style={{ ...INP, width: '100%' }} disabled={!cls || !sec}>
             <option value="">— select —</option>
             {clsSubjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
