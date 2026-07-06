@@ -5,7 +5,7 @@
 Project: Tulips.edu
 Phase: Phase 2 — Workflow ERP (lifecycle state machines)
 Current Sprint: Sprint 5 — W14 Analytics, W11 Rollover, W10 Admissions
-Last Updated: 2026-06-19
+Last Updated: 2026-07-07
 
 ---
 
@@ -13,6 +13,40 @@ Last Updated: 2026-06-19
 
 Current Phase: Phase 2 Workflow ERP — lifecycle state machines in progress
 Current Sprint: Sprint 5 — W14 Analytics (next), W11 Rollover, W10 Admissions, Exam module enhancements
+
+## ✅ DEPLOYED 2026-07-07 — Daffodils Public School (DPS): real roster replaces mock seed data
+
+Ran `backend/scripts/reset_and_import_dps.py` directly against prod (one-off, not
+wired into an API — mirrors the `import_pmic_science_commerce.py` pattern).
+
+**What it did, in one transaction:**
+1. Deleted the 30 mock/seed students and 5 mock "Grade 6-10" classes on
+   `daffodilspublicschool` (and all dependent rows: fee_ledger, fee_payments,
+   fee_payment_items, mark_entries, attendance_sessions, exam_subjects,
+   homework_posts, staff_class_assignments, timetable_slots).
+2. Archived the stale `2025-2026` academic year (had already ended, rollover
+   never ran) and created `2026-2027` (2026-04-01 → 2027-03-31) as current.
+3. Created the real class structure: Nursery, K.G. I, K.G. II, Class 1-8
+   (single section "A" each, matching the source roster).
+4. Imported 352 real students from `School_docs/Daffodils/STUDENTS INFO. $.xlsx`
+   via `services.student.import_students` (created=352, errors=0).
+
+**Admission-number convention** (tenant-specific, not a global rule):
+`DPS{N}-2026-{roll:03d}` for Class 1-8, `DPSK1-`/`DPSK2-` for K.G. I/II,
+`DPSN-` for Nursery. Year token is the new academic year's start year.
+
+**Known gap:** Class 6 has zero students — the source file's 19 Class-6 rows
+were placeholder roll numbers only (no name/DOB/gender/phone), so nothing was
+imported. Owner needs to supply the real Class 6 roster; re-run pattern in the
+script once that data exists (it's tenant/AY-scoped and safe to run again for
+just that class, or extend the script).
+
+**Data-quality notes for future re-imports of this source file:** DOB strings
+had typos (letter "O" for zero, stray spaces/doubled separators) — handled by
+a general cleaner in the script; one row (K.G.II roll 16) needed a hardcoded
+override for an unrecoverable truncated year. 40/352 rows had no DOB
+(placeholder `2000-01-01`) and 40/352 had no phone (placeholder
+`0000000000`), matching the PMIC import convention.
 
 ## 🔧 BUILT 2026-06-26 — Exam: subject management UI + marks validation
 

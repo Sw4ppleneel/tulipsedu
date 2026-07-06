@@ -169,6 +169,12 @@ async def reset_tenant(conn: asyncpg.Connection, tenant_id) -> dict:
         if student_ids:
             await conn.execute("DELETE FROM mark_entries WHERE student_id = ANY($1::uuid[])", student_ids)
             await conn.execute("DELETE FROM exam_component_marks WHERE student_id = ANY($1::uuid[])", student_ids)
+            await conn.execute(
+                """DELETE FROM fee_payment_items
+                   WHERE ledger_id IN (SELECT id FROM fee_ledger WHERE student_id = ANY($1::uuid[]))
+                      OR payment_id IN (SELECT id FROM fee_payments WHERE student_id = ANY($1::uuid[]))""",
+                student_ids,
+            )
             await conn.execute("DELETE FROM fee_ledger WHERE student_id = ANY($1::uuid[])", student_ids)
             await conn.execute("DELETE FROM fee_payments WHERE student_id = ANY($1::uuid[])", student_ids)
             await conn.execute("DELETE FROM admissions WHERE student_id = ANY($1::uuid[])", student_ids)
