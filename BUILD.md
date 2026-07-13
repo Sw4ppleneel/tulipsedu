@@ -5,7 +5,7 @@
 Project: Tulips.edu
 Phase: Phase 2 — Workflow ERP (lifecycle state machines)
 Current Sprint: Sprint 5 — W14 Analytics, W11 Rollover, W10 Admissions
-Last Updated: 2026-07-07
+Last Updated: 2026-07-13
 
 ---
 
@@ -13,6 +13,35 @@ Last Updated: 2026-07-07
 
 Current Phase: Phase 2 Workflow ERP — lifecycle state machines in progress
 Current Sprint: Sprint 5 — W14 Analytics (next), W11 Rollover, W10 Admissions, Exam module enhancements
+
+## 🔧 BUILT 2026-07-13 — PMIC public website photos curated from raw WhatsApp dump
+
+`frontend/public/school-assets/premchandmahtoic/` had only `logo.png` plus 80
+unsorted `WhatsApp Image ....jpeg` files (18MB, dumped there directly — would
+have shipped in every frontend build). Reviewed all 80 via contact-sheet
+thumbnails + full-res spot checks, then populated the convention `PremchandMahtoInterCollege.tsx`
+expects: `hero.jpg`, `building.jpg`, `principal.jpg`, `gallery1-9.png`.
+
+**Important catch:** PMIC and Premchand High School (a separate tenant,
+`premchandhighschool`) share a physical campus, and roughly a third of the
+raw dump was actually Premchand High School's Independence Day event and a
+felicitation ceremony (confirmed via signage/banners in the shots) — not PMIC.
+Those were excluded. Only photos with confirmed "PREMCHAND MAHTO INTER
+COLLEGE" signage, or PMIC's pink-dupatta uniform, were used.
+
+Raw source photos moved to `School_docs/Premchand Mahto Inter College/Website
+Photos - raw/` (kept for reference, out of the frontend build).
+
+Verified: dev server (`npm run dev`) confirmed all 13 asset URLs resolve
+200, and filenames match exactly what `PremchandMahtoInterCollege.tsx`
+references (no chromium/playwright available in this environment for a full
+visual screenshot — recommend `/run-skill-generator` if that's needed
+regularly).
+
+**Open item:** `principal.jpg` is a solo desk portrait with PMIC admission
+paperwork visible on the table (confirms correct school) but his role
+(principal vs. admin staff) was not independently confirmed — worth a
+sanity check with the school before treating it as authoritative.
 
 ## ✅ DEPLOYED 2026-07-07 — Daffodils Public School (DPS): real roster replaces mock seed data
 
