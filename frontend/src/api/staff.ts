@@ -1,5 +1,5 @@
 import { request } from './client'
-import type { Assignment, Staff, StaffCreate, StaffListResponse } from '../types/staff'
+import type { Assignment, Staff, StaffAccessResult, StaffCreate, StaffListResponse, StaffRole } from '../types/staff'
 
 export function listStaff(params: { designation?: string; is_active?: boolean; limit?: number; offset?: number } = {}): Promise<StaffListResponse> {
   const qs = new URLSearchParams()
@@ -24,6 +24,10 @@ export function updateStaff(id: string, data: Partial<StaffCreate>): Promise<Sta
 
 export async function deactivateStaff(id: string): Promise<void> {
   await request(`/staff/${id}`, { method: 'DELETE' })
+}
+
+export function assignStaffRole(id: string, role: StaffRole): Promise<StaffAccessResult> {
+  return request<StaffAccessResult>(`/staff/${id}/role`, { method: 'PUT', body: JSON.stringify({ role }) })
 }
 
 export function assignClass(staffId: string, data: {

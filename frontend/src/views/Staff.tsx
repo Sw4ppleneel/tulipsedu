@@ -1,10 +1,101 @@
 import { useEffect, useState } from 'preact/hooks'
 import { VirtualList } from '../components/VirtualList'
 import { useIsMobile } from '../hooks/useIsMobile'
-import { listStaff } from '../api/staff'
+import { listStaff, assignStaffRole } from '../api/staff'
 import { StaffForm } from './StaffForm'
 import { ExcelImport } from '../ui'
-import type { Staff } from '../types/staff'
+import type { Staff, StaffRole } from '../types/staff'
+import { STAFF_ROLES } from '../types/staff'
+
+const ROLE_LABELS: Record<StaffRole, string> = {
+  principal: 'Principal',
+  vice_principal: 'Vice Principal',
+  class_teacher: 'Class Teacher',
+  teacher: 'Teacher',
+  accountant: 'Accountant',
+}
+
+function AccessModal({ member, onClose, onDone }: { member: Staff; onClose: () => void; onDone: () => void }) {
+  const [role, setRole] = useState<StaffRole>('teacher')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [result, setResult] = useState<{ password: string } | null>(null)
+
+  async function save() {
+    setSaving(true); setError('')
+    try {
+      const res = await assignStaffRole(member.id, role)
+      if (res.login_created && res.generated_password) {
+        setResult({ password: res.generated_password })
+      } else {
+        onDone()
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to assign role')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={onClose}>
+      <div style={{ background: '#fff', borderRadius: 8, padding: '1.5rem', width: 360, maxWidth: '90vw' }} onClick={(e) => e.stopPropagation()}>
+        <h3 style={{ margin: '0 0 0.25rem', fontSize: '1rem', fontWeight: 600 }}>Manage Access</h3>
+        <p style={{ margin: '0 0 1rem', fontSize: '0.8rem', color: '#6b7280' }}>{member.first_name} {member.last_name}</p>
+
+        {result ? (
+          <>
+            <p style={{ fontSize: '0.8rem', color: '#374151', lineHeight: 1.6 }}>
+              Login created. Share these credentials with {member.first_name}:
+            </p>
+            <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 6, padding: '0.75rem', fontSize: '0.8rem', fontFamily: 'monospace', marginBottom: '1rem' }}>
+              <div>Username: {member.phone_number}</div>
+              <div>Password: {result.password}</div>
+            </div>
+            <button
+              onClick={() => { onDone() }}
+              style={{ padding: '0.5rem 1rem', background: '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem' }}
+            >
+              Done
+            </button>
+          </>
+        ) : (
+          <>
+            {error && <p style={{ color: '#c00', fontSize: '0.8rem', marginBottom: '0.75rem' }}>{error}</p>}
+            <label style={{ display: 'block', fontSize: '0.8rem', color: '#555', marginBottom: '0.25rem' }}>Role</label>
+            <select
+              value={role}
+              onChange={(e) => setRole((e.target as HTMLSelectElement).value as StaffRole)}
+              style={{ width: '100%', padding: '0.5rem', border: '1px solid #ccc', borderRadius: 4, fontSize: '0.875rem', marginBottom: '1rem' }}
+            >
+              {STAFF_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+            </select>
+            {!member.user_id && (
+              <p style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '1rem' }}>
+                No login yet — one will be created (username = phone number, password auto-generated).
+              </p>
+            )}
+            <div style={{ display: 'flex', gap: '0.75rem' }}>
+              <button
+                onClick={save}
+                disabled={saving}
+                style={{ padding: '0.5rem 1rem', background: '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem' }}
+              >
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+              <button
+                onClick={onClose}
+                style={{ padding: '0.5rem 1rem', background: '#f3f4f6', color: '#374151', border: '1px solid #d1d5db', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem' }}
+              >
+                Cancel
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
 
 const ROW_H = 52
 const ROW_H_MOBILE = 92
@@ -18,7 +109,27 @@ function LoginPill() {
   )
 }
 
-function StaffRow({ member, mobile }: { member: Staff; mobile: boolean }) {
+function ManageAccessButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick} title="Manage access"
+      style={{
+        padding: '2px 9px', borderRadius: 9999, fontSize: '0.68rem', fontWeight: 600,
+        cursor: 'pointer', fontFamily: 'inherit', border: '1px solid var(--gray-300)',
+        background: 'transparent', color: 'var(--gray-400)', whiteSpace: 'nowrap',
+      }}
+    >
+      Manage Access
+    </button>
+  )
+}
+
+function StaffRow({ member, mobile, canManageAccess, onManageAccess }: {
+  member: Staff
+  mobile: boolean
+  canManageAccess: boolean
+  onManageAccess: (member: Staff) => void
+}) {
   if (mobile) {
     return (
       <div style={{
@@ -38,6 +149,9 @@ function StaffRow({ member, mobile }: { member: Staff; mobile: boolean }) {
           <span>{member.department ?? '—'}</span><span aria-hidden>·</span>
           <span>{member.phone_number}</span>
         </div>
+        {canManageAccess && (
+          <div><ManageAccessButton onClick={() => onManageAccess(member)} /></div>
+        )}
       </div>
     )
   }
@@ -55,14 +169,17 @@ function StaffRow({ member, mobile }: { member: Staff; mobile: boolean }) {
       <span style={{ width: 150, color: '#374151', flexShrink: 0 }}>{member.designation}</span>
       <span style={{ width: 130, color: '#6b7280', flexShrink: 0 }}>{member.department ?? '—'}</span>
       <span style={{ width: 110, color: '#6b7280', flexShrink: 0 }}>{member.phone_number}</span>
-      <span style={{ width: 80, textAlign: 'right', flexShrink: 0 }}>
+      <span style={{ width: 80, flexShrink: 0 }}>
         {member.user_id && <LoginPill />}
+      </span>
+      <span style={{ width: 116, textAlign: 'right', flexShrink: 0 }}>
+        {canManageAccess && <ManageAccessButton onClick={() => onManageAccess(member)} />}
       </span>
     </div>
   )
 }
 
-function TableHeader() {
+function TableHeader({ showAccessCol }: { showAccessCol: boolean }) {
   return (
     <div style={{
       display: 'flex', alignItems: 'center', padding: '0 1rem',
@@ -75,14 +192,17 @@ function TableHeader() {
       <span style={{ width: 130, flexShrink: 0 }}>DEPARTMENT</span>
       <span style={{ width: 110, flexShrink: 0 }}>PHONE</span>
       <span style={{ width: 80, flexShrink: 0 }}></span>
+      {showAccessCol && <span style={{ width: 116, flexShrink: 0 }}></span>}
     </div>
   )
 }
 
-export function StaffView() {
+export function StaffView({ role }: { role?: string } = {}) {
   const isMobile = useIsMobile()
   const rowHeight = isMobile ? ROW_H_MOBILE : ROW_H
   const listHeight = isMobile ? 600 : LIST_H
+  const canManageAccess = role === 'principal'
+  const [accessTarget, setAccessTarget] = useState<Staff | null>(null)
   const [staff, setStaff] = useState<Staff[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -139,6 +259,14 @@ export function StaffView() {
         />
       )}
 
+      {accessTarget && (
+        <AccessModal
+          member={accessTarget}
+          onClose={() => setAccessTarget(null)}
+          onDone={() => { setAccessTarget(null); load() }}
+        />
+      )}
+
       <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.875rem' }}>
         <input
           value={filter}
@@ -158,17 +286,17 @@ export function StaffView() {
         </div>
       ) : (
         <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
-          {!isMobile && <TableHeader />}
+          {!isMobile && <TableHeader showAccessCol={canManageAccess} />}
           {visible.length > 50 ? (
             <VirtualList
               items={visible}
               rowHeight={rowHeight}
               containerHeight={listHeight}
               keyFn={(s) => s.id}
-              renderRow={(s) => <StaffRow member={s} mobile={isMobile} />}
+              renderRow={(s) => <StaffRow member={s} mobile={isMobile} canManageAccess={canManageAccess} onManageAccess={setAccessTarget} />}
             />
           ) : (
-            <div>{visible.map((s) => <StaffRow key={s.id} member={s} mobile={isMobile} />)}</div>
+            <div>{visible.map((s) => <StaffRow key={s.id} member={s} mobile={isMobile} canManageAccess={canManageAccess} onManageAccess={setAccessTarget} />)}</div>
           )}
         </div>
       )}

@@ -5,7 +5,15 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Upl
 
 from core.csv_export import csv_response, require_export_role
 from core.rbac import require_roles
-from models.staff import AssignmentCreate, AssignmentResponse, StaffCreate, StaffResponse, StaffUpdate
+from models.staff import (
+    AssignmentCreate,
+    AssignmentResponse,
+    StaffAccessResult,
+    StaffCreate,
+    StaffResponse,
+    StaffRoleAssign,
+    StaffUpdate,
+)
 from services.staff import (
     StaffError,
     create_assignment,
@@ -18,6 +26,7 @@ from services.staff import (
     list_all_assignments,
     list_assignments,
     list_staff,
+    set_staff_role,
     update_staff,
 )
 
@@ -115,6 +124,19 @@ async def edit_staff(staff_id: UUID, data: StaffUpdate, request: Request):
     if not member:
         raise HTTPException(status_code=404, detail="Staff member not found")
     return member
+
+
+@router.put("/{staff_id}/role", response_model=StaffAccessResult, dependencies=[_principal_only])
+async def assign_role(staff_id: UUID, data: StaffRoleAssign, request: Request):
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        try:
+            result = await set_staff_role(conn, request.state.tenant_id, staff_id, data.role)
+        except StaffError as e:
+            raise HTTPException(status_code=409, detail=str(e))
+    if not result:
+        raise HTTPException(status_code=404, detail="Staff member not found")
+    return result
 
 
 @router.delete("/{staff_id}", status_code=204, dependencies=[_principal_only])

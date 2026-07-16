@@ -456,7 +456,7 @@ function Gallery({ slug }: { slug: string }) {
   return (
     <Section id="gallery" bg={C.cream}>
       <SectionHead label="Gallery" title="Life at Premchand High School" sub="A glimpse into our campus and community — from classrooms and the lab to the playground and school events." />
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(230px,1fr))', gap: '.85rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(320px,1fr))', gap: '.85rem' }}>
         {photos.map((p, i) => (
           <div key={i} style={{ overflow: 'hidden', borderRadius: 12, cursor: 'pointer', transition: 'transform .2s, box-shadow .2s' }}
             onMouseOver={e => { e.currentTarget.style.transform = 'scale(1.02)'; e.currentTarget.style.boxShadow = '0 8px 22px rgba(22,53,122,.16)' }}

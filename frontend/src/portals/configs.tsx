@@ -84,7 +84,7 @@ export function buildPortalConfig(args: BuildArgs): PortalConfig {
   const sections: PortalSection[] = [
     { key: 'dashboard', label: 'Dashboard', icon: ic('dashboard'), desc: 'Counts, attendance and fee collection at a glance', render: () => <DashboardView schoolName={schoolName} role={role} /> },
     { key: 'students',  label: 'Students',  icon: ic('students'),  desc: 'Enrolment, roster and student records',             render: () => <StudentsView /> },
-    { key: 'staff',     label: 'Staff',     icon: ic('staff'),     desc: 'Teachers, roles and class assignments',             render: () => <StaffView /> },
+    { key: 'staff',     label: 'Staff',     icon: ic('staff'),     desc: 'Teachers, roles and class assignments',             render: () => <StaffView role={role} /> },
     { key: 'assign',      label: 'Assignments', icon: ic('timetable'), desc: 'Assign teachers to classes and subjects',           render: () => <ClassAssignmentsView /> },
     { key: 'admissions',  label: 'Admissions',  icon: ic('students'),  desc: 'Enquiry pipeline and student enrolment',            render: () => <AdmissionsView /> },
   ]

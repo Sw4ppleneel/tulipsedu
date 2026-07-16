@@ -119,11 +119,14 @@ async def deactivate_staff(
 
 async def set_staff_role(
     conn: asyncpg.Connection, tenant_id: uuid.UUID, staff_id: uuid.UUID, role: str
-) -> StaffAccessResult:
+) -> Optional[StaffAccessResult]:
     """Assign/change a staff member's role. Grants a login on first assignment
     (username = phone number, password = first 4 digits of phone + "@" + first
     name — same convention already used for bulk imports), otherwise just
-    updates the role on their existing login."""
+    updates the role on their existing login. Returns None if the staff
+    member doesn't exist (404 at the API layer); raises StaffError for
+    validation problems (invalid role, phone already claimed by someone
+    else's login)."""
     if role not in VALID_ROLES:
         raise StaffError(f"Invalid role '{role}'. Valid: {', '.join(sorted(VALID_ROLES))}")
 
@@ -132,7 +135,7 @@ async def set_staff_role(
         staff_id, tenant_id,
     )
     if not staff:
-        raise StaffError("Staff member not found")
+        return None
 
     login_created = False
     generated_password: Optional[str] = None

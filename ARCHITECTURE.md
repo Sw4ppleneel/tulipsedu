@@ -495,6 +495,15 @@ Grade scale (CBSE): A1≥91, A2≥81, B1≥71, B2≥61, C1≥51, C2≥41, D≥33
 Producer: services/auth.py
 Payload: tenant_id, user_id
 
+## STAFF_ROLE_ASSIGNED
+Producer: services/staff.py (set_staff_role)
+Payload: tenant_id, staff_id, role, login_created
+Principal-only. Assigns/changes a staff member's role (principal,
+vice_principal, class_teacher, teacher, accountant). If the staff member has
+no login yet, one is created (username = phone number, password = first 4
+digits of phone + "@" + first name, same convention as the bulk staff
+importer) and login_created=true.
+
 ## STUDENT_CREATED
 Producer: services/student.py
 Payload: tenant_id, student_id
@@ -572,6 +581,7 @@ marksheet) to their enquiry. Feature-gated per tenant by `feature_flags.admissio
 ### GET /api/v1/staff — Implemented
 ### GET /api/v1/staff/:id — Implemented
 ### PUT /api/v1/staff/:id — Implemented
+### PUT /api/v1/staff/:id/role — Implemented (principal-only; assigns role, grants login on first assignment)
 ### DELETE /api/v1/staff/:id — Implemented (soft-delete)
 
 ## Attendance

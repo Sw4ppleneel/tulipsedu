@@ -57,6 +57,20 @@ class StaffResponse(BaseModel):
     created_at: datetime
 
 
+class StaffRoleAssign(BaseModel):
+    role: str
+
+
+class StaffAccessResult(BaseModel):
+    staff: StaffResponse
+    login_created: bool
+    # Only set (once) when a new login was just created — the generated
+    # password follows a deterministic, non-secret convention (first 4
+    # digits of phone + "@" + first name), so surfacing it here is
+    # equivalent to the principal deriving it themselves.
+    generated_password: Optional[str] = None
+
+
 class AssignmentCreate(BaseModel):
     academic_year_id: UUID
     class_id: UUID

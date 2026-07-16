@@ -31,6 +31,16 @@ export interface StaffCreate {
   user_id?: string
 }
 
+export type StaffRole = 'principal' | 'vice_principal' | 'class_teacher' | 'teacher' | 'accountant'
+
+export const STAFF_ROLES: StaffRole[] = ['principal', 'vice_principal', 'class_teacher', 'teacher', 'accountant']
+
+export interface StaffAccessResult {
+  staff: Staff
+  login_created: boolean
+  generated_password: string | null
+}
+
 export interface Assignment {
   id: string
   tenant_id: string
