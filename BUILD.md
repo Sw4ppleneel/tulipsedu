@@ -97,14 +97,13 @@ pattern as the DPS scripts (prod DB backed up first:
 
 **Login convention (owner-specified, PMIC-specific):** username = phone
 number, password = first four digits of the phone number + `@` + first name
-(Title Case), e.g. phone `7903181033` → password `[REDACTED-LEAKED-PASSWORD]`.
+(Title Case). Actual passwords are derivable from this rule + each
+person's phone/name — **never write real passwords into this file**; the
+script's stdout (not persisted) is the place to read them at import time.
 
 **Imported (10 of 13, EMP001-EMP010):** EMP001-EMP009 `role=teacher`/
-designation `Lecturer`; **EMP010 Umesh Yadav — `role=principal`,
-login=9334679531, pw=`[REDACTED-LEAKED-PASSWORD]`**, added 2026-07-16 after the owner
-confirmed his number (see re-run note below). Employee numbers, phones, and
-passwords are in the script's stdout output and the git history of this
-file's diff.
+designation `Lecturer`; EMP010 Umesh Yadav — `role=principal`, added
+2026-07-16 after the owner confirmed his number (see re-run note below).
 
 **Idempotency fix (2026-07-16):** the first version of this script derived
 `employee_no` from `existing_staff_count + list_position`, which would have
@@ -114,19 +113,31 @@ unique constraint is `(tenant_id, employee_no)`, not phone). Fixed to look
 up `employee_no` by `phone_number` for already-imported teachers before
 assigning new numbers; re-run correctly showed `created=1, updated=9`.
 
-**Still excluded pending owner data (3 of 13 rows) — not guessed/fabricated:**
-- **Shashi Kant Kumar** — Mobile is `9371` (4 digits, truncated) in the
-  source. Need the correct 10-digit number.
-- **Dr. Prabha Rani** — `Type_of_Teacher` (designation) and
-  `Date_of_Joining_in_Present_School` both blank; both are `NOT NULL` on
-  `staff`. Need her designation + join date.
-- **Sudha Tiwari** — source lists the same Mobile (`9334679531`) as Umesh
-  Yadav; now that Umesh's is confirmed correct, hers is the wrong one. Need
-  her real number.
+**Resolved 2026-07-16 (owner directives, second re-run — created=2,
+updated=10, errors=0, EMP001-EMP012):**
+- **Shashi Kant Kumar** — has left the school. Permanently excluded (not
+  "pending" anymore).
+- **Dr. Prabha Rani (EMP012)** — imported with placeholder
+  designation="Teacher"/role=teacher and date_of_joining=2026-07-16 (script
+  run date) per owner's approval; she'll set the real designation from the
+  dashboard. Login works (phone 8789607250, password per the convention
+  above). Name-parsing
+  fix needed here too: "Dr. Prabha Rani" was splitting first_name="Dr" —
+  `title_case_name()` now strips known title prefixes (Dr/Mr/Mrs/Ms) first.
+- **Sudha Tiwari (EMP011)** — owner: use her spreadsheet number
+  (9334679531) as-is despite the collision with Umesh Yadav's. Since
+  `users` is unique on `(tenant_id, phone_number)`, literally creating her
+  login would have silently overwritten Umesh's password/role. Added a
+  generic collision guard instead: her `staff` row was created (phone
+  field set as given) but **no login** — `has_login=false`. She can't sign
+  in until the owner supplies her real number and the script is re-run.
+  Also switched employee_no idempotency from phone-keyed to name-keyed for
+  this reason — the old phone-keyed lookup would have resolved her to
+  Umesh's existing employee_no (EMP010) and overwritten his whole staff
+  row, not just failed to create a login.
 
-Once the owner supplies corrected data, re-run `import_pmic_teachers.py` —
-it's additive/idempotent (upsert on phone-derived employee_no), safe to run
-again.
+`import_pmic_teachers.py` is additive/idempotent (upsert keyed on
+first+last name), safe to re-run whenever Sudha's real number arrives.
 
 ## ✅ DEPLOYED 2026-07-07 — Daffodils Public School (DPS): real roster replaces mock seed data
 
