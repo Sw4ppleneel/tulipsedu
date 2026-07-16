@@ -10,7 +10,8 @@ employee_no-by-phone lookup previously risked overwriting the wrong staff
 row. Login convention (owner-specified, tenant-specific — not a global
 rule): username = phone number, password = first four digits of the phone
 number + "@" + the teacher's first name (Title Case), e.g. phone
-7903181033, first name "Seema" -> password "[REDACTED-LEAKED-PASSWORD]".
+9876543210, first name "Asha" -> password "9876@Asha". (Illustrative
+example only — never use a real teacher's actual phone/password here.)
 
 Per-row exceptions (owner-approved 2026-07-16, not silent guesses):
   - SHASHI KANT KUMAR: has left the school. Permanently excluded.
