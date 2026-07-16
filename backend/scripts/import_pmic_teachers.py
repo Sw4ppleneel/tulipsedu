@@ -9,18 +9,18 @@ employee_no / phone_number). Login convention (owner-specified, tenant-specific
 of the phone number + "@" + the teacher's first name (Title Case), e.g.
 phone 7903181033, first name "Seema" -> password "[REDACTED-LEAKED-PASSWORD]".
 
-Four rows in the source are excluded because required fields are missing,
+Three rows in the source are excluded because required fields are missing,
 corrupt, or conflict (not guessed/fabricated):
   - SHASHI KANT KUMAR: Mobile is "9371" (4 digits, truncated/typo'd) — not a
     valid 10-digit Indian mobile number, can't be used as phone_number/login.
   - Dr. Prabha Rani: Type_of_Teacher (designation) and Date_of_Joining are
     both blank in the source; both are NOT NULL columns on `staff`.
-  - UMESH YADAV (Principal) and SUDHA TIWARI both list Mobile 9334679531 —
-    identical numbers can't back two different logins (phone_number is the
-    username). One or both are wrong in the source; excluded until confirmed.
+  - SUDHA TIWARI: source lists Mobile 9334679531, identical to UMESH YADAV's
+    (Principal) — owner confirmed that number is Umesh's; Sudha's own number
+    is still unconfirmed, so her row stays excluded to avoid a login clash.
 Owner needs to supply: Shashi Kant Kumar's correct mobile number,
-Dr. Prabha Rani's designation + date of joining, and the correct/confirmed
-mobile numbers for Umesh Yadav and Sudha Tiwari.
+Dr. Prabha Rani's designation + date of joining, and Sudha Tiwari's correct
+mobile number.
 """
 
 import asyncio
@@ -49,7 +49,7 @@ ROLE_MAP = {
     "8-Lecturer": "teacher",
 }
 
-EXCLUDE_NAMES = {"SHASHI KANT KUMAR", "Dr. Prabha Rani", "UMESH YADAV", "SUDHA TIWARI"}
+EXCLUDE_NAMES = {"SHASHI KANT KUMAR", "Dr. Prabha Rani", "SUDHA TIWARI"}
 
 
 def normalise_phone(raw) -> str | None:
@@ -134,13 +134,24 @@ async def main():
     if not records:
         print("Nothing to import."); await conn.close(); return
 
-    existing = await conn.fetchval("SELECT COUNT(*) FROM staff WHERE tenant_id = $1", tenant_id)
+    existing_rows = await conn.fetch(
+        "SELECT employee_no, phone_number FROM staff WHERE tenant_id = $1", tenant_id
+    )
+    emp_no_by_phone = {r["phone_number"]: r["employee_no"] for r in existing_rows}
+    used_nums = {int(m.group(1)) for r in existing_rows
+                 if (m := re.match(r"EMP(\d+)$", r["employee_no"]))}
+    next_num = max(used_nums, default=0) + 1
+
     created = updated = users_created = 0
     errors: list[str] = []
 
     async with conn.transaction():
-        for i, rec in enumerate(records, start=existing + 1):
-            emp_no = f"EMP{i:03d}"
+        for rec in records:
+            if rec["phone"] in emp_no_by_phone:
+                emp_no = emp_no_by_phone[rec["phone"]]
+            else:
+                emp_no = f"EMP{next_num:03d}"
+                next_num += 1
             try:
                 pw_hash = bcrypt.hashpw(rec["password"].encode(), bcrypt.gensalt()).decode()
                 user_row = await conn.fetchrow(

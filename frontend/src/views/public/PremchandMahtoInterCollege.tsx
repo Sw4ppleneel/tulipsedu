@@ -385,6 +385,9 @@ function PrincipalMessage({ slug }: { slug: string }) {
           <div style={{ textAlign: 'center', marginTop: '1rem' }}>
             <div style={{ fontWeight: 700, color: C.navy, fontSize: '1rem' }}>Umesh Yadav</div>
             <div style={{ color: C.maroon, fontSize: '.8rem', fontWeight: 600 }}>Principal, Premchand Mahto Inter College</div>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '.35rem', marginTop: '.5rem', color: C.gray600, fontSize: '.8rem' }}>
+              <Ico name="phone" size={12} stroke={C.maroon} /> +91 93346 79531
+            </div>
           </div>
         </div>
         <div>
