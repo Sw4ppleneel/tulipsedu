@@ -1,22 +1,38 @@
-import { useEffect, useState } from 'preact/hooks'
-import { createStudent } from '../api/students'
-import type { AcademicYear, Class, Section, StudentCreate } from '../types/student'
+import { useEffect, useRef, useState } from 'preact/hooks'
+import { createStudent, updateStudent } from '../api/students'
+import type { AcademicYear, Class, Section, Student, StudentCreate } from '../types/student'
 import { getSectionLabel } from '../api/auth_state'
 import { isValidIndianMobile, INVALID_PHONE_MSG } from '../utils/phone'
 
 interface Props {
   academicYears: AcademicYear[]
   classes: Class[]
-  onCreated: () => void
+  student?: Student
+  onSaved: () => void
   onCancel: () => void
 }
 
 const ROW: preact.JSX.CSSProperties = { marginBottom: '0.875rem' }
 const LABEL: preact.JSX.CSSProperties = { display: 'block', fontSize: '0.8rem', color: '#555', marginBottom: '0.25rem' }
 const INPUT: preact.JSX.CSSProperties = { width: '100%', padding: '0.5rem', border: '1px solid #ccc', borderRadius: 4, fontSize: '0.875rem', boxSizing: 'border-box' }
+const INPUT_DISABLED: preact.JSX.CSSProperties = { ...INPUT, background: '#f3f4f6', color: '#6b7280', cursor: 'not-allowed' }
 
-export function StudentForm({ academicYears, classes, onCreated, onCancel }: Props) {
-  const [form, setForm] = useState<StudentCreate>({
+export function StudentForm({ academicYears, classes, student, onSaved, onCancel }: Props) {
+  const isEdit = !!student
+  const [form, setForm] = useState<StudentCreate>(student ? {
+    academic_year_id: student.academic_year_id,
+    class_id: student.class_id,
+    section_id: student.section_id,
+    admission_no: student.admission_no,
+    roll_number: student.roll_number,
+    first_name: student.first_name,
+    last_name: student.last_name,
+    date_of_birth: student.date_of_birth,
+    gender: student.gender,
+    parent_phone: student.parent_phone,
+    is_hosteler: student.is_hosteler,
+    is_transport: student.is_transport,
+  } : {
     academic_year_id: academicYears.find((y) => y.is_current)?.id ?? academicYears[0]?.id ?? '',
     class_id: '',
     section_id: '',
@@ -30,13 +46,22 @@ export function StudentForm({ academicYears, classes, onCreated, onCancel }: Pro
     is_hosteler: false,
     is_transport: false,
   })
-  const [sections, setSections] = useState<Section[]>([])
+  const [sections, setSections] = useState<Section[]>(
+    () => classes.find((c) => c.id === form.class_id)?.sections ?? []
+  )
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  // Skip clearing section_id on the effect's first run in edit mode, so the
+  // student's existing section survives the initial class_id -> sections sync.
+  const skipNextClear = useRef(isEdit)
 
   useEffect(() => {
     const cls = classes.find((c) => c.id === form.class_id)
     setSections(cls?.sections ?? [])
+    if (skipNextClear.current) {
+      skipNextClear.current = false
+      return
+    }
     set('section_id', '')
   }, [form.class_id])
 
@@ -50,10 +75,15 @@ export function StudentForm({ academicYears, classes, onCreated, onCancel }: Pro
     if (!isValidIndianMobile(form.parent_phone)) { setError(INVALID_PHONE_MSG); return }
     setLoading(true)
     try {
-      await createStudent(form)
-      onCreated()
+      if (isEdit && student) {
+        const { admission_no: _admission_no, academic_year_id: _academic_year_id, ...editable } = form
+        await updateStudent(student.id, editable)
+      } else {
+        await createStudent(form)
+      }
+      onSaved()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create student')
+      setError(err instanceof Error ? err.message : `Failed to ${isEdit ? 'update' : 'create'} student`)
     } finally {
       setLoading(false)
     }
@@ -63,17 +93,18 @@ export function StudentForm({ academicYears, classes, onCreated, onCancel }: Pro
 
   return (
     <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: '1.5rem', marginBottom: '1rem' }}>
-      <h3 style={{ margin: '0 0 1.25rem', fontSize: '1rem', fontWeight: 600 }}>Add Student</h3>
+      <h3 style={{ margin: '0 0 1.25rem', fontSize: '1rem', fontWeight: 600 }}>{isEdit ? 'Edit Student' : 'Add Student'}</h3>
       {error && <p style={{ color: '#c00', fontSize: '0.875rem', marginBottom: '1rem' }}>{error}</p>}
       <form onSubmit={handleSubmit}>
 
         <div style={ROW}>
-          <label style={LABEL}>Academic Year</label>
+          <label style={LABEL}>Academic Year{isEdit ? ' (not editable here)' : ''}</label>
           <select
             value={form.academic_year_id}
             onChange={(e) => set('academic_year_id', (e.target as HTMLSelectElement).value)}
-            style={INPUT}
+            style={isEdit ? INPUT_DISABLED : INPUT}
             required
+            disabled={isEdit}
           >
             <option value="">Select year</option>
             {academicYears.map((y) => (
@@ -116,8 +147,8 @@ export function StudentForm({ academicYears, classes, onCreated, onCancel }: Pro
 
         <div style={{ ...grid2, ...ROW }}>
           <div>
-            <label style={LABEL}>Admission No.</label>
-            <input value={form.admission_no} onInput={(e) => set('admission_no', (e.target as HTMLInputElement).value)} style={INPUT} placeholder="2024001" required />
+            <label style={LABEL}>Admission No.{isEdit ? ' (not editable)' : ''}</label>
+            <input value={form.admission_no} onInput={(e) => set('admission_no', (e.target as HTMLInputElement).value)} style={isEdit ? INPUT_DISABLED : INPUT} placeholder="2024001" required disabled={isEdit} />
           </div>
           <div>
             <label style={LABEL}>Roll Number</label>
@@ -173,7 +204,7 @@ export function StudentForm({ academicYears, classes, onCreated, onCancel }: Pro
             disabled={loading}
             style={{ padding: '0.625rem 1.25rem', background: '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem' }}
           >
-            {loading ? 'Saving…' : 'Save Student'}
+            {loading ? 'Saving…' : isEdit ? 'Save Changes' : 'Save Student'}
           </button>
           <button
             type="button"

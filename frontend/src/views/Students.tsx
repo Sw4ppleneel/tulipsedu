@@ -30,16 +30,33 @@ const ROW_HEIGHT = 56
 const ROW_HEIGHT_MOBILE = 104
 const LIST_HEIGHT = 520
 
-function StudentRow({ student, busy, onToggle, mobile }: {
+function EditButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick} title="Edit student"
+      style={{
+        padding: '2px 9px', borderRadius: 9999, fontSize: '0.68rem', fontWeight: 600,
+        cursor: 'pointer', fontFamily: 'inherit', border: '1px solid var(--gray-300)',
+        background: 'transparent', color: 'var(--gray-400)',
+      }}
+    >
+      Edit
+    </button>
+  )
+}
+
+function StudentRow({ student, busy, onToggle, onEdit, mobile }: {
   student: Student
   busy: boolean
   onToggle: (id: string, field: FlagField, value: boolean) => void
+  onEdit: (student: Student) => void
   mobile: boolean
 }) {
   const chips = (
     <>
       <FlagChip on={student.is_transport} label="Transport" busy={busy} onClick={() => onToggle(student.id, 'is_transport', !student.is_transport)} />
       <FlagChip on={student.is_hosteler} label="Hosteler" busy={busy} onClick={() => onToggle(student.id, 'is_hosteler', !student.is_hosteler)} />
+      <EditButton onClick={() => onEdit(student)} />
     </>
   )
 
@@ -88,7 +105,7 @@ function StudentRow({ student, busy, onToggle, mobile }: {
       <span style={{ width: 110, color: '#6b7280', flexShrink: 0 }}>{student.admission_no}</span>
       <span style={{ width: 70, color: '#6b7280', flexShrink: 0 }}>{student.gender}</span>
       <span style={{ width: 110, color: '#6b7280', flexShrink: 0 }}>{student.parent_phone}</span>
-      <span style={{ width: 168, display: 'flex', gap: '0.35rem', justifyContent: 'flex-end', flexShrink: 0 }}>
+      <span style={{ width: 210, display: 'flex', gap: '0.35rem', justifyContent: 'flex-end', flexShrink: 0 }}>
         {chips}
       </span>
     </div>
@@ -107,7 +124,7 @@ function TableHeader() {
       <span style={{ width: 110, flexShrink: 0 }}>ADMISSION NO</span>
       <span style={{ width: 70, flexShrink: 0 }}>GENDER</span>
       <span style={{ width: 110, flexShrink: 0 }}>PARENT PHONE</span>
-      <span style={{ width: 168, flexShrink: 0, textAlign: 'right' }}>TRANSPORT · HOSTEL</span>
+      <span style={{ width: 210, flexShrink: 0, textAlign: 'right' }}>TRANSPORT · HOSTEL · EDIT</span>
     </div>
   )
 }
@@ -120,6 +137,7 @@ export function StudentsView() {
   const [filters, setFilters] = useState<StudentFilters>({})
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
+  const [editingStudent, setEditingStudent] = useState<Student | null>(null)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -200,7 +218,7 @@ export function StudentsView() {
             onImported={() => setFilters((f) => ({ ...f }))}
           />
           <button
-            onClick={() => setShowForm(true)}
+            onClick={() => { setEditingStudent(null); setShowForm(true) }}
             style={{ padding: '0.5rem 1rem', background: '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem', fontWeight: 500 }}
           >
             + Add Student
@@ -208,13 +226,14 @@ export function StudentsView() {
         </div>
       </div>
 
-      {/* Add form */}
-      {showForm && (
+      {/* Add / Edit form */}
+      {(showForm || editingStudent) && (
         <StudentForm
           academicYears={academicYears}
           classes={classes}
-          onCreated={() => { setShowForm(false); setFilters((f) => ({ ...f })) }}
-          onCancel={() => setShowForm(false)}
+          student={editingStudent ?? undefined}
+          onSaved={() => { setShowForm(false); setEditingStudent(null); setFilters((f) => ({ ...f })) }}
+          onCancel={() => { setShowForm(false); setEditingStudent(null) }}
         />
       )}
 
@@ -255,11 +274,11 @@ export function StudentsView() {
               rowHeight={rowHeight}
               containerHeight={listHeight}
               keyFn={(s) => s.id}
-              renderRow={(s) => <StudentRow student={s} busy={togglingId === s.id} onToggle={onToggleFlag} mobile={isMobile} />}
+              renderRow={(s) => <StudentRow student={s} busy={togglingId === s.id} onToggle={onToggleFlag} onEdit={setEditingStudent} mobile={isMobile} />}
             />
           ) : (
             <div>
-              {students.map((s) => <StudentRow key={s.id} student={s} busy={togglingId === s.id} onToggle={onToggleFlag} mobile={isMobile} />)}
+              {students.map((s) => <StudentRow key={s.id} student={s} busy={togglingId === s.id} onToggle={onToggleFlag} onEdit={setEditingStudent} mobile={isMobile} />)}
             </div>
           )}
         </div>

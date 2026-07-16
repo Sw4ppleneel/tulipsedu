@@ -4,15 +4,19 @@ from datetime import date, datetime
 from typing import Optional
 
 import asyncpg
+import bcrypt
 
 from core.events import emit
 from models.staff import (
     AssignmentCreate,
     AssignmentResponse,
+    StaffAccessResult,
     StaffCreate,
     StaffResponse,
     StaffUpdate,
 )
+
+VALID_ROLES = {"principal", "vice_principal", "class_teacher", "teacher", "accountant"}
 
 
 class StaffError(Exception):
@@ -111,6 +115,72 @@ async def deactivate_staff(
         staff_id, tenant_id,
     )
     return result == "UPDATE 1"
+
+
+async def set_staff_role(
+    conn: asyncpg.Connection, tenant_id: uuid.UUID, staff_id: uuid.UUID, role: str
+) -> StaffAccessResult:
+    """Assign/change a staff member's role. Grants a login on first assignment
+    (username = phone number, password = first 4 digits of phone + "@" + first
+    name — same convention already used for bulk imports), otherwise just
+    updates the role on their existing login."""
+    if role not in VALID_ROLES:
+        raise StaffError(f"Invalid role '{role}'. Valid: {', '.join(sorted(VALID_ROLES))}")
+
+    staff = await conn.fetchrow(
+        "SELECT id, user_id, phone_number, first_name FROM staff WHERE id = $1 AND tenant_id = $2",
+        staff_id, tenant_id,
+    )
+    if not staff:
+        raise StaffError("Staff member not found")
+
+    login_created = False
+    generated_password: Optional[str] = None
+
+    if staff["user_id"] is not None:
+        await conn.execute(
+            "UPDATE users SET role = $1 WHERE id = $2 AND tenant_id = $3",
+            role, staff["user_id"], tenant_id,
+        )
+        user_id = staff["user_id"]
+    else:
+        other = await conn.fetchrow(
+            """SELECT s.first_name, s.last_name FROM users u
+               JOIN staff s ON s.user_id = u.id AND s.tenant_id = u.tenant_id
+               WHERE u.tenant_id = $1 AND u.phone_number = $2""",
+            tenant_id, staff["phone_number"],
+        )
+        if other:
+            raise StaffError(
+                f"Phone {staff['phone_number']} is already used for "
+                f"{other['first_name']} {other['last_name']}'s login — "
+                "can't create a second login with the same number."
+            )
+
+        generated_password = f"{staff['phone_number'][:4]}@{staff['first_name']}"
+        pw_hash = bcrypt.hashpw(generated_password.encode(), bcrypt.gensalt()).decode()
+        user_row = await conn.fetchrow(
+            """
+            INSERT INTO users (tenant_id, phone_number, password_hash, role)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (tenant_id, phone_number) DO UPDATE SET role = EXCLUDED.role
+            RETURNING id
+            """,
+            tenant_id, staff["phone_number"], pw_hash, role,
+        )
+        user_id = user_row["id"]
+        await conn.execute(
+            "UPDATE staff SET user_id = $1 WHERE id = $2 AND tenant_id = $3",
+            user_id, staff_id, tenant_id,
+        )
+        login_created = True
+
+    await emit(conn, "STAFF_ROLE_ASSIGNED", tenant_id, {
+        "staff_id": str(staff_id), "role": role, "login_created": login_created,
+    })
+
+    member = await get_staff_member(conn, tenant_id, staff_id)
+    return StaffAccessResult(staff=member, login_created=login_created, generated_password=generated_password)
 
 
 # ── Class Assignments ─────────────────────────────────────────────────────────
@@ -259,8 +329,6 @@ async def import_staff(
     idx = {name: header.index(name) for name in required}
     opt_idx = {col: header.index(col) for col in
                ("department", "date of birth", "role", "login phone") if col in header}
-
-    VALID_ROLES = {"principal", "vice_principal", "class_teacher", "teacher", "accountant"}
 
     created = updated = users_created = 0
     errors: list[str] = []
