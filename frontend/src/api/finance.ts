@@ -45,6 +45,10 @@ export function generateLedger(data: {
 }
 
 // ── Outstanding ───────────────────────────────────────────────────────────────
+// No pagination UI on this report — request the platform's full tenant-size
+// ceiling (5,000 students) so every student with dues is included, not just
+// the first page. grand_total/student_count are computed server-side over
+// all matching rows regardless of this limit.
 export function getOutstanding(params: {
   class_id?: string; section_id?: string; academic_year_id?: string
 } = {}): Promise<OutstandingReport> {
@@ -52,7 +56,8 @@ export function getOutstanding(params: {
   if (params.class_id) qs.set('class_id', params.class_id)
   if (params.section_id) qs.set('section_id', params.section_id)
   if (params.academic_year_id) qs.set('academic_year_id', params.academic_year_id)
-  return request<OutstandingReport>(`/fees/outstanding${qs.toString() ? `?${qs}` : ''}`)
+  qs.set('limit', '5000')
+  return request<OutstandingReport>(`/fees/outstanding?${qs}`)
 }
 export function sendReminders(studentIds: string[]): Promise<{ queued: number }> {
   return request('/fees/reminders', { method: 'POST', body: JSON.stringify(studentIds) })

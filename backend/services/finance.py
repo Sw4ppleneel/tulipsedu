@@ -520,8 +520,28 @@ async def get_outstanding_dues(
         tenant_id, class_id, section_id, academic_year_id, limit, offset,
     )
     items = [OutstandingStudent(**dict(r)) for r in rows]
-    grand_total = sum(i.total_due for i in items)
-    return OutstandingReport(items=items, grand_total=grand_total, student_count=len(items))
+
+    # Grand total / student count must reflect ALL matching students, not just
+    # the current page — computed separately so LIMIT/OFFSET above can't
+    # silently under-report them (this previously summed only the page,
+    # causing the report's total to disagree with the dashboard's).
+    totals = await conn.fetchrow(
+        """
+        SELECT
+            COALESCE(SUM(fl.amount_due), 0)::numeric AS grand_total,
+            COUNT(DISTINCT fl.student_id)::int        AS student_count
+        FROM fee_ledger fl
+        JOIN students s ON s.id = fl.student_id
+        WHERE fl.tenant_id = $1 AND fl.status IN ('pending', 'due', 'overdue')
+          AND ($2::uuid IS NULL OR s.class_id = $2::uuid)
+          AND ($3::uuid IS NULL OR s.section_id = $3::uuid)
+          AND ($4::uuid IS NULL OR fl.academic_year_id = $4::uuid)
+        """,
+        tenant_id, class_id, section_id, academic_year_id,
+    )
+    return OutstandingReport(
+        items=items, grand_total=totals["grand_total"], student_count=totals["student_count"],
+    )
 
 
 async def get_payment_logs(

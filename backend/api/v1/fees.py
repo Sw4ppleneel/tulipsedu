@@ -188,7 +188,7 @@ async def outstanding(
     class_id: Optional[UUID] = Query(None),
     section_id: Optional[UUID] = Query(None),
     academic_year_id: Optional[UUID] = Query(None),
-    limit: int = Query(200, ge=1, le=500),
+    limit: int = Query(500, ge=1, le=5000),
     offset: int = Query(0, ge=0),
 ):
     pool = request.app.state.pool
