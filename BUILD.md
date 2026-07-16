@@ -65,25 +65,40 @@ Building Fee, Poor Fund, Smart Classes, Computer, Games/P.T, Report Card
 through Class 4, ₹800 Class 5-8) + Bus Fee (monthly, ₹700, transport
 students only).
 
-## ✅ DEPLOYED 2026-07-16 — DPS: real teacher directory replaces mock staff
+## ✅ DEPLOYED 2026-07-16 — DPS: real staff roster (27, incl. support staff)
 
-Owner supplied an 18-teacher contact directory directly (name + phone only,
-no source spreadsheet). Confirmed via `AskUserQuestion`: wipe the 8 mock
-seed staff (EMP001-EMP008: Rajiv/Sunita/Manoj/Preethi/Ashok/Vandana/Suresh/
-Geeta — same mock data noted in the root CLAUDE.md's 2026-06-19 note) rather
-than appending alongside them, matching how the mock student roster was
-replaced. New `backend/scripts/reset_and_import_dps_teachers.py`, same
-login convention as PMIC (username=phone, password=first 4 digits+@+first
-name). Prod backup: `tulipsedu-2026-07-16-1350.sql.gz`.
+Owner first supplied an 18-teacher contact directory directly in chat (name
++ phone only). Imported that as EMP001-EMP018 with placeholder
+designation="Teacher"/role=teacher. **Then discovered** (owner prompted:
+"make sure the excel is populated, it already contains the designations")
+that `School_docs/Daffodils/STAFF INFO.xlsx` already existed with real
+designation/department/date of joining/date of birth/role for **27** staff
+— the 18 teachers plus 9 more (Dr. Prabha Rani as Principal, and 8 support
+staff: office incharge, 3 drivers, 2 peons, 1 guard) — just missing phone
+numbers. Should have used this file from the start instead of the chat
+list; corrected course once found.
 
-**Result:** 18 real teachers imported as EMP001-EMP018, all
-designation="Teacher"/role=teacher (source directory has no
-designation/DOJ — placeholder date_of_joining=script run date, same
-convention as PMIC's Dr. Prabha Rani; owner/school corrects via dashboard).
-Name-parsing handled two special cases: "Anita Kumari - I"/"Anita Devi - II"
-(the "- I"/"- II" was a table disambiguator, not part of the name — split
-to first="Anita", last="Kumari"/"Devi") and "Deepak Sir (Shivshanker)"
-(parenthetical treated as last name).
+**Merge + reimport:** populated STAFF INFO.xlsx's blank PHONE NO column by
+matching names against the original 18-teacher chat list (19/27 matched,
+including one non-obvious match: "Deepak Sir (Shivshanker)" from the chat
+list = "Shiv Shankar Mahto" / P.T. Teacher in the xlsx — same person, chat
+list used his nickname) plus Dr. Prabha Rani's number, reused from her PMIC
+import (owner confirmed same person across both schools). Rewrote
+`reset_and_import_dps_teachers.py` to read from the xlsx; owner confirmed
+via `AskUserQuestion` to wipe the interim 18 (with working logins) and
+reimport all 27 fresh rather than partially merging. Prod backup:
+`tulipsedu-2026-07-16-1415.sql.gz`.
+
+**Result:** created=27 (EMP001-EMP027), 19 with logins (real phone + role
+mappable to `VALID_ROLES`), 8 without (support staff have no phone in
+either source — `phone_number` is `NOT NULL` on `staff`, so they get
+`PLACEHOLDER_PHONE="0000000000"` and no `users` row; not guessed/fabricated
+contact info, just a required-column placeholder, correctable via
+dashboard once the owner has their numbers). Missing DOJ (8 rows, mostly
+teachers added later without a recorded join date) → placeholder = script
+run date; missing DOB left `NULL` (nullable column, no placeholder needed).
+Login convention same as PMIC (username=phone, password=first 4
+digits+@+first name).
 
 ## 🔧 BUILT 2026-07-16 — PMIC public website: re-curated photos + principal name
 
