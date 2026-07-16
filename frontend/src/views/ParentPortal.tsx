@@ -155,15 +155,21 @@ function FeesSection({ student, schoolName, upi }: { student: LinkedStudent; sch
         dueGroups.length === 0
           ? <EmptyState icon={<Icon name="fees" size={30} />} title="No dues" hint="All fees are cleared." />
           : <>
-            {/* Monthly groups — pay the whole month at once */}
+            {/* Monthly groups — itemized by fee head, paid together as one transaction */}
             {monthlyGroups.map(g => (
               <Card key={g.key} pad={false} style={{ marginBottom: '.75rem', padding: '.9rem 1rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div>
-                    <div style={{ fontWeight: 700, fontFamily: 'var(--font-display)' }}>{g.label}</div>
-                    <div class="text-xs text-muted">{g.entries.map(e => e.fee_head_name).join(' · ')}</div>
-                  </div>
-                  <div style={{ fontWeight: 800, color: 'var(--c-accent-dk)', fontSize: '1.15rem' }}>{inr(g.total)}</div>
+                <div style={{ fontWeight: 700, fontFamily: 'var(--font-display)', marginBottom: '.5rem' }}>{g.label}</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '.3rem', marginBottom: '.6rem' }}>
+                  {g.entries.map(e => (
+                    <div key={e.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '.82rem' }}>
+                      <span class="text-muted">{e.fee_head_name}</span>
+                      <span style={{ fontWeight: 600 }}>{inr(e.amount_due)}</span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '.5rem', borderTop: '1px solid var(--gray-200)' }}>
+                  <span class="text-xs text-muted">Total</span>
+                  <span style={{ fontWeight: 800, color: 'var(--c-accent-dk)', fontSize: '1.15rem' }}>{inr(g.total)}</span>
                 </div>
                 <button
                   class="btn btn-accent" style={{ width: '100%', marginTop: '.7rem' }}
