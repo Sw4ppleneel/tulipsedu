@@ -65,6 +65,21 @@ Building Fee, Poor Fund, Smart Classes, Computer, Games/P.T, Report Card
 through Class 4, ₹800 Class 5-8) + Bus Fee (monthly, ₹700, transport
 students only).
 
+## ✅ DEPLOYED 2026-07-16 — DPS: filled in 2 remaining staff phone numbers
+
+Indu Kumari (EMP021, Accountant) and Mamta Kumari (EMP020, Office Incharge)
+were 2 of the 8 support staff imported with `PLACEHOLDER_PHONE` and no
+login. Owner supplied both real numbers directly. Indu Kumari's role
+(Accountant) maps to `VALID_ROLES`, so she also got a login
+(`backend/scripts/update_dps_staff_phones.py`, same convention as
+everyone else). Mamta Kumari's role (Office Incharge) has no `VALID_ROLES`
+mapping — phone updated only, no login, consistent with the original
+import logic. `STAFF INFO.xlsx` updated too. Prod backup:
+`tulipsedu-2026-07-16-1425.sql.gz`. Remaining without phones: Ramesh
+Mahto, Manoj Mahli, Vivek Kumar (drivers), Rudan Devi, Laxmi Devi (peons),
+Raj Kumar (guard) — none have a `VALID_ROLES` mapping anyway, so no login
+gap even once their numbers arrive, just contact info.
+
 ## ✅ DEPLOYED 2026-07-16 — DPS: real staff roster (27, incl. support staff)
 
 Owner first supplied an 18-teacher contact directory directly in chat (name
