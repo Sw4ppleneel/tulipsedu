@@ -69,6 +69,22 @@ correct number — Sudha's own row is the one that's wrong, still excluded
 pending her real number. Added `+91 93346 79531` next to his name in the
 Principal's Message section. Deployed via `scripts/deploy.sh --frontend-only`.
 
+**Known issue found this deploy — Cloudflare edge cache staleness (root
+cause of "hasnt loaded on prod yet" from the 2026-07-13 pass too, most
+likely):** `nginx.prod.conf`'s `location ~* \.(js|css|woff2?|png|jpg|jpeg|
+svg|ico|webp)$` block sets `Cache-Control: public, immutable` + `expires 1y`
+on *all* image files. That rule is meant for Vite's content-hashed build
+output, but it also matches `/school-assets/<slug>/*` — which reuses stable
+filenames (`hero.jpg`, `gallery1.png`, ...) across curation passes. Result:
+Cloudflare's edge served the 2026-07-13 photos (confirmed via
+`cf-cache-status: HIT` + matching old `content-length`) for ~15 minutes
+after this deploy, even though origin nginx had the new files. Owner is
+purging the Cloudflare cache manually via dashboard as the immediate fix.
+**Not yet fixed at the root** — recommend excluding `/school-assets/` from
+the immutable-cache location block (short TTL + revalidation instead) so
+future photo re-curations don't need a manual purge. Needs owner sign-off
+since it's an `nginx.prod.conf` change (deployment topology gate).
+
 ## ✅ DEPLOYED 2026-07-16 — PMIC: real teacher roster imported (9 of 13)
 
 Source: government UDISE Teacher Profile export
