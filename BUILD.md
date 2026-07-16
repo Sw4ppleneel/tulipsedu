@@ -63,12 +63,11 @@ lab, mentalhealth, picnic, planting, sports, teachersday). Applied:
 - `building.jpg` left unchanged — none of the 10 renamed files were a
   building replacement; not addressed by the owner's instructions.
 
-**Blocked:** Principal's phone number not yet added to the site or his
-staff login — the teacher-data spreadsheet's number for him
-(9334679531) is a duplicate of Sudha Tiwari's (see PMIC teacher-import
-entry below), owner is supplying the correct number separately. **Not yet
-deployed** — awaiting that number so both the website and his login can be
-done in one pass.
+**Resolved 2026-07-16:** owner confirmed 9334679531 (the number that
+appeared duplicated against Sudha Tiwari's row) is in fact Umesh Yadav's
+correct number — Sudha's own row is the one that's wrong, still excluded
+pending her real number. Added `+91 93346 79531` next to his name in the
+Principal's Message section. Deployed via `scripts/deploy.sh --frontend-only`.
 
 ## ✅ DEPLOYED 2026-07-16 — PMIC: real teacher roster imported (9 of 13)
 
@@ -84,26 +83,34 @@ pattern as the DPS scripts (prod DB backed up first:
 number, password = first four digits of the phone number + `@` + first name
 (Title Case), e.g. phone `7903181033` → password `[REDACTED-LEAKED-PASSWORD]`.
 
-**Imported (created=9, users_created=9, errors=0):** EMP001-EMP009, all
-`role=teacher`/designation `Lecturer` (Type_of_Teacher `8-Lecturer` in
-source). Employee numbers, phones, and passwords are in the script's stdout
-output and the git history of this file's diff.
+**Imported (10 of 13, EMP001-EMP010):** EMP001-EMP009 `role=teacher`/
+designation `Lecturer`; **EMP010 Umesh Yadav — `role=principal`,
+login=9334679531, pw=`[REDACTED-LEAKED-PASSWORD]`**, added 2026-07-16 after the owner
+confirmed his number (see re-run note below). Employee numbers, phones, and
+passwords are in the script's stdout output and the git history of this
+file's diff.
 
-**Excluded pending owner data (4 of 13 rows) — not guessed/fabricated:**
+**Idempotency fix (2026-07-16):** the first version of this script derived
+`employee_no` from `existing_staff_count + list_position`, which would have
+reassigned all 9 already-imported teachers to new employee numbers on
+re-run — inserting 9 duplicate staff rows instead of updating them (staff's
+unique constraint is `(tenant_id, employee_no)`, not phone). Fixed to look
+up `employee_no` by `phone_number` for already-imported teachers before
+assigning new numbers; re-run correctly showed `created=1, updated=9`.
+
+**Still excluded pending owner data (3 of 13 rows) — not guessed/fabricated:**
 - **Shashi Kant Kumar** — Mobile is `9371` (4 digits, truncated) in the
   source. Need the correct 10-digit number.
 - **Dr. Prabha Rani** — `Type_of_Teacher` (designation) and
   `Date_of_Joining_in_Present_School` both blank; both are `NOT NULL` on
   `staff`. Need her designation + join date.
-- **Umesh Yadav (Principal) and Sudha Tiwari** — both list Mobile
-  `9334679531` in the source. Identical numbers can't back two different
-  logins (phone is the username) — one or both are wrong. Need confirmed
-  numbers for each. (Umesh Yadav's correct number is also needed for the
-  public-website principal contact — see PMIC website entry below.)
+- **Sudha Tiwari** — source lists the same Mobile (`9334679531`) as Umesh
+  Yadav; now that Umesh's is confirmed correct, hers is the wrong one. Need
+  her real number.
 
-Once the owner supplies corrected data, re-run
-`import_pmic_teachers.py`/extend it — it's additive (upsert on
-employee_no/phone), safe to run again.
+Once the owner supplies corrected data, re-run `import_pmic_teachers.py` —
+it's additive/idempotent (upsert on phone-derived employee_no), safe to run
+again.
 
 ## ✅ DEPLOYED 2026-07-07 — Daffodils Public School (DPS): real roster replaces mock seed data
 
