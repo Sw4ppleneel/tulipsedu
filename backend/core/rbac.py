@@ -17,7 +17,8 @@ import uuid
 from fastapi import HTTPException, Request
 
 # Roles that operate school-wide with no class restriction.
-UNRESTRICTED_ROLES = frozenset({"superadmin", "principal", "vice_principal"})
+# accountant included: fee collection is tenant-wide, not scoped to one class.
+UNRESTRICTED_ROLES = frozenset({"superadmin", "principal", "vice_principal", "accountant"})
 
 
 def require_roles(*allowed: str):

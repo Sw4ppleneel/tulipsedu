@@ -18,7 +18,9 @@ from services.student import (
 
 _admin_only = Depends(require_roles("principal", "vice_principal"))
 _roster_read = [
-    Depends(require_roles("principal", "vice_principal", "class_teacher", "teacher")),
+    # accountant: needs the roster to pick a student when collecting fees at
+    # the office (FeesAdmin's Collect tab) — was 403ing before this.
+    Depends(require_roles("principal", "vice_principal", "class_teacher", "teacher", "accountant")),
     Depends(load_class_scope),
 ]
 
