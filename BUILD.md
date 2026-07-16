@@ -65,6 +65,32 @@ Building Fee, Poor Fund, Smart Classes, Computer, Games/P.T, Report Card
 through Class 4, ₹800 Class 5-8) + Bus Fee (monthly, ₹700, transport
 students only).
 
+## ✅ DEPLOYED 2026-07-16 — Fix: 500 on GET /staff/assignments (class assignments list)
+
+Live bug report from the owner's first real click-through test: assigned
+Amrita Kumari (DPS) as class teacher for Pre-Nursery-A, then hit "Internal
+Server Error" navigating to the principal's Assignments page to remove it.
+Backend logs (`docker logs tulips-backend-1`) showed
+`KeyError: 'first_name'` in `list_all_assignments`
+(`services/staff.py`) — pre-existing bug, not introduced this session, just
+never exercised until now.
+
+**Root cause:** `list_all_assignments` joins the `staff` table to build
+`staff_name`/`designation` for the principal panel, but the shared
+`_ASSIGNMENT_JOIN` SELECT only covers
+`staff_class_assignments`/`classes`/`sections`/`academic_years` — it never
+selected `staff.first_name`/`last_name`/`designation`, so every call to
+`GET /staff/assignments` raised a 500 before a principal could view (let
+alone remove) any class-teacher assignment.
+
+**Fix:** gave `list_all_assignments` its own query selecting the staff
+columns it actually needs, instead of reusing the shared join (which is
+still correct for `list_assignments`, the single-staff variant that
+doesn't join `staff`). Verified the exact failing query directly against
+prod post-deploy — returns Amrita Kumari's Pre-Nursery-A assignment
+correctly. No errors in backend logs since deploy. Full deploy, gate
+passed, no pending migrations.
+
 ## ✅ DEPLOYED 2026-07-16 — Fix: Outstanding Dues total didn't match Dashboard total
 
 `get_outstanding_dues` (`services/finance.py`) summed `grand_total`/
