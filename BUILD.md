@@ -64,11 +64,16 @@ wired into an API — mirrors the `import_pmic_science_commerce.py` pattern).
 `DPS{N}-2026-{roll:03d}` for Class 1-8, `DPSK1-`/`DPSK2-` for K.G. I/II,
 `DPSN-` for Nursery. Year token is the new academic year's start year.
 
-**Known gap:** Class 6 has zero students — the source file's 19 Class-6 rows
-were placeholder roll numbers only (no name/DOB/gender/phone), so nothing was
-imported. Owner needs to supply the real Class 6 roster; re-run pattern in the
-script once that data exists (it's tenant/AY-scoped and safe to run again for
-just that class, or extend the script).
+**Known gap (resolved 2026-07-16):** Class 6 originally had zero students —
+the source file's 19 Class-6 rows were placeholder roll numbers only. Owner
+supplied the real roster in the same source file; imported via new
+`backend/scripts/import_dps_class6.py` (additive, upserts on admission
+number into the existing tenant + current academic year — no reset). Ran the
+same `docker cp` script + xlsx into `tulips-backend-1` / `docker exec` pattern
+as the original import, after taking a prod DB backup
+(`tulipsedu-2026-07-16-0635.sql.gz`). Result: created=19, updated=0, errors=0.
+DPS now has 371 students across all 11 classes (was 352). Admission numbers
+`DPS6-2026-{roll:03d}`.
 
 **Data-quality notes for future re-imports of this source file:** DOB strings
 had typos (letter "O" for zero, stray spaces/doubled separators) — handled by
