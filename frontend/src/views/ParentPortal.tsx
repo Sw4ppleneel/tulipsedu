@@ -104,6 +104,8 @@ function FeesSection({ student, schoolName, upi }: { student: LinkedStudent; sch
   // one-time groups: which are expanded + which entries are checked
   const [onetimeOpen, setOnetimeOpen] = useState<Set<string>>(new Set())
   const [onetimeSelected, setOnetimeSelected] = useState<Record<string, Set<string>>>({})
+  // monthly groups: all items selected by default — this tracks explicit deselections
+  const [monthlyDeselected, setMonthlyDeselected] = useState<Record<string, Set<string>>>({})
 
   async function reload() {
     const [l, p] = await Promise.all([getStudentLedger(student.id), listParentPayments()])
@@ -137,6 +139,14 @@ function FeesSection({ student, schoolName, upi }: { student: LinkedStudent; sch
     })
   }
 
+  function toggleMonthlyItem(groupKey: string, id: string, checked: boolean) {
+    setMonthlyDeselected(prev => {
+      const cur = new Set(prev[groupKey] ?? [])
+      checked ? cur.delete(id) : cur.add(id)
+      return { ...prev, [groupKey]: cur }
+    })
+  }
+
   const claimedPending = (payments ?? []).some(p => p.status === 'pending_verification')
 
   if (!ledger || !payments) return <Spinner label="Loading fees…" />
@@ -155,31 +165,50 @@ function FeesSection({ student, schoolName, upi }: { student: LinkedStudent; sch
         dueGroups.length === 0
           ? <EmptyState icon={<Icon name="fees" size={30} />} title="No dues" hint="All fees are cleared." />
           : <>
-            {/* Monthly groups — itemized by fee head, paid together as one transaction */}
-            {monthlyGroups.map(g => (
-              <Card key={g.key} pad={false} style={{ marginBottom: '.75rem', padding: '.9rem 1rem' }}>
-                <div style={{ fontWeight: 700, fontFamily: 'var(--font-display)', marginBottom: '.5rem' }}>{g.label}</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '.3rem', marginBottom: '.6rem' }}>
-                  {g.entries.map(e => (
-                    <div key={e.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '.82rem' }}>
-                      <span class="text-muted">{e.fee_head_name}</span>
-                      <span style={{ fontWeight: 600 }}>{inr(e.amount_due)}</span>
-                    </div>
-                  ))}
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '.5rem', borderTop: '1px solid var(--gray-200)' }}>
-                  <span class="text-xs text-muted">Total</span>
-                  <span style={{ fontWeight: 800, color: 'var(--c-accent-dk)', fontSize: '1.15rem' }}>{inr(g.total)}</span>
-                </div>
-                <button
-                  class="btn btn-accent" style={{ width: '100%', marginTop: '.7rem' }}
-                  disabled={!upi}
-                  onClick={() => setPay({ amount: g.total, ledgerIds: g.entries.map(e => e.id), note: `${schoolName} | ${student.first_name} | Adm ${student.admission_no} | ${g.label}` })}
-                >
-                  {upi ? `Pay ${inr(g.total)} via UPI` : 'Pay at school office'}
-                </button>
-              </Card>
-            ))}
+            {/* Monthly groups — itemized by fee head, individually selectable, all selected by default */}
+            {monthlyGroups.map(g => {
+              const deselected = monthlyDeselected[g.key] ?? new Set<string>()
+              const selEntries = g.entries.filter(e => !deselected.has(e.id))
+              const selTotal = selEntries.reduce((s, e) => s + e.amount_due, 0)
+
+              return (
+                <Card key={g.key} pad={false} style={{ marginBottom: '.75rem', padding: '.9rem 1rem' }}>
+                  <div style={{ fontWeight: 700, fontFamily: 'var(--font-display)', marginBottom: '.5rem' }}>{g.label}</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', marginBottom: '.6rem' }}>
+                    {g.entries.map(e => (
+                      <label key={e.id} style={{ display: 'flex', alignItems: 'center', gap: '.6rem', padding: '.3rem 0', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={!deselected.has(e.id)}
+                          onChange={ev => toggleMonthlyItem(g.key, e.id, (ev.target as HTMLInputElement).checked)}
+                        />
+                        <span style={{ flex: 1, fontSize: '.82rem' }} class="text-muted">{e.fee_head_name}</span>
+                        <span style={{ fontWeight: 600, flexShrink: 0 }}>{inr(e.amount_due)}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '.5rem', borderTop: '1px solid var(--gray-200)' }}>
+                    <span class="text-xs text-muted">Total</span>
+                    <span style={{ fontWeight: 800, color: 'var(--c-accent-dk)', fontSize: '1.15rem' }}>{inr(selTotal)}</span>
+                  </div>
+                  <button
+                    class="btn btn-accent" style={{ width: '100%', marginTop: '.7rem' }}
+                    disabled={!upi || selEntries.length === 0}
+                    onClick={() => selEntries.length > 0 && setPay({
+                      amount: selTotal,
+                      ledgerIds: selEntries.map(e => e.id),
+                      note: `${schoolName} | ${student.first_name} | Adm ${student.admission_no} | ${g.label}`,
+                    })}
+                  >
+                    {selEntries.length === 0
+                      ? 'Select items to pay'
+                      : upi
+                        ? `Pay ${inr(selTotal)} via UPI`
+                        : 'Pay at school office'}
+                  </button>
+                </Card>
+              )
+            })}
 
             {/* One-time / annual groups — expandable with per-item selection */}
             {onetimeGroups.map(g => {
