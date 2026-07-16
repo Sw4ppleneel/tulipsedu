@@ -560,7 +560,16 @@ function Contact() {
           ))}
         </div>
         <div>
-          <ImgPlaceholder label="Google Maps — Premchand High School, Mesra Neori" ratio={72} radius={14} />
+          <div style={{ position: 'relative', paddingBottom: '72%', borderRadius: 14, overflow: 'hidden' }}>
+            <iframe
+              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3660.6371650234323!2d85.41633767555055!3d23.437470600717507!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x39f4e495a34b12d3%3A0xf678e4f5eea86ee0!2sPREMCHAND%20HIGH%20SCHOOL!5e0!3m2!1sen!2sin!4v1784209359761!5m2!1sen!2sin"
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 0 }}
+              allowFullScreen
+              loading="lazy"
+              referrerPolicy="strict-origin-when-cross-origin"
+              title="Campus location — shared with Premchand Mahto Inter College"
+            />
+          </div>
           <a href="https://maps.google.com/?q=Neori+Mesra+Ranchi+Jharkhand" target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '.35rem', marginTop: '.85rem', color: C.navy, fontWeight: 600, fontSize: '.82rem', textDecoration: 'none' }}>
             Open in Google Maps <Ico name="externalLink" size={14} stroke={C.navy} />
           </a>
