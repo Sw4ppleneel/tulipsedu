@@ -65,6 +65,39 @@ Building Fee, Poor Fund, Smart Classes, Computer, Games/P.T, Report Card
 through Class 4, ₹800 Class 5-8) + Bus Fee (monthly, ₹700, transport
 students only).
 
+## ✅ 2026-07-16 — Scrubbed 2 leaked passwords from git history + rotated both
+
+Owner asked to remove the leaked-password commit info. Auditing found the
+leak was worse than known: **two** real credentials had been committed in
+plaintext, not one —
+1. Umesh Yadav's (PMIC Principal) password in a BUILD.md commit (already
+   flagged earlier this session).
+2. Seema Toppo's (PMIC teacher) password, used as a real "e.g." example in
+   `import_pmic_teachers.py`'s docstring — this one was **still live in
+   HEAD**, not just history. Fixed the docstring to use a fake example
+   (fake phone/name) first.
+
+**Rotated both** (owner confirmed via `AskUserQuestion` for each) before
+touching history — the actual fix, since a scrubbed-but-not-rotated
+password is still valid if anyone already has a copy. New random 14-char
+passwords generated server-side inside `rotate_password.py` (never a CLI
+arg or env var — both would recreate the same class of leak via shell
+history/process listings). New passwords relayed to the owner directly in
+chat, not committed anywhere.
+
+**History rewrite:** installed `git-filter-repo` (brew), tagged a backup
+of pre-rewrite `main` on origin first, mirror-cloned locally (network
+clone of the GitHub repo timed out — cloned from the local working copy
+instead, same history), ran `--replace-text` against both leaked strings,
+force-pushed the rewritten `main` to origin. Confirmed `dev`/`prod` were
+both frozen at a much older commit (`2424448`, predating all of today's
+work) and never contained either string, so only `main` needed touching.
+Verified `origin/main` clean post-rewrite (`git log origin/main -p |
+grep` for both strings → 0 matches), then hard-reset the local working
+copy to match. Deleted the backup tag afterward (owner confirmed) — an
+unrotated backup pointing at the old history would have defeated the
+whole scrub.
+
 ## ✅ DEPLOYED 2026-07-16 — Fix: accountant 403'd collecting fees ("insufficient permission")
 
 Live bug report: accountant denied collecting a fee for a student.
