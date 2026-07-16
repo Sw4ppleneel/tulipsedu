@@ -65,6 +65,30 @@ Building Fee, Poor Fund, Smart Classes, Computer, Games/P.T, Report Card
 through Class 4, ₹800 Class 5-8) + Bus Fee (monthly, ₹700, transport
 students only).
 
+## ✅ DEPLOYED 2026-07-16 — Fix: Outstanding Dues total didn't match Dashboard total
+
+`get_outstanding_dues` (`services/finance.py`) summed `grand_total`/
+`student_count` from the already-`LIMIT`/`OFFSET`-paginated `items` list —
+so it only reflected the current page (default 200), not everyone with
+dues. `Dashboard`'s `fee_outstanding` sums the whole tenant unpaginated, so
+the two figures silently diverged once a tenant had more students with
+dues than the page size. Exactly DPS's situation right now: 401 active
+students, all freshly ledgered (10,010 entries from the fee-structure
+import above) → 401 students with dues, only the first 200 counted toward
+the old grand_total.
+
+**Fix:** `grand_total`/`student_count` now come from a separate
+unpaginated `SUM`/`COUNT(DISTINCT student_id)` query using the same
+filters — verified directly against DPS: 401 students with dues,
+₹55,91,200 total, matching the Dashboard figure exactly. Also fixed a
+related gap: the Outstanding Dues report page has no pagination UI at all
+(no "next page" control), so the visible row list was silently truncated
+at 200 too. Raised the endpoint's limit ceiling (200/500 → 500/5000,
+matching the platform's stated 5,000-student tenant ceiling) and the
+frontend now explicitly requests the full ceiling so the row list matches
+what the total counts. Full deploy (backend + frontend), gate passed
+(4 tests, "not live" suite), no pending migrations.
+
 ## ✅ DEPLOYED 2026-07-16 — Parent portal: monthly fee items individually selectable
 
 Follow-up to the itemization fix above — owner: "make the items selectable
