@@ -65,6 +65,19 @@ Building Fee, Poor Fund, Smart Classes, Computer, Games/P.T, Report Card
 through Class 4, ₹800 Class 5-8) + Bus Fee (monthly, ₹700, transport
 students only).
 
+## ✅ DEPLOYED 2026-07-16 — Parent portal: itemize monthly fee heads separately
+
+Monthly ledger dues (e.g. DPS's Tuition Fee + Bus Fee for transport
+students) were grouped by month into one card with all fee-head names
+joined into a single " · " subtitle and one combined amount — parents
+couldn't see what each head cost. This is shared code (`ParentPortal.tsx`
+`FeesSection`), affects every tenant with more than one monthly fee head,
+not just DPS. Confirmed scope with owner via `AskUserQuestion`: keep one
+card per month / one combined "Pay via UPI" transaction, but itemize each
+fee head as its own labeled line with its own amount inside the card
+(running total below), rather than splitting into separate payable cards
+per fee head. Deployed via `scripts/deploy.sh --frontend-only`.
+
 ## ✅ DEPLOYED 2026-07-16 — DPS: filled in 2 remaining staff phone numbers
 
 Indu Kumari (EMP021, Accountant) and Mamta Kumari (EMP020, Office Incharge)
