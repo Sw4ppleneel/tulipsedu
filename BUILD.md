@@ -43,6 +43,41 @@ paperwork visible on the table (confirms correct school) but his role
 (principal vs. admin staff) was not independently confirmed — worth a
 sanity check with the school before treating it as authoritative.
 
+## ✅ DEPLOYED 2026-07-16 — PMIC: real teacher roster imported (9 of 13)
+
+Source: government UDISE Teacher Profile export
+(`School_Teacher_Profile_Details.numbers`, exported to `.xlsx` via Numbers —
+`numbers_parser` isn't installed, used the Numbers.app GUI export instead of
+adding a new pip dependency). New one-off script
+`backend/scripts/import_pmic_teachers.py`, same `docker cp` + `docker exec`
+pattern as the DPS scripts (prod DB backed up first:
+`tulipsedu-2026-07-16-0653.sql.gz`).
+
+**Login convention (owner-specified, PMIC-specific):** username = phone
+number, password = first four digits of the phone number + `@` + first name
+(Title Case), e.g. phone `7903181033` → password `[REDACTED-LEAKED-PASSWORD]`.
+
+**Imported (created=9, users_created=9, errors=0):** EMP001-EMP009, all
+`role=teacher`/designation `Lecturer` (Type_of_Teacher `8-Lecturer` in
+source). Employee numbers, phones, and passwords are in the script's stdout
+output and the git history of this file's diff.
+
+**Excluded pending owner data (4 of 13 rows) — not guessed/fabricated:**
+- **Shashi Kant Kumar** — Mobile is `9371` (4 digits, truncated) in the
+  source. Need the correct 10-digit number.
+- **Dr. Prabha Rani** — `Type_of_Teacher` (designation) and
+  `Date_of_Joining_in_Present_School` both blank; both are `NOT NULL` on
+  `staff`. Need her designation + join date.
+- **Umesh Yadav (Principal) and Sudha Tiwari** — both list Mobile
+  `9334679531` in the source. Identical numbers can't back two different
+  logins (phone is the username) — one or both are wrong. Need confirmed
+  numbers for each. (Umesh Yadav's correct number is also needed for the
+  public-website principal contact — see PMIC website entry below.)
+
+Once the owner supplies corrected data, re-run
+`import_pmic_teachers.py`/extend it — it's additive (upsert on
+employee_no/phone), safe to run again.
+
 ## ✅ DEPLOYED 2026-07-07 — Daffodils Public School (DPS): real roster replaces mock seed data
 
 Ran `backend/scripts/reset_and_import_dps.py` directly against prod (one-off, not
