@@ -43,6 +43,48 @@ paperwork visible on the table (confirms correct school) but his role
 (principal vs. admin staff) was not independently confirmed — worth a
 sanity check with the school before treating it as authoritative.
 
+## ✅ DEPLOYED 2026-07-16 — DPS: real fee structure imported + ledger generated
+
+`DPS_Fee_Structure_Import.xlsx` was built 2026-07-07 but held back — one row
+(Bus Fee) was marked "PENDING CONFIRMATION: assumed monthly" pending owner
+sign-off. Owner confirmed 2026-07-16: Bus Fee is monthly, ₹700
+(`student_filter=transport`, so only `is_transport=TRUE` students get it).
+Also added a Pre-Nursery Tuition Fee row (₹700, same band as Nursery-U.KG)
+since that class didn't exist when the file was first built (see Pre-Nursery
+entry below). New `backend/scripts/import_dps_fee_structure.py` runs
+`services.finance.import_and_generate` — the only supported way to set up
+fees, imports the structure and generates the ledger atomically. Prod
+backup: `tulipsedu-2026-07-16-1353.sql.gz`.
+
+**Result:** 11 fee heads created, 12 updated (mock seed heads with matching
+names, e.g. "Tuition Fee" — harmless upsert), 23 fee schedules created,
+10,010 ledger entries created across all 401 active students. Full
+structure: Admission Form/Fee, Development Fee (admission + annual),
+Building Fee, Poor Fund, Smart Classes, Computer, Games/P.T, Report Card
+(one-time/annual, all classes) + Tuition Fee (monthly, ₹700 Pre-Nursery
+through Class 4, ₹800 Class 5-8) + Bus Fee (monthly, ₹700, transport
+students only).
+
+## ✅ DEPLOYED 2026-07-16 — DPS: real teacher directory replaces mock staff
+
+Owner supplied an 18-teacher contact directory directly (name + phone only,
+no source spreadsheet). Confirmed via `AskUserQuestion`: wipe the 8 mock
+seed staff (EMP001-EMP008: Rajiv/Sunita/Manoj/Preethi/Ashok/Vandana/Suresh/
+Geeta — same mock data noted in the root CLAUDE.md's 2026-06-19 note) rather
+than appending alongside them, matching how the mock student roster was
+replaced. New `backend/scripts/reset_and_import_dps_teachers.py`, same
+login convention as PMIC (username=phone, password=first 4 digits+@+first
+name). Prod backup: `tulipsedu-2026-07-16-1350.sql.gz`.
+
+**Result:** 18 real teachers imported as EMP001-EMP018, all
+designation="Teacher"/role=teacher (source directory has no
+designation/DOJ — placeholder date_of_joining=script run date, same
+convention as PMIC's Dr. Prabha Rani; owner/school corrects via dashboard).
+Name-parsing handled two special cases: "Anita Kumari - I"/"Anita Devi - II"
+(the "- I"/"- II" was a table disambiguator, not part of the name — split
+to first="Anita", last="Kumari"/"Devi") and "Deepak Sir (Shivshanker)"
+(parenthetical treated as last name).
+
 ## 🔧 BUILT 2026-07-16 — PMIC public website: re-curated photos + principal name
 
 Owner rejected the first photo curation pass (2026-07-13) and manually
