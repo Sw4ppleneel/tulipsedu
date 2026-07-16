@@ -65,6 +65,15 @@ Building Fee, Poor Fund, Smart Classes, Computer, Games/P.T, Report Card
 through Class 4, ₹800 Class 5-8) + Bus Fee (monthly, ₹700, transport
 students only).
 
+## ✅ DEPLOYED 2026-07-16 — Parent portal: monthly fee items individually selectable
+
+Follow-up to the itemization fix above — owner: "make the items selectable
+individually per month." Each fee head in a monthly card now has its own
+checkbox (all checked by default, so the default action still pays the
+whole month); total and button label track the current selection. Mirrors
+the existing one-time-fees checkbox pattern. Deployed via
+`scripts/deploy.sh --frontend-only`.
+
 ## ✅ DEPLOYED 2026-07-16 — Parent portal: itemize monthly fee heads separately
 
 Monthly ledger dues (e.g. DPS's Tuition Fee + Bus Fee for transport
