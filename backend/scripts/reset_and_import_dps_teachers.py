@@ -1,116 +1,135 @@
 """
-Replace Daffodils Public School (DPS) mock/seed staff with the real teacher
-contact directory the owner supplied directly (no source spreadsheet — the
-18-row list below is transcribed verbatim from the owner's message).
+Replace Daffodils Public School (DPS) staff with the real roster from
+School_docs/Daffodils/STAFF INFO.xlsx (27 people: teaching + support staff,
+with real designation/department/date of joining/date of birth/role).
 
-Mirrors reset_and_import_dps.py's approach for students: DPS's existing
-8 staff (EMP001-EMP008: Rajiv/Sunita/Manoj/Preethi/Ashok/Vandana/Suresh/
-Geeta) are mock seed data (per root CLAUDE.md's 2026-06-19 note — all DPS
-data was mock until the real student roster replaced it). Deletes those
-staff rows (cascades to staff_class_assignments) and their linked user
-logins, then imports the 18 real teachers as EMP001-EMP018.
+Supersedes the 2026-07-16 version of this script, which only had an 18-name
+teacher directory (name + phone, no designations) pasted directly in chat.
+That version wiped the 8 mock EMP001-EMP008 staff and imported placeholder-
+designation teachers as a stopgap. STAFF INFO.xlsx turned out to already
+exist in the source folder with real designations/departments/DOJ/DOB for
+27 staff (teachers + office/driver/peon/guard) — just missing phone numbers.
+Phones were filled in by matching names against the same 18-teacher chat
+list (see the PHONES dict in the one-off script that populated the xlsx;
+not re-run here, the xlsx now has them baked in) plus Dr. Prabha Rani's
+number, reused from her PMIC import (owner confirmed same person, PMIC's
+Dr. Prabha Rani entry, 2026-07-16).
+
+Wipes ALL current DPS staff (superseding the interim 18-person import, not
+just the original 8 mock rows) and imports all 27 real people fresh.
 
 Login convention (same as PMIC, owner-specified, tenant-specific — not a
 global rule): username = phone number, password = first four digits of the
-phone number + "@" + first name (Title Case).
-
-Data notes:
-  - Source gives first names + honorific ("mam"/"Sir") only, no last names,
-    except two disambiguated entries and one with a parenthetical name.
-    "Anita Kumari - I" / "Anita Devi - II" -> first="Anita", last="Kumari"/
-    "Devi" (the "- I"/"- II" was a table disambiguator, not part of the
-    name). "Deepak Sir (Shivshanker)" -> first="Deepak", last="Shivshanker".
-    Everyone else -> last_name="" (staff.last_name is NOT NULL but allows
-    empty string).
-  - No designation or date_of_joining in the source (just name + phone).
-    Both are NOT NULL on `staff`; uses placeholder designation="Teacher"
-    and date_of_joining=script run date, same convention already used for
-    PMIC's Dr. Prabha Rani — owner/school can correct via the dashboard.
+phone number + "@" + first name (Title Case). Only created for people with
+a real phone number AND a role mappable to VALID_ROLES — 8 support staff
+(office incharge, drivers, peons, guard) have no phone in either source and
+get a staff record with phone_number=PLACEHOLDER_PHONE but no login.
 """
 
 import asyncio
+import io
 import os
 import re
 import sys
 from datetime import date
+from pathlib import Path
 
 import asyncpg
 import bcrypt
+import openpyxl
+from openpyxl import Workbook
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from services.student import import_students  # noqa: F401  (not used; keeps sys.path pattern consistent)
 
 TENANT_SLUG = "daffodilspublicschool"
+SOURCE_XLSX = Path(__file__).parent.parent.parent / "School_docs" / "Daffodils" / "STAFF INFO.xlsx"
 
-PLACEHOLDER_DESIGNATION = "Teacher"
+PLACEHOLDER_PHONE = "0000000000"
 PLACEHOLDER_DOJ = date(2026, 7, 16)  # script run date; correct via dashboard
 
-# (raw name, phone) — transcribed verbatim from the owner's teacher directory
-RAW_TEACHERS = [
-    ("Geeta mam", "7277080037"),
-    ("Priti mam", "6206107862"),
-    ("Lalita mam", "6204427649"),
-    ("Kiran mam", "6200215978"),
-    ("Anita Kumari - I", "6206527277"),
-    ("Anita Devi - II", "9110073723"),
-    ("Jyoti mam", "8709279606"),
-    ("Neetu mam", "9835053534"),
-    ("Nishi mam", "8340246544"),
-    ("Anju mam", "6200257812"),
-    ("Ravi Sir", "8271169464"),
-    ("Deepak Sir (Shivshanker)", "8340707930"),
-    ("Sagar Sir", "9905706281"),
-    ("Mukesh Sir", "9128571093"),
-    ("Amrita mam", "8340422591"),
-    ("Jayanti mam", "7004659512"),
-    ("Sheela mam", "8651985342"),
-    ("Mili mam", "7209875862"),
-]
-
-HONORIFICS = {"mam", "sir"}
+VALID_ROLES = {"principal", "vice_principal", "class_teacher", "teacher", "accountant"}
+ROLE_MAP = {
+    "PRINCIPAL": "principal",
+    "CLASS TEACHER": "class_teacher",
+    "TEACHER": "teacher",
+    "P.T TEACHER": "teacher",
+    "ACCOUNTANT": "accountant",
+    # OFFICE INCHARGE, DRIVER, PEON, GUARD -> no VALID_ROLES match, no login
+}
 
 
-def normalise_phone(raw: str) -> str | None:
-    digits = re.sub(r"\D", "", raw)
+def normalise_phone(raw) -> str | None:
+    digits = re.sub(r"\D", "", str(raw) if raw is not None else "")
     if len(digits) == 10 and digits[0] in "6789":
         return digits
     return None
 
 
-def parse_name(raw: str) -> tuple[str, str]:
-    m = re.match(r"^(.*?)\s*\(([^)]+)\)\s*$", raw)  # "Deepak Sir (Shivshanker)"
-    if m:
-        base, paren = m.group(1), m.group(2)
-        parts = [p for p in base.split() if p.lower() not in HONORIFICS]
-        return parts[0].title(), paren.title()
-
-    base = re.sub(r"\s*-\s*[IVX]+$", "", raw)  # "Anita Kumari - I" -> "Anita Kumari"
-    parts = [p for p in base.split() if p.lower() not in HONORIFICS]
-    first = parts[0].title() if parts else ""
-    last = " ".join(parts[1:]).title() if len(parts) > 1 else ""
-    return first, last
+def parse_ddmmyyyy(cell) -> date | None:
+    if cell is None:
+        return None
+    if isinstance(cell, date):
+        return cell
+    try:
+        d, m, y = str(cell).strip().split(".")
+        return date(int(y), int(m), int(d))
+    except (ValueError, TypeError):
+        return None
 
 
-def build_records() -> list[dict]:
+def title(s) -> str | None:
+    return str(s).strip().title() if s else None
+
+
+def read_source() -> list[dict]:
+    wb = openpyxl.load_workbook(SOURCE_XLSX, data_only=True)
+    ws = wb["Sheet1"]
+    rows = list(ws.iter_rows(values_only=True))
+    header = [str(h).strip().upper() for h in rows[0]]
+    idx = {name: header.index(name) for name in
+           ("FIRST NAME", "LAST NAME", "PHONE NO", "DESIGNATION", "DEPARTMENT",
+            "DATE OF JOINING", "DATE OF BIRTH", "ROLE")}
+
     records = []
-    seen_phones = set()
-    for raw_name, raw_phone in RAW_TEACHERS:
-        phone = normalise_phone(raw_phone)
-        if not phone:
-            print(f"ERROR: invalid phone for '{raw_name}': {raw_phone}")
-            sys.exit(1)
-        if phone in seen_phones:
-            print(f"ERROR: duplicate phone {phone} in source list")
-            sys.exit(1)
-        seen_phones.add(phone)
+    for row in rows[1:]:
+        if all(c is None for c in row):
+            continue
+        first_raw = row[idx["FIRST NAME"]]
+        if not first_raw:
+            continue
+        first = title(first_raw)
+        last = title(row[idx["LAST NAME"]]) or ""
 
-        first, last = parse_name(raw_name)
+        phone = normalise_phone(row[idx["PHONE NO"]])
+        has_real_phone = phone is not None
+        if phone is None:
+            phone = PLACEHOLDER_PHONE
+
+        designation = title(row[idx["DESIGNATION"]]) or "Staff"
+        department = title(row[idx["DEPARTMENT"]])
+        doj = parse_ddmmyyyy(row[idx["DATE OF JOINING"]]) or PLACEHOLDER_DOJ
+        dob = parse_ddmmyyyy(row[idx["DATE OF BIRTH"]])
+
+        role_raw = str(row[idx["ROLE"]]).strip().upper() if row[idx["ROLE"]] else ""
+        role = ROLE_MAP.get(role_raw)
+        create_login = has_real_phone and role in VALID_ROLES
+
         records.append({
             "first_name": first,
             "last_name": last,
             "phone": phone,
-            "designation": PLACEHOLDER_DESIGNATION,
-            "role": "teacher",
-            "date_of_joining": PLACEHOLDER_DOJ,
-            "password": f"{phone[:4]}@{first}",
+            "designation": designation,
+            "department": department,
+            "date_of_joining": doj,
+            "date_of_birth": dob,
+            "role": role,
+            "create_login": create_login,
+            "password": f"{phone[:4]}@{first}" if create_login else None,
         })
+
+    print(f"Parsed {len(records)} staff rows "
+          f"({sum(r['create_login'] for r in records)} with a login)")
     return records
 
 
@@ -123,8 +142,9 @@ async def main():
         print(f"ERROR: tenant '{TENANT_SLUG}' not found"); await conn.close(); return
     tenant_id = tenant["id"]
 
-    records = build_records()
-    print(f"Parsed {len(records)} teachers from the owner's list")
+    records = read_source()
+    if not records:
+        print("Nothing to import."); await conn.close(); return
 
     async with conn.transaction():
         old_staff = await conn.fetch(
@@ -136,34 +156,37 @@ async def main():
             await conn.execute("DELETE FROM staff WHERE tenant_id = $1", tenant_id)
             if old_user_ids:
                 await conn.execute("DELETE FROM users WHERE id = ANY($1::uuid[])", old_user_ids)
-        print(f"Deleted {len(old_staff)} mock staff "
-              f"({', '.join(r['employee_no'] + ' ' + r['first_name'] for r in old_staff)}) "
-              f"+ {len(old_user_ids)} linked logins")
+        print(f"Deleted {len(old_staff)} existing staff + {len(old_user_ids)} linked logins")
 
         created = 0
         for i, rec in enumerate(records, start=1):
             emp_no = f"EMP{i:03d}"
-            pw_hash = bcrypt.hashpw(rec["password"].encode(), bcrypt.gensalt()).decode()
-            user_row = await conn.fetchrow(
-                """
-                INSERT INTO users (tenant_id, phone_number, password_hash, role)
-                VALUES ($1,$2,$3,$4) RETURNING id
-                """,
-                tenant_id, rec["phone"], pw_hash, rec["role"],
-            )
+            user_id = None
+            if rec["create_login"]:
+                pw_hash = bcrypt.hashpw(rec["password"].encode(), bcrypt.gensalt()).decode()
+                user_row = await conn.fetchrow(
+                    """
+                    INSERT INTO users (tenant_id, phone_number, password_hash, role)
+                    VALUES ($1,$2,$3,$4) RETURNING id
+                    """,
+                    tenant_id, rec["phone"], pw_hash, rec["role"],
+                )
+                user_id = user_row["id"]
             await conn.execute(
                 """
                 INSERT INTO staff
                     (tenant_id, user_id, employee_no, first_name, last_name,
-                     phone_number, designation, date_of_joining)
-                VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+                     phone_number, designation, department, date_of_joining, date_of_birth)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
                 """,
-                tenant_id, user_row["id"], emp_no,
+                tenant_id, user_id, emp_no,
                 rec["first_name"], rec["last_name"], rec["phone"],
-                rec["designation"], rec["date_of_joining"],
+                rec["designation"], rec["department"], rec["date_of_joining"], rec["date_of_birth"],
             )
             created += 1
-            print(f"  {emp_no}  {rec['first_name']} {rec['last_name']:<12} login={rec['phone']}")
+            login_str = f"login={rec['phone']}" if rec["create_login"] else "no login"
+            print(f"  {emp_no}  {rec['first_name']} {rec['last_name']:<10} "
+                  f"{rec['designation']:<16} {login_str}")
 
     await conn.close()
     print(f"\n=== Import result ===\n  created : {created}\n  errors  : 0")
