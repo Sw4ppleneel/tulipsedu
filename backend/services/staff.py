@@ -256,8 +256,19 @@ async def list_all_assignments(
 ) -> list[dict]:
     """Return all assignments for the tenant with staff name info — for the principal panel."""
     rows = await conn.fetch(
-        f"""
-        {_ASSIGNMENT_JOIN}
+        """
+        SELECT
+            a.*,
+            c.name    AS class_name,
+            s.name    AS section_name,
+            ay.name   AS academic_year_name,
+            st.first_name  AS staff_first_name,
+            st.last_name   AS staff_last_name,
+            st.designation AS staff_designation
+        FROM staff_class_assignments a
+        JOIN classes        c  ON c.id  = a.class_id
+        JOIN sections       s  ON s.id  = a.section_id
+        JOIN academic_years ay ON ay.id = a.academic_year_id
         JOIN staff st ON st.id = a.staff_id
         WHERE a.tenant_id = $1
           AND ($2::uuid IS NULL OR a.academic_year_id = $2::uuid)
@@ -279,8 +290,8 @@ async def list_all_assignments(
             "class_name": d["class_name"],
             "section_name": d["section_name"],
             "academic_year_name": d["academic_year_name"],
-            "staff_name": d["first_name"] + " " + d["last_name"],
-            "designation": d.get("designation"),
+            "staff_name": d["staff_first_name"] + " " + d["staff_last_name"],
+            "designation": d.get("staff_designation"),
         })
     return result
 
