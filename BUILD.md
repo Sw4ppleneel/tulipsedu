@@ -65,6 +65,24 @@ Building Fee, Poor Fund, Smart Classes, Computer, Games/P.T, Report Card
 through Class 4, ₹800 Class 5-8) + Bus Fee (monthly, ₹700, transport
 students only).
 
+## ✅ DEPLOYED 2026-07-16 — Fix: accountant 403'd collecting fees ("insufficient permission")
+
+Live bug report: accountant denied collecting a fee for a student.
+Backend logs showed `GET /students?limit=500 → 403` right before the
+report — `FeesAdmin`'s Collect tab loads the roster via that endpoint to
+pick a student, but `GET /students` only allowed
+principal/vice_principal/class_teacher/teacher, not accountant, despite
+accountant being explicitly allowed to *collect* fees.
+
+**Fix:** added `accountant` to that endpoint's allowed roles
+(`api/v1/students.py`), and to `UNRESTRICTED_ROLES` (`core/rbac.py`) —
+without the second part, the scope-checking middleware (`load_class_scope`)
+would've treated accountant as a per-class teaching role (empty scope,
+since accountants have no class assignments), swapping the 403 for a 400
+demanding a `class_id`/`section_id` the Collect tab never sends. Accountant
+is correctly tenant-wide, same as principal/vice_principal, not scoped to
+one class. Full deploy, gate passed, no pending migrations.
+
 ## ✅ DEPLOYED 2026-07-16 — Fix: 500 on GET /staff/assignments (class assignments list)
 
 Live bug report from the owner's first real click-through test: assigned
