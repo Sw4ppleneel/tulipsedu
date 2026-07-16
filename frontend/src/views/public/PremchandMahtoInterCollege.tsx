@@ -383,7 +383,7 @@ function PrincipalMessage({ slug }: { slug: string }) {
         <div style={{ maxWidth: 320, margin: '0 auto', width: '100%' }}>
           <SchoolImage slug={slug} file="principal.jpg" label="Principal's Photo" ratio={110} radius={14} />
           <div style={{ textAlign: 'center', marginTop: '1rem' }}>
-            <div style={{ fontWeight: 700, color: C.navy, fontSize: '1rem' }}>[Principal's Name]</div>
+            <div style={{ fontWeight: 700, color: C.navy, fontSize: '1rem' }}>Umesh Yadav</div>
             <div style={{ color: C.maroon, fontSize: '.8rem', fontWeight: 600 }}>Principal, Premchand Mahto Inter College</div>
           </div>
         </div>
@@ -465,15 +465,15 @@ function Streams() {
 // ── Gallery ───────────────────────────────────────────────────────────────────
 function Gallery({ slug }: { slug: string }) {
   const photos: { file: string; label: string }[] = [
-    { file: 'gallery1.png', label: 'College Building — Main Block' },
-    { file: 'gallery2.png', label: 'Assembly Ground' },
-    { file: 'gallery3.png', label: 'Science Laboratory' },
-    { file: 'gallery4.png', label: 'Library Reading Room' },
-    { file: 'gallery5.png', label: 'Annual Function' },
-    { file: 'gallery6.png', label: 'Sports & Games' },
-    { file: 'gallery7.png', label: 'Classroom Session' },
-    { file: 'gallery8.png', label: 'Computer Lab' },
-    { file: 'gallery9.png', label: 'Republic Day Celebration' },
+    { file: 'gallery1.png', label: 'Science Laboratory' },
+    { file: 'gallery2.png', label: 'Classroom Session' },
+    { file: 'gallery3.png', label: 'Sports & Games' },
+    { file: 'gallery4.png', label: 'Independence Day Celebration' },
+    { file: 'gallery5.png', label: "Teachers' Day Celebration" },
+    { file: 'gallery6.png', label: 'Student Picnic' },
+    { file: 'gallery7.png', label: 'Tree Plantation Drive' },
+    { file: 'gallery8.png', label: 'Mental Health Awareness Program' },
+    { file: 'gallery9.png', label: 'College Event' },
   ]
   return (
     <Section id="gallery" bg={C.cream}>

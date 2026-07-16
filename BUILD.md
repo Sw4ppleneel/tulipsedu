@@ -43,6 +43,33 @@ paperwork visible on the table (confirms correct school) but his role
 (principal vs. admin staff) was not independently confirmed — worth a
 sanity check with the school before treating it as authoritative.
 
+## 🔧 BUILT 2026-07-16 — PMIC public website: re-curated photos + principal name
+
+Owner rejected the first photo curation pass (2026-07-13) and manually
+selected/renamed 10 replacement files in `Website Photos - raw/` (hero +
+9 semantically-named event/facility photos: classroom, event1, independence,
+lab, mentalhealth, picnic, planting, sports, teachersday). Applied:
+
+- `hero.jpg` and `gallery1.png`-`gallery9.png` replaced from the owner's
+  10 renamed files.
+- `principal.jpg` deleted (owner: "keep principal empty") — `SchoolImage`
+  falls back to its placeholder automatically, no code change needed.
+- Gallery captions in `PremchandMahtoInterCollege.tsx` rewritten to match
+  actual photo content (old captions were generic/mismatched placeholders
+  from the first pass — e.g. "Republic Day Celebration" when the photo is
+  actually Independence Day).
+- Principal section: `[Principal's Name]` placeholder (was never filled in)
+  replaced with "Umesh Yadav".
+- `building.jpg` left unchanged — none of the 10 renamed files were a
+  building replacement; not addressed by the owner's instructions.
+
+**Blocked:** Principal's phone number not yet added to the site or his
+staff login — the teacher-data spreadsheet's number for him
+(9334679531) is a duplicate of Sudha Tiwari's (see PMIC teacher-import
+entry below), owner is supplying the correct number separately. **Not yet
+deployed** — awaiting that number so both the website and his login can be
+done in one pass.
+
 ## ✅ DEPLOYED 2026-07-16 — PMIC: real teacher roster imported (9 of 13)
 
 Source: government UDISE Teacher Profile export
@@ -98,6 +125,20 @@ wired into an API — mirrors the `import_pmic_science_commerce.py` pattern).
 **Admission-number convention** (tenant-specific, not a global rule):
 `DPS{N}-2026-{roll:03d}` for Class 1-8, `DPSK1-`/`DPSK2-` for K.G. I/II,
 `DPSN-` for Nursery. Year token is the new academic year's start year.
+
+**Pre-Nursery added (2026-07-16):** source file has a "PRE. NUR" class (30
+students) that predates Nursery in the school's actual ladder and wasn't in
+the original `CLASS_DEFS`. Added via new
+`backend/scripts/import_dps_prenursery.py` — created the class/section shell
+(`numeric_order=0`, sorts before Nursery) and imported the roster (same
+`docker cp`/`docker exec` pattern, prod backup
+`tulipsedu-2026-07-16-0701.sql.gz`). One row (roll 30, RICHA MAHTO) had
+shifted source columns (gender cell held a date, DOB was empty, phone was
+9 digits) — handled with the same placeholder conventions as the original
+import (unrecognised gender -> Other, missing DOB -> 2000-01-01, short
+phone -> 0000000000), not a new judgment call. Result: created=30, errors=0.
+DPS now has 401 students across 12 classes (Pre-Nursery-Class 8).
+Admission numbers `DPSPN-2026-{roll:03d}`.
 
 **Known gap (resolved 2026-07-16):** Class 6 originally had zero students —
 the source file's 19 Class-6 rows were placeholder roll numbers only. Owner
