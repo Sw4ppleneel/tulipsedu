@@ -504,6 +504,16 @@ no login yet, one is created (username = phone number, password = first 4
 digits of phone + "@" + first name, same convention as the bulk staff
 importer) and login_created=true.
 
+## PASSWORD_CHANGED
+Producer: services/auth.py (change_own_password), services/staff.py (reset_staff_password)
+Payload: tenant_id, user_id or staff_id, by ("self" | "principal")
+Two producers, one event: a staff member changing their own password
+(PUT /auth/password, requires current password) and a principal
+overriding any staff member's password from the dashboard
+(PUT /staff/:id/password, principal-only, no current-password check —
+that's the point of an admin override). The `by` field distinguishes
+which path triggered it in the audit log.
+
 ## STUDENT_CREATED
 Producer: services/student.py
 Payload: tenant_id, student_id
@@ -582,6 +592,8 @@ marksheet) to their enquiry. Feature-gated per tenant by `feature_flags.admissio
 ### GET /api/v1/staff/:id — Implemented
 ### PUT /api/v1/staff/:id — Implemented
 ### PUT /api/v1/staff/:id/role — Implemented (principal-only; assigns role, grants login on first assignment)
+### PUT /api/v1/staff/:id/password — Implemented (principal-only; overrides a staff member's password directly, no current-password check)
+### PUT /api/v1/auth/password — Implemented (any authenticated staff role; self-service change, requires current password)
 ### DELETE /api/v1/staff/:id — Implemented (soft-delete)
 
 ## Attendance

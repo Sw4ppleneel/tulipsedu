@@ -30,6 +30,13 @@ export function assignStaffRole(id: string, role: StaffRole): Promise<StaffAcces
   return request<StaffAccessResult>(`/staff/${id}/role`, { method: 'PUT', body: JSON.stringify({ role }) })
 }
 
+export function resetStaffPassword(id: string, newPassword: string): Promise<{ detail: string }> {
+  return request<{ detail: string }>(`/staff/${id}/password`, {
+    method: 'PUT',
+    body: JSON.stringify({ new_password: newPassword }),
+  })
+}
+
 export function assignClass(staffId: string, data: {
   academic_year_id: string
   class_id: string

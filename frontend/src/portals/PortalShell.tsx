@@ -1,8 +1,63 @@
 import { useState } from 'preact/hooks'
 import type { ComponentChildren } from 'preact'
-import { Brand, SectionTile } from '../ui'
+import { Brand, PasswordInput, SectionTile } from '../ui'
+import { changePassword } from '../api/client'
 import { usePwaInstall } from '../hooks/usePwaInstall'
 import { NotificationsBell } from '../views/NotificationsBell'
+
+// Self-service password change, available to every staff role from the
+// shared header — not a per-portal section, so it lives here once.
+function ChangePasswordModal({ onClose }: { onClose: () => void }) {
+  const [current, setCurrent] = useState('')
+  const [next, setNext] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [error, setError] = useState('')
+  const [done, setDone] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  async function submit(e: Event) {
+    e.preventDefault()
+    setError('')
+    if (next.length < 6) { setError('New password must be at least 6 characters'); return }
+    if (next !== confirm) { setError("New passwords don't match"); return }
+    setSaving(true)
+    try {
+      await changePassword(current, next)
+      setDone(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to change password')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 500, padding: '1rem' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 'var(--r)', padding: '1.5rem', width: '100%', maxWidth: 360 }}>
+        <h3 style={{ margin: '0 0 1rem', fontSize: '1rem', fontFamily: 'var(--font-display)' }}>Change Password</h3>
+        {done ? (
+          <>
+            <p class="text-sm" style={{ color: 'var(--c-success)', marginBottom: '1rem' }}>✓ Password changed.</p>
+            <button class="btn btn-primary" style={{ width: '100%' }} onClick={onClose}>Done</button>
+          </>
+        ) : (
+          <form onSubmit={submit}>
+            {error && <div class="err" style={{ marginBottom: '.75rem' }}>{error}</div>}
+            <PasswordInput value={current} onInput={setCurrent} placeholder="Current password" required autocomplete="current-password" />
+            <div style={{ height: '.6rem' }} />
+            <PasswordInput value={next} onInput={setNext} placeholder="New password (min. 6 characters)" required autocomplete="new-password" />
+            <div style={{ height: '.6rem' }} />
+            <PasswordInput value={confirm} onInput={setConfirm} placeholder="Confirm new password" required autocomplete="new-password" />
+            <div style={{ display: 'flex', gap: '.6rem', marginTop: '1rem' }}>
+              <button type="submit" class="btn btn-primary" disabled={saving} style={{ flex: 1 }}>{saving ? 'Saving…' : 'Change Password'}</button>
+              <button type="button" onClick={onClose} class="btn btn-ghost">Cancel</button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  )
+}
 
 // A portal section = one big launcher tile + the dedicated page it opens.
 export interface PortalSection {

@@ -2,7 +2,7 @@ from datetime import date, datetime
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 from core.phone import normalize_indian_mobile
 
@@ -59,6 +59,10 @@ class StaffResponse(BaseModel):
 
 class StaffRoleAssign(BaseModel):
     role: str
+
+
+class StaffPasswordReset(BaseModel):
+    new_password: str = Field(min_length=6)
 
 
 class StaffAccessResult(BaseModel):

@@ -44,4 +44,11 @@ export function logout(): Promise<{ detail: string }> {
   return request<{ detail: string }>('/auth/logout', { method: 'POST' })
 }
 
+export function changePassword(currentPassword: string, newPassword: string): Promise<{ detail: string }> {
+  return request<{ detail: string }>('/auth/password', {
+    method: 'PUT',
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  })
+}
+
 export { request }

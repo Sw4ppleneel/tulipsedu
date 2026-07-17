@@ -1,9 +1,11 @@
+from uuid import UUID
+
 from fastapi import APIRouter, HTTPException, Request
 from jose import JWTError
 
 from core.security import create_access_token, create_refresh_token, decode_token
-from models.auth import LoginRequest, RefreshRequest, TokenResponse
-from services.auth import AuthError, login
+from models.auth import ChangePasswordRequest, LoginRequest, RefreshRequest, TokenResponse
+from services.auth import AuthError, change_own_password, login
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -58,3 +60,21 @@ async def auth_logout():
     # JWT is stateless — client discards tokens on logout.
     # Future: persist refresh token blocklist for forced invalidation.
     return {"detail": "Logged out"}
+
+
+@router.put("/password")
+async def auth_change_password(req: ChangePasswordRequest, request: Request):
+    tenant_id = getattr(request.state, "tenant_id", None)
+    user_id = getattr(request.state, "user_id", None)
+    if tenant_id is None or user_id is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        try:
+            await change_own_password(
+                conn, tenant_id, UUID(user_id), req.current_password, req.new_password
+            )
+        except AuthError as e:
+            raise HTTPException(status_code=401, detail=str(e))
+    return {"detail": "Password changed"}

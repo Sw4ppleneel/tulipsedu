@@ -7,6 +7,7 @@ import asyncpg
 import bcrypt
 
 from core.events import emit
+from core.security import hash_password
 from models.staff import (
     AssignmentCreate,
     AssignmentResponse,
@@ -184,6 +185,35 @@ async def set_staff_role(
 
     member = await get_staff_member(conn, tenant_id, staff_id)
     return StaffAccessResult(staff=member, login_created=login_created, generated_password=generated_password)
+
+
+class StaffPasswordResetOutcome:
+    NOT_FOUND = "not_found"
+    NO_LOGIN = "no_login"
+    OK = "ok"
+
+
+async def reset_staff_password(
+    conn: asyncpg.Connection, tenant_id: uuid.UUID, staff_id: uuid.UUID, new_password: str
+) -> str:
+    """Principal-console override: set a staff member's password directly, no
+    current-password check (that's the point of an admin override). Returns
+    one of StaffPasswordResetOutcome's values instead of raising, so the API
+    layer can map each case to the right HTTP status."""
+    staff = await conn.fetchrow(
+        "SELECT user_id FROM staff WHERE id = $1 AND tenant_id = $2", staff_id, tenant_id
+    )
+    if not staff:
+        return StaffPasswordResetOutcome.NOT_FOUND
+    if not staff["user_id"]:
+        return StaffPasswordResetOutcome.NO_LOGIN
+
+    await conn.execute(
+        "UPDATE users SET password_hash = $1 WHERE id = $2 AND tenant_id = $3",
+        hash_password(new_password), staff["user_id"], tenant_id,
+    )
+    await emit(conn, "PASSWORD_CHANGED", tenant_id, {"staff_id": str(staff_id), "by": "principal"})
+    return StaffPasswordResetOutcome.OK
 
 
 # ── Class Assignments ─────────────────────────────────────────────────────────

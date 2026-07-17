@@ -10,12 +10,14 @@ from models.staff import (
     AssignmentResponse,
     StaffAccessResult,
     StaffCreate,
+    StaffPasswordReset,
     StaffResponse,
     StaffRoleAssign,
     StaffUpdate,
 )
 from services.staff import (
     StaffError,
+    StaffPasswordResetOutcome,
     create_assignment,
     create_staff,
     deactivate_staff,
@@ -26,6 +28,7 @@ from services.staff import (
     list_all_assignments,
     list_assignments,
     list_staff,
+    reset_staff_password,
     set_staff_role,
     update_staff,
 )
@@ -137,6 +140,18 @@ async def assign_role(staff_id: UUID, data: StaffRoleAssign, request: Request):
     if not result:
         raise HTTPException(status_code=404, detail="Staff member not found")
     return result
+
+
+@router.put("/{staff_id}/password", dependencies=[_principal_only])
+async def reset_password(staff_id: UUID, data: StaffPasswordReset, request: Request):
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        outcome = await reset_staff_password(conn, request.state.tenant_id, staff_id, data.new_password)
+    if outcome == StaffPasswordResetOutcome.NOT_FOUND:
+        raise HTTPException(status_code=404, detail="Staff member not found")
+    if outcome == StaffPasswordResetOutcome.NO_LOGIN:
+        raise HTTPException(status_code=409, detail="This staff member has no login yet — assign a role first")
+    return {"detail": "Password reset"}
 
 
 @router.delete("/{staff_id}", status_code=204, dependencies=[_principal_only])

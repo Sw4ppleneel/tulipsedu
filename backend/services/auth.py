@@ -3,7 +3,7 @@ import uuid
 import asyncpg
 
 from core.events import emit
-from core.security import create_access_token, create_refresh_token, verify_password
+from core.security import create_access_token, create_refresh_token, hash_password, verify_password
 from models.auth import LoginRequest, TokenResponse
 
 
@@ -45,3 +45,21 @@ async def login(
         access_token=create_access_token(token_data),
         refresh_token=create_refresh_token(token_data),
     )
+
+
+async def change_own_password(
+    conn: asyncpg.Connection, tenant_id: uuid.UUID, user_id: uuid.UUID,
+    current_password: str, new_password: str,
+) -> None:
+    row = await conn.fetchrow(
+        "SELECT password_hash FROM users WHERE id = $1 AND tenant_id = $2",
+        user_id, tenant_id,
+    )
+    if not row or not verify_password(current_password, row["password_hash"]):
+        raise AuthError("Current password is incorrect")
+
+    await conn.execute(
+        "UPDATE users SET password_hash = $1 WHERE id = $2 AND tenant_id = $3",
+        hash_password(new_password), user_id, tenant_id,
+    )
+    await emit(conn, "PASSWORD_CHANGED", tenant_id, {"user_id": str(user_id), "by": "self"})
