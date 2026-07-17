@@ -65,6 +65,31 @@ Building Fee, Poor Fund, Smart Classes, Computer, Games/P.T, Report Card
 through Class 4, ₹800 Class 5-8) + Bus Fee (monthly, ₹700, transport
 students only).
 
+## 🔧 BUILT 2026-07-17 — Self-service password change + principal override
+
+Owner request: give all teachers a way to set their own password, plus a
+way for the principal to override any staff password from their console.
+
+**Self-service (`PUT /auth/password`):** any authenticated staff role —
+"Change Password" button added to the shared portal header (`PortalShell`),
+so it's available regardless of role/portal without touching each
+role's section list. Requires the current password (verified server-side),
+new password minimum 6 characters.
+
+**Principal override (`PUT /staff/:id/password`, principal-only):** added
+a "Reset Password" section to the existing Manage Access modal on the
+Staff page — only shown for staff who already have a login (`user_id` set).
+No current-password check, since overriding without knowing the old one
+is the entire point of an admin reset. If a staff member has no login yet,
+principal uses Manage Access's role assignment first (already creates one).
+
+Both paths emit `PASSWORD_CHANGED` (`by: "self" | "principal"`) for the
+audit trail. New passwords are never logged or persisted anywhere except
+the hashed `users.password_hash` column — self-service typed by the owner
+of the account, principal-override typed directly into the principal's
+own console, matching this session's "generate server-side / never in a
+command line" discipline from the earlier password-leak cleanup.
+
 ## ✅ DEPLOYED 2026-07-17 — PhonePe security-blocked the tap-to-pay link; added QR fallback hint
 
 Live report: PhonePe rejected tapping "Open UPI app" with a security
