@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'preact/hooks'
 import { VirtualList } from '../components/VirtualList'
 import { useIsMobile } from '../hooks/useIsMobile'
-import { listStaff, assignStaffRole } from '../api/staff'
+import { listStaff, assignStaffRole, resetStaffPassword } from '../api/staff'
 import { StaffForm } from './StaffForm'
 import { ExcelImport } from '../ui'
 import type { Staff, StaffRole } from '../types/staff'
@@ -21,6 +21,11 @@ function AccessModal({ member, onClose, onDone }: { member: Staff; onClose: () =
   const [error, setError] = useState('')
   const [result, setResult] = useState<{ password: string } | null>(null)
 
+  const [newPassword, setNewPassword] = useState('')
+  const [resettingPw, setResettingPw] = useState(false)
+  const [pwError, setPwError] = useState('')
+  const [pwDone, setPwDone] = useState(false)
+
   async function save() {
     setSaving(true); setError('')
     try {
@@ -34,6 +39,21 @@ function AccessModal({ member, onClose, onDone }: { member: Staff; onClose: () =
       setError(e instanceof Error ? e.message : 'Failed to assign role')
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function resetPassword() {
+    setPwError(''); setPwDone(false)
+    if (newPassword.length < 6) { setPwError('Must be at least 6 characters'); return }
+    setResettingPw(true)
+    try {
+      await resetStaffPassword(member.id, newPassword)
+      setPwDone(true)
+      setNewPassword('')
+    } catch (e) {
+      setPwError(e instanceof Error ? e.message : 'Failed to reset password')
+    } finally {
+      setResettingPw(false)
     }
   }
 
@@ -90,6 +110,33 @@ function AccessModal({ member, onClose, onDone }: { member: Staff; onClose: () =
                 Cancel
               </button>
             </div>
+
+            {member.user_id && (
+              <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid #e5e7eb' }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', color: '#555', marginBottom: '0.25rem' }}>Reset Password</label>
+                <p style={{ fontSize: '0.72rem', color: '#9ca3af', margin: '0 0 0.5rem' }}>
+                  Overrides their current password directly — no need to know the old one.
+                </p>
+                {pwError && <p style={{ color: '#c00', fontSize: '0.78rem', marginBottom: '0.5rem' }}>{pwError}</p>}
+                {pwDone && <p style={{ color: '#0D332A', fontSize: '0.78rem', marginBottom: '0.5rem' }}>✓ Password updated.</p>}
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <input
+                    type="text"
+                    value={newPassword}
+                    onInput={(e) => setNewPassword((e.target as HTMLInputElement).value)}
+                    placeholder="New password (min. 6 chars)"
+                    style={{ flex: 1, padding: '0.5rem', border: '1px solid #ccc', borderRadius: 4, fontSize: '0.875rem' }}
+                  />
+                  <button
+                    onClick={resetPassword}
+                    disabled={resettingPw || !newPassword}
+                    style={{ padding: '0.5rem 0.9rem', background: '#374151', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.8rem', whiteSpace: 'nowrap' }}
+                  >
+                    {resettingPw ? 'Setting…' : 'Set Password'}
+                  </button>
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>

@@ -91,6 +91,7 @@ export interface PortalConfig {
  */
 export function PortalShell({ config }: { config: PortalConfig }) {
   const [active, setActive] = useState<string | null>(null)
+  const [showChangePassword, setShowChangePassword] = useState(false)
   const current = config.sections.find(s => s.key === active) ?? null
   const { isInstallable, triggerInstall } = usePwaInstall()
 
@@ -115,6 +116,12 @@ export function PortalShell({ config }: { config: PortalConfig }) {
             </button>
           )}
           <button
+            onClick={() => setShowChangePassword(true)}
+            style={{ background: 'rgba(255,255,255,.14)', color: '#fff', border: '1px solid rgba(255,255,255,.25)', borderRadius: 'var(--r)', padding: '.35rem .8rem', cursor: 'pointer', fontSize: '.75rem', fontFamily: 'inherit', fontWeight: 600 }}
+          >
+            Change Password
+          </button>
+          <button
             onClick={config.onLogout}
             style={{ background: 'rgba(255,255,255,.14)', color: '#fff', border: '1px solid rgba(255,255,255,.25)', borderRadius: 'var(--r)', padding: '.35rem .8rem', cursor: 'pointer', fontSize: '.75rem', fontFamily: 'inherit', fontWeight: 600 }}
           >
@@ -122,6 +129,8 @@ export function PortalShell({ config }: { config: PortalConfig }) {
           </button>
         </div>
       </header>
+
+      {showChangePassword && <ChangePasswordModal onClose={() => setShowChangePassword(false)} />}
 
       <main>
         {current ? (
