@@ -283,7 +283,12 @@ Fields: id, tenant_id, class_id, name
 
 ## students
 
-Fields: id, tenant_id, academic_year_id, class_id, section_id, admission_no, first_name, last_name, roll_number, date_of_birth, gender, phone_number, parent_phone, address, is_hosteler, is_active, created_at
+Fields: id, tenant_id, academic_year_id, class_id, section_id, admission_no, first_name, last_name, roll_number, date_of_birth, gender, phone_number, parent_phone, address, is_hosteler, is_active, created_at, portal_password_hash (migration 039, nullable)
+
+portal_password_hash: bcrypt hash of the parent-portal password. NULL = never
+set — when the tenant has `feature_flags.parent_password`, login then accepts
+the last 4 digits of parent_phone (derived at login, never persisted; rejected
+when the phone is the 0000000000 placeholder).
 
 Constraints:
 * UNIQUE (tenant_id, admission_no)
@@ -380,6 +385,21 @@ Constraints: UNIQUE (tenant_id, academic_year_id, class_id, name)
 Fields: id, tenant_id, academic_year_id, name, term_type (unit_test/half_yearly/annual/practical/project/internal/term), start_date, end_date, is_published, status (draft/marks_open/locked/published), sort_order, created_at
 
 Constraints: UNIQUE (tenant_id, academic_year_id, name)
+
+---
+
+## student_fee_discounts
+
+Purpose: per-student percentage concessions (sibling discounts etc.), keyed by fee head (migration 040).
+
+Fields: id, tenant_id, student_id, fee_head_id, percentage (NUMERIC(5,2), >0 and ≤100), reason (default 'sibling'), created_by, created_at
+
+Constraints: UNIQUE (tenant_id, student_id, fee_head_id)
+
+Setting/clearing recomputes the student's unpaid (pending/due/overdue) ledger
+rows from the fee-schedule base amount in the same transaction — idempotent,
+never compounds; paid/waived rows and schedule-less arrears untouched. Ledger
+generation applies the percentage at insert time.
 
 ---
 
@@ -558,6 +578,27 @@ Payload: tenant_id, admission_id, document_name
 Emitted when a public applicant attaches a supporting document (e.g. matric
 marksheet) to their enquiry. Feature-gated per tenant by `feature_flags.admission_docs`.
 
+## PARENT_PASSWORD_CHANGED
+Producer: services/parent.py (change_portal_password), services/student.py (reset_portal_password)
+Payload: tenant_id, student_id, by ("parent" | "staff"), role (staff resets only)
+Parent-portal password set/changed. Self-service requires the current password
+(stored hash, or the last-4-of-phone default while none is set); staff resets
+(class teacher for own class, principal/VP anywhere) skip the current-password
+check. Audit-only, no worker consumer.
+
+## FEE_WAIVED
+Producer: services/fee_collection.py (waive_fees)
+Payload: tenant_id, student_id, ledger_ids, total, reason, waived_by
+Selected unpaid ledger rows marked 'waived' with a mandatory reason. A revenue
+decision, not a payment — no fee_payments row, no receipt, never counted as
+collected. Rows attached to a live payment claim cannot be waived. Audit-only.
+
+## STUDENT_DISCOUNT_SET
+Producer: services/finance.py (set_student_discounts)
+Payload: tenant_id, student_id, discounts [{fee_head_id, percentage}], rows_updated, set_by
+The student's discount set was replaced (empty = cleared) and their unpaid
+ledger rows recomputed from schedule base amounts. Audit-only.
+
 ---
 
 # API Catalog
@@ -583,6 +624,8 @@ marksheet) to their enquiry. Feature-gated per tenant by `feature_flags.admissio
 ### GET /api/v1/students — Implemented
 ### GET /api/v1/students/:id — Implemented
 ### PUT /api/v1/students/:id — Implemented
+### PATCH /api/v1/students/:id/contact — Implemented (parent_phone only; teaching roles scope-checked to own class, admin tier unrestricted)
+### PUT /api/v1/students/:id/portal-password — Implemented (staff reset of the parent-portal password; same scoping as /contact)
 ### DELETE /api/v1/students/:id — Implemented (soft-delete)
 
 ## Staff
@@ -612,6 +655,9 @@ marksheet) to their enquiry. Feature-gated per tenant by `feature_flags.admissio
 ### POST/GET /api/v1/fees/students — Implemented
 ### POST /api/v1/payments — Implemented
 ### GET /api/v1/payments/receipts/:id — Implemented
+### POST /api/v1/fees/waive — Implemented (principal/accountant; waive selected unpaid fees with mandatory reason — not counted as revenue)
+### GET /api/v1/fees/discounts?student_id= — Implemented (principal/VP/accountant)
+### PUT /api/v1/fees/discounts — Implemented (principal/VP; replaces student's discount set + recomputes unpaid ledger rows)
 ### GET /api/v1/superadmin/dashboard — Implemented
 
 ## Homework & Feed
@@ -653,7 +699,8 @@ marksheet) to their enquiry. Feature-gated per tenant by `feature_flags.admissio
 
 ### POST /api/v1/parent/auth/request-otp — Implemented (public, no JWT)
 ### POST /api/v1/parent/auth/verify-otp — Implemented (public, no JWT; returns JWT with role=parent)
-### POST /api/v1/parent/auth/login — Implemented (public, no JWT; admission-number login; returns scoped parent JWT)
+### POST /api/v1/parent/auth/login — Implemented (public, no JWT; admission-number login; returns scoped parent JWT. Tenants with `feature_flags.parent_password` additionally require `password` — per-student hash, defaulting to last 4 digits of parent_phone)
+### PUT /api/v1/parent/password — Implemented (parent JWT; self-service password change, requires current password)
 ### GET /api/v1/parent/students — Implemented (lists students auto-linked by parent_phone)
 ### GET /api/v1/parent/students/:id/summary — Implemented (attendance %, fee balance, recent homework)
 ### GET /api/v1/parent/students/:id/results/report-card.pdf — Implemented (published terms only; reportlab PDF)
@@ -671,7 +718,7 @@ marksheet) to their enquiry. Feature-gated per tenant by `feature_flags.admissio
 
 ## Public CMS (no JWT required)
 
-### GET /api/v1/public/school-info — Implemented
+### GET /api/v1/public/school-info — Implemented (includes `parent_password` so the parent-login UI knows to show the password field)
 ### GET /api/v1/public/pages — Implemented (published only)
 ### GET /api/v1/public/pages/:slug — Implemented (published only)
 ### GET /api/v1/public/announcements — Implemented (active + not expired)

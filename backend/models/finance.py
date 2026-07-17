@@ -49,6 +49,33 @@ class OfflineCollectRequest(BaseModel):
     reference_no: Optional[str] = None
 
 
+class WaiveRequest(BaseModel):
+    student_id: UUID
+    ledger_ids: list[UUID] = Field(min_length=1)
+    reason: str = Field(min_length=1, max_length=500)
+
+
+# ── Student fee discounts (sibling concessions etc.) ─────────────────────────
+
+class DiscountItem(BaseModel):
+    fee_head_id: UUID
+    percentage: Decimal = Field(gt=0, le=100)
+
+
+class SetDiscountsRequest(BaseModel):
+    student_id: UUID
+    # Full replacement set — an empty list clears all discounts for the student.
+    items: list[DiscountItem]
+    reason: str = Field(default="sibling", max_length=100)
+
+
+class StudentDiscountResponse(BaseModel):
+    fee_head_id: UUID
+    fee_head_name: str
+    percentage: Decimal
+    reason: str
+
+
 # ── Fee Heads ────────────────────────────────────────────────────────────────
 
 class FeeHeadCreate(BaseModel):

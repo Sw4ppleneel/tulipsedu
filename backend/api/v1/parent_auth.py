@@ -14,7 +14,10 @@ router = APIRouter(prefix="/parent/auth", tags=["Parent Auth"])
 
 @router.post("/login", response_model=ParentTokenResponse)
 async def parent_login(body: AdmissionLoginRequest, request: Request):
-    """Phase 1 parent login: student's permanent admission number, no OTP."""
+    """Phase 1 parent login: student's permanent admission number, no OTP.
+    Tenants with feature_flags.parent_password additionally require the portal
+    password (per-student hash, defaulting to last 4 digits of parent phone)."""
+    require_password = bool(request.state.feature_flags.get("parent_password"))
     pool = request.app.state.pool
     async with pool.acquire() as conn:
         try:
@@ -23,6 +26,8 @@ async def parent_login(body: AdmissionLoginRequest, request: Request):
                 request.state.tenant_id,
                 request.state.tenant_slug,
                 body.admission_no,
+                password=body.password,
+                require_password=require_password,
             )
         except ParentAuthError as e:
             raise HTTPException(status_code=401, detail=str(e))

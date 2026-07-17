@@ -20,6 +20,7 @@ import { CmsAdminView } from '../views/CmsAdmin'
 import { SettingsView } from '../views/Settings'
 import { SuperadminView } from '../views/Superadmin'
 import { TeacherDashboard } from '../views/TeacherDashboard'
+import { TeacherStudentsView } from '../views/TeacherStudents'
 import { PaymentVerificationView } from '../views/PaymentVerification'
 import { ClassAssignmentsView } from '../views/ClassAssignments'
 import { AdmissionsView } from '../views/Admissions'
@@ -62,6 +63,7 @@ export function buildPortalConfig(args: BuildArgs): PortalConfig {
     return base('Teacher', [
       { key: 'today',        label: 'Today',         icon: ic('dashboard'),    desc: 'Your classes, pending attendance, notices', render: nav => <TeacherDashboard onGoToAttendance={() => nav('attendance')} /> },
       { key: 'attendance',   label: 'Attendance',    icon: ic('attendance'),   desc: "Mark today's attendance for your classes",  render: () => <AttendanceView role={role} /> },
+      { key: 'students',     label: 'My Students',   icon: ic('students'),     desc: 'Update parent phone numbers and portal passwords', render: () => <TeacherStudentsView /> },
       { key: 'homework',     label: 'Homework',      icon: ic('homework'),     desc: 'Assign and review homework',                render: () => <HomeworkView defaultType="homework" /> },
       { key: 'announcements',label: 'Announcements', icon: ic('announcement'), desc: 'Post notices to your classes',              render: () => <HomeworkView defaultType="announcement" /> },
       { key: 'material',     label: 'Study Material',icon: ic('material'),     desc: 'Share study resources',                     render: () => <HomeworkView defaultType="resource" /> },

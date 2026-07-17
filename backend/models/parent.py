@@ -15,6 +15,13 @@ class OTPVerify(BaseModel):
 
 class AdmissionLoginRequest(BaseModel):
     admission_no: str
+    # Required when the tenant has feature_flags.parent_password; ignored otherwise.
+    password: Optional[str] = None
+
+
+class ParentPasswordChange(BaseModel):
+    current_password: str
+    new_password: str
 
 
 class ParentTokenResponse(BaseModel):

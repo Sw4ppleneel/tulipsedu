@@ -14,6 +14,65 @@ Last Updated: 2026-07-13
 Current Phase: Phase 2 Workflow ERP — lifecycle state machines in progress
 Current Sprint: Sprint 5 — W14 Analytics (next), W11 Rollover, W10 Admissions, Exam module enhancements
 
+## 🔧 BUILT 2026-07-17 — Parent-portal passwords + teacher roster tools + fee waive + sibling discounts (migrations 039–040)
+
+**NOT YET DEPLOYED** (built + 20/20 service-level checks against the dev DB,
+rolled back, zero drift; tsc + vite build clean). Deploy applies 039 + 040 via
+entrypoint; no new dependency.
+
+**1. Parent-portal password (migration 039, owner-directed).** Parent login was
+admission number only — and admission numbers are sequential/guessable
+(`DPS1-2026-001`…), so anyone could open any student's fees/attendance.
+`students.portal_password_hash` added; login (`POST /parent/auth/login`) now
+takes a password **when the tenant has `feature_flags.parent_password`**
+(per-tenant staged rollout — OFF everywhere until flipped; other tenants
+unaffected). Default password = **last 4 digits of `parent_phone`**, derived at
+login while no hash is set (NOT persisted, so it tracks phone corrections);
+placeholder-phone students (`0000000000`, 40 at DPS) can't log in until a real
+number is set — "0000" is never accepted. Self-service change: parent-portal
+header "Password" button → `PUT /parent/password` (requires current password,
+min 4 chars). The public `GET /public/school-info` now returns
+`parent_password` so the login UI knows to show the field + "first time? last
+4 digits" hint.
+
+**2. Teacher roster tools (no migration).** Teachers previously had zero student
+access for edits. New **My Students** section in the teacher portal: pick
+class/section → roster with inline **parent-phone edit** (validated Indian
+mobile; "no phone" badge for placeholders) and **portal-password reset**. Backed
+by `PATCH /students/:id/contact` + `PUT /students/:id/portal-password` —
+teaching roles are `assert_in_scope`-checked against the student's
+class/section; principal/VP unrestricted (principal also gets a reset control in
+the student edit form). Rollout plan: teachers fill real phone numbers first,
+then owner flips `parent_password` per tenant.
+
+**3. Fee waive at Collect (no migration — 'waived' status + `waiver_reason`
+existed since 010 but had no UI/API, so concessions were being marked *paid*,
+inflating revenue).** Collect tab gains a **Waive…** button beside Collect:
+mandatory reason, explicit "not counted as collected" warning.
+`POST /fees/waive` (principal/accountant) guards like collection: only
+pending/due/overdue rows, refuses rows attached to a live payment claim. Emits
+**FEE_WAIVED**. Waived rows drop out of outstanding/defaulters/parent dues
+without touching revenue figures.
+
+**4. Sibling discounts (migration 040, `student_fee_discounts`).** Student edit
+form (principal/VP) gains a **Sibling / Concession Discount** section: one
+percentage + checkboxes for the fee heads it applies to (owner-specified UX).
+`PUT /fees/discounts` replaces the student's discount set and, in the same
+transaction, **recomputes unpaid ledger rows from the fee-schedule base
+amount** — so edits never compound (50%→25% verified = 75% of base, not
+37.5%); paid/waived rows and schedule-less arrears are never touched.
+`generate_ledger` / `generate_ledger_for_new_student` apply the percentage at
+insert, so re-imports and admissions-enrol honour discounts. Class-specific
+schedule beats all-classes schedule (same precedence as generation). Emits
+**STUDENT_DISCOUNT_SET**.
+
+Events added: PARENT_PASSWORD_CHANGED (parent/staff variants), FEE_WAIVED,
+STUDENT_DISCOUNT_SET — all audit-only, no worker consumer (unregistered events
+are skipped safely). Verification script (rolled back, 20/20):
+parent login flag-off/on, wrong/default/changed/reset password, placeholder
+rejection, phone update, waive guards + re-waive block, discount
+recompute/no-compound/restore/paid-untouched, event emission.
+
 ## 🔧 BUILT 2026-07-13 — PMIC public website photos curated from raw WhatsApp dump
 
 `frontend/public/school-assets/premchandmahtoic/` had only `logo.png` plus 80

@@ -95,6 +95,19 @@ class StudentUpdate(BaseModel):
         return normalize_indian_mobile(v) if v is not None else v
 
 
+class StudentContactUpdate(BaseModel):
+    parent_phone: str
+
+    @field_validator("parent_phone")
+    @classmethod
+    def validate_phone(cls, v: str) -> str:
+        return normalize_indian_mobile(v)
+
+
+class PortalPasswordReset(BaseModel):
+    new_password: str
+
+
 class StudentResponse(BaseModel):
     id: UUID
     tenant_id: UUID

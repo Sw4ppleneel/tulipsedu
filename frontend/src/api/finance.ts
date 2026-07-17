@@ -191,6 +191,37 @@ export function collectOffline(data: {
   return request('/fees/collect', { method: 'POST', body: JSON.stringify(data) })
 }
 
+// Waive selected unpaid fees (mandatory reason). A revenue decision, not a
+// payment — no receipt, never counted as collected.
+export function waiveFees(data: {
+  student_id: string
+  ledger_ids: string[]
+  reason: string
+}): Promise<{ waived: number; total: number }> {
+  return request('/fees/waive', { method: 'POST', body: JSON.stringify(data) })
+}
+
+// ── Student fee discounts (sibling concessions etc.) ─────────────────────────
+
+export interface StudentDiscount {
+  fee_head_id: string
+  fee_head_name: string
+  percentage: number
+  reason: string
+}
+
+export function getStudentDiscounts(studentId: string): Promise<StudentDiscount[]> {
+  return request(`/fees/discounts?student_id=${studentId}`)
+}
+
+export function setStudentDiscounts(data: {
+  student_id: string
+  items: { fee_head_id: string; percentage: number }[]
+  reason?: string
+}): Promise<{ discounts: number; ledger_rows_updated: number }> {
+  return request('/fees/discounts', { method: 'PUT', body: JSON.stringify(data) })
+}
+
 
 export interface DefaulterEntry { id: string; fee_head_name: string; period: string; amount_due: number; due_date: string | null }
 export interface Defaulter { student_id: string; admission_no: string; student_name: string; roll_number: string; class_name: string; section_name: string; total_overdue: number; entries: DefaulterEntry[] }

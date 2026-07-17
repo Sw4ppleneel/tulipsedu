@@ -15,7 +15,10 @@ from models.finance import (
     OutstandingReport,
     PendingPaymentRow,
     RejectRequest,
+    SetDiscountsRequest,
+    StudentDiscountResponse,
     StudentLedger,
+    WaiveRequest,
 )
 from services import fee_collection, parent_payment
 from services.finance import (
@@ -28,6 +31,8 @@ from services.finance import (
     import_and_generate,
     list_fee_heads,
     list_fee_schedules,
+    list_student_discounts,
+    set_student_discounts,
     toggle_fee_head,
     upsert_fee_schedule,
 )
@@ -88,6 +93,50 @@ async def collect_offline(body: OfflineCollectRequest, request: Request):
             )
         except fee_collection.CollectionError as e:
             raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/waive", dependencies=[_collect])
+async def waive_fees(body: WaiveRequest, request: Request):
+    """Waive the selected unpaid fees (mandatory reason). A revenue decision,
+    not a payment — no receipt, never counted as collected."""
+    user_id = UUID(request.state.user_id)
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        try:
+            return await fee_collection.waive_fees(
+                conn, request.state.tenant_id, user_id,
+                body.student_id, body.ledger_ids, body.reason,
+            )
+        except fee_collection.CollectionError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+
+# ── Student fee discounts (sibling concessions etc.) ─────────────────────────
+
+_discount_admin = Depends(require_roles("principal", "vice_principal"))
+
+
+@router.get("/discounts", response_model=list[StudentDiscountResponse])
+async def get_student_discounts(request: Request, student_id: UUID = Query(...)):
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        return await list_student_discounts(conn, request.state.tenant_id, student_id)
+
+
+@router.put("/discounts", dependencies=[_discount_admin])
+async def put_student_discounts(body: SetDiscountsRequest, request: Request):
+    """Replace a student's discount set (empty items clears it). Unpaid ledger
+    rows are recomputed from the schedule base amounts in the same transaction."""
+    user_id = UUID(request.state.user_id)
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        try:
+            return await set_student_discounts(
+                conn, request.state.tenant_id, user_id,
+                body.student_id, body.items, body.reason,
+            )
+        except FinanceError as e:
+            raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.post(

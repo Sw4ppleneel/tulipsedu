@@ -27,17 +27,58 @@ class ParentAuthError(Exception):
     pass
 
 
+# Bulk-import rows with no phone on record get this placeholder — it must never
+# become a usable password source (last 4 would be "0000" for all of them).
+PLACEHOLDER_PHONE = "0000000000"
+
+MIN_PORTAL_PASSWORD_LEN = 4  # the derived default (last 4 of phone) is 4 chars
+
+
+def _default_password_for(parent_phone: str | None) -> str | None:
+    """The derived default password: last 4 digits of the registered phone.
+    None when the phone can't back a password (missing/placeholder/malformed)."""
+    phone = (parent_phone or "").strip()
+    if len(phone) != 10 or not phone.isdigit() or phone == PLACEHOLDER_PHONE:
+        return None
+    return phone[-4:]
+
+
+def _verify_portal_password(
+    supplied: str, password_hash: str | None, parent_phone: str | None
+) -> None:
+    """Raise ParentAuthError unless `supplied` matches the student's portal
+    password: the stored hash if one is set, otherwise the derived default."""
+    if password_hash:
+        if not verify_password(supplied, password_hash):
+            raise ParentAuthError("Incorrect password")
+        return
+    default = _default_password_for(parent_phone)
+    if default is None:
+        raise ParentAuthError(
+            "No password can be set up for this account yet — "
+            "ask the school to update your registered mobile number"
+        )
+    if supplied != default:
+        raise ParentAuthError("Incorrect password")
+
+
 async def login_by_admission_no(
     conn: asyncpg.Connection,
     tenant_id: uuid.UUID,
     tenant_slug: str,
     admission_no: str,
+    password: str | None = None,
+    require_password: bool = False,
 ) -> dict:
     """Phase 1 parent auth: log in with the student's permanent admission number.
-    The JWT is scoped to that single student (sub = student_id, role = parent)."""
+    The JWT is scoped to that single student (sub = student_id, role = parent).
+
+    When require_password is on (tenant feature_flags.parent_password), the
+    caller must also supply the portal password — the stored per-student hash,
+    or, while none is set, the last 4 digits of the registered parent phone."""
     student = await conn.fetchrow(
         """
-        SELECT id, first_name, last_name
+        SELECT id, first_name, last_name, parent_phone, portal_password_hash
         FROM students
         WHERE tenant_id = $1 AND admission_no = $2 AND is_active = TRUE
         """,
@@ -45,6 +86,14 @@ async def login_by_admission_no(
     )
     if not student:
         raise ParentAuthError("Admission number not found")
+
+    if require_password:
+        supplied = (password or "").strip()
+        if not supplied:
+            raise ParentAuthError("Password required")
+        _verify_portal_password(
+            supplied, student["portal_password_hash"], student["parent_phone"]
+        )
 
     token_data = {
         "sub": str(student["id"]),
@@ -60,6 +109,47 @@ async def login_by_admission_no(
         "student_id": student["id"],
         "student_name": f"{student['first_name']} {student['last_name']}",
     }
+
+
+async def change_portal_password(
+    conn: asyncpg.Connection,
+    tenant_id: uuid.UUID,
+    student_id: uuid.UUID,
+    current_password: str,
+    new_password: str,
+) -> None:
+    """Parent self-service password change (parent-portal session, scoped to one
+    student). Verifies the current password first — the stored hash, or the
+    derived last-4-of-phone default while no hash is set."""
+    row = await conn.fetchrow(
+        """
+        SELECT parent_phone, portal_password_hash
+        FROM students
+        WHERE id = $1 AND tenant_id = $2 AND is_active = TRUE
+        """,
+        student_id, tenant_id,
+    )
+    if not row:
+        raise ParentAuthError("Student not found")
+
+    _verify_portal_password(
+        (current_password or "").strip(), row["portal_password_hash"], row["parent_phone"]
+    )
+
+    new_password = (new_password or "").strip()
+    if len(new_password) < MIN_PORTAL_PASSWORD_LEN:
+        raise ParentAuthError(
+            f"New password must be at least {MIN_PORTAL_PASSWORD_LEN} characters"
+        )
+
+    await conn.execute(
+        "UPDATE students SET portal_password_hash = $1 WHERE id = $2 AND tenant_id = $3",
+        hash_password(new_password), student_id, tenant_id,
+    )
+    await emit(
+        conn, "PARENT_PASSWORD_CHANGED", tenant_id,
+        {"student_id": str(student_id), "by": "parent"},
+    )
 
 
 def _generate_otp() -> str:

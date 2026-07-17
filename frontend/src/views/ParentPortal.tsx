@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'preact/hooks'
 import qrcode from 'qrcode-generator'
 import {
+  changeParentPassword,
   getStudentLedger, getStudentResults, getStudentSummary, getStudentTimetable, listMyStudents,
   listParentNotifications, submitParentPayment, listParentPayments, downloadReportCard,
 } from '../api/parent'
@@ -9,7 +10,7 @@ import type {
   TermResultSheet,
 } from '../api/parent'
 import type { WeeklyTimetable } from '../api/timetable'
-import { Brand, Card, Icon, SectionTile, Spinner, EmptyState, type IconName } from '../ui'
+import { Brand, Card, Icon, PasswordInput, SectionTile, Spinner, EmptyState, type IconName } from '../ui'
 import { usePwaInstall } from '../hooks/usePwaInstall'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -554,6 +555,64 @@ const TILES: { key: Sec; label: string; icon: IconName; desc: string }[] = [
   { key: 'results',       label: 'Results',       icon: 'results',      desc: 'Published exam results' },
 ]
 
+// Mirrors the staff ChangePasswordModal in PortalShell, but against the
+// parent-portal endpoint. "Current password" is the stored one — or, if never
+// changed, the last 4 digits of the registered mobile number.
+function ParentChangePasswordModal({ onClose }: { onClose: () => void }) {
+  const [current, setCurrent] = useState('')
+  const [next, setNext] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [error, setError] = useState('')
+  const [done, setDone] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  async function submit(e: Event) {
+    e.preventDefault()
+    setError('')
+    if (next.length < 4) { setError('New password must be at least 4 characters'); return }
+    if (next !== confirm) { setError("New passwords don't match"); return }
+    setSaving(true)
+    try {
+      await changeParentPassword(current, next)
+      setDone(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to change password')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 500, padding: '1rem' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 'var(--r)', padding: '1.5rem', width: '100%', maxWidth: 360 }}>
+        <h3 style={{ margin: '0 0 .5rem', fontSize: '1rem', fontFamily: 'var(--font-display)' }}>Change Password</h3>
+        {done ? (
+          <>
+            <p class="text-sm" style={{ color: 'var(--c-success)', marginBottom: '1rem' }}>✓ Password changed.</p>
+            <button class="btn btn-primary" style={{ width: '100%' }} onClick={onClose}>Done</button>
+          </>
+        ) : (
+          <form onSubmit={submit}>
+            <p class="text-muted" style={{ fontSize: '.72rem', marginBottom: '.75rem' }}>
+              If you never set a password, your current password is the last 4 digits of your registered mobile number.
+            </p>
+            {error && <div class="err" style={{ marginBottom: '.75rem' }}>{error}</div>}
+            <PasswordInput value={current} onInput={setCurrent} placeholder="Current password" required autocomplete="current-password" />
+            <div style={{ height: '.6rem' }} />
+            <PasswordInput value={next} onInput={setNext} placeholder="New password (min. 4 characters)" required autocomplete="new-password" />
+            <div style={{ height: '.6rem' }} />
+            <PasswordInput value={confirm} onInput={setConfirm} placeholder="Confirm new password" required autocomplete="new-password" />
+            <div style={{ display: 'flex', gap: '.6rem', marginTop: '1rem' }}>
+              <button type="submit" class="btn btn-primary" disabled={saving} style={{ flex: 1 }}>{saving ? 'Saving…' : 'Change Password'}</button>
+              <button type="button" onClick={onClose} class="btn btn-ghost">Cancel</button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export function ParentPortalView({ onLogout }: { onLogout: () => void }) {
   const [students, setStudents] = useState<LinkedStudent[]>([])
   const [idx, setIdx] = useState(0)
@@ -562,6 +621,7 @@ export function ParentPortalView({ onLogout }: { onLogout: () => void }) {
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
   const [section, setSection] = useState<Sec | null>(null)
+  const [showChangePassword, setShowChangePassword] = useState(false)
   const { isInstallable, triggerInstall } = usePwaInstall()
 
   // Silent on refetch so a background refresh never flips back to the spinner.
@@ -666,9 +726,11 @@ export function ParentPortalView({ onLogout }: { onLogout: () => void }) {
           {isInstallable && (
             <button onClick={triggerInstall} style={{ background: 'rgba(255,255,255,.14)', color: '#fff', border: '1px solid rgba(255,255,255,.25)', borderRadius: 'var(--r)', padding: '.35rem .8rem', cursor: 'pointer', fontSize: '.75rem', fontFamily: 'inherit', fontWeight: 600 }}>Install App</button>
           )}
+          <button onClick={() => setShowChangePassword(true)} style={{ background: 'rgba(255,255,255,.14)', color: '#fff', border: '1px solid rgba(255,255,255,.25)', borderRadius: 'var(--r)', padding: '.35rem .8rem', cursor: 'pointer', fontSize: '.75rem', fontFamily: 'inherit', fontWeight: 600 }}>Password</button>
           <button onClick={onLogout} style={{ background: 'rgba(255,255,255,.14)', color: '#fff', border: '1px solid rgba(255,255,255,.25)', borderRadius: 'var(--r)', padding: '.35rem .8rem', cursor: 'pointer', fontSize: '.75rem', fontFamily: 'inherit', fontWeight: 600 }}>Sign out</button>
         </div>
       </header>
+      {showChangePassword && <ParentChangePasswordModal onClose={() => setShowChangePassword(false)} />}
 
       {loading && <Spinner label="Loading…" />}
       {err && <div class="empty-state" style={{ color: 'var(--c-danger)' }}>{err}</div>}

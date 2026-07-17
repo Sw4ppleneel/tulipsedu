@@ -409,6 +409,58 @@ async def update_student(
     return await get_student(conn, tenant_id, student_id)
 
 
+async def set_parent_phone(
+    conn: asyncpg.Connection, tenant_id: uuid.UUID, student_id: uuid.UUID, parent_phone: str
+) -> bool:
+    """Update just the registered parent phone. Exposed to class teachers
+    (scope-checked at the API layer) so they can collect real numbers for the
+    parent-portal password rollout without full student-edit rights."""
+    result = await conn.execute(
+        "UPDATE students SET parent_phone = $1 WHERE id = $2 AND tenant_id = $3 AND is_active = TRUE",
+        parent_phone, student_id, tenant_id,
+    )
+    if result != "UPDATE 1":
+        return False
+    await emit(conn, "STUDENT_UPDATED", tenant_id, {
+        "student_id": str(student_id),
+        "fields": ["parent_phone"],
+    })
+    return True
+
+
+async def reset_portal_password(
+    conn: asyncpg.Connection,
+    tenant_id: uuid.UUID,
+    student_id: uuid.UUID,
+    new_password: str,
+    by_role: str,
+) -> bool:
+    """Staff override of a student's parent-portal password (no current-password
+    check — that's the point of a staff reset). Class-teacher scope is enforced
+    at the API layer."""
+    from services.parent import MIN_PORTAL_PASSWORD_LEN
+
+    new_password = (new_password or "").strip()
+    if len(new_password) < MIN_PORTAL_PASSWORD_LEN:
+        raise StudentError(
+            f"Password must be at least {MIN_PORTAL_PASSWORD_LEN} characters"
+        )
+    from core.security import hash_password
+
+    result = await conn.execute(
+        "UPDATE students SET portal_password_hash = $1 WHERE id = $2 AND tenant_id = $3 AND is_active = TRUE",
+        hash_password(new_password), student_id, tenant_id,
+    )
+    if result != "UPDATE 1":
+        return False
+    await emit(conn, "PARENT_PASSWORD_CHANGED", tenant_id, {
+        "student_id": str(student_id),
+        "by": "staff",
+        "role": by_role,
+    })
+    return True
+
+
 async def deactivate_student(
     conn: asyncpg.Connection, tenant_id: uuid.UUID, student_id: uuid.UUID
 ) -> bool:

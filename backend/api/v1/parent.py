@@ -17,7 +17,14 @@ from services.notification import (
     mark_read,
     unread_count,
 )
-from services.parent import get_fee_ledger_entries, get_student_basic, get_student_summary_by_id
+from models.parent import ParentPasswordChange
+from services.parent import (
+    ParentAuthError,
+    change_portal_password,
+    get_fee_ledger_entries,
+    get_student_basic,
+    get_student_summary_by_id,
+)
 from services.report_card import build_report_card_context
 from services.report_card_pdf import render_report_card_pdf
 
@@ -29,6 +36,23 @@ def _require_parent(request: Request) -> uuid.UUID:
     if getattr(request.state, "user_role", None) != "parent":
         raise HTTPException(status_code=403, detail="Parent access only")
     return uuid.UUID(request.state.user_id)
+
+
+@router.put("/password")
+async def parent_change_password(body: ParentPasswordChange, request: Request):
+    """Self-service portal password change; requires the current password
+    (stored hash, or the last-4-of-phone default while none is set)."""
+    student_id = _require_parent(request)
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        try:
+            await change_portal_password(
+                conn, request.state.tenant_id, student_id,
+                body.current_password, body.new_password,
+            )
+        except ParentAuthError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+    return {"detail": "Password changed"}
 
 
 @router.get("/students", response_model=list[LinkedStudent])

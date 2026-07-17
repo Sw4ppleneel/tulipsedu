@@ -119,15 +119,22 @@ export function verifyOtp(tenantSlug: string, phone: string, otp: string): Promi
   })
 }
 
-export function loginByAdmissionNo(tenantSlug: string, admissionNo: string): Promise<ParentTokenResponse> {
+export function loginByAdmissionNo(tenantSlug: string, admissionNo: string, password?: string): Promise<ParentTokenResponse> {
   return fetch(`${BASE}/parent/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Tenant-Slug': tenantSlug },
-    body: JSON.stringify({ admission_no: admissionNo }),
+    body: JSON.stringify({ admission_no: admissionNo, ...(password ? { password } : {}) }),
   }).then(async res => {
     const body = await res.json()
     if (!res.ok) throw new Error(body.detail ?? 'Login failed')
     return body as ParentTokenResponse
+  })
+}
+
+export function changeParentPassword(currentPassword: string, newPassword: string): Promise<void> {
+  return parentRequest('/parent/password', {
+    method: 'PUT',
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
   })
 }
 

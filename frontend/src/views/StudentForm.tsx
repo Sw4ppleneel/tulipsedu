@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
-import { createStudent, updateStudent } from '../api/students'
+import { createStudent, resetPortalPassword, updateStudent } from '../api/students'
+import { getStudentDiscounts, listFeeHeads, setStudentDiscounts } from '../api/finance'
+import type { FeeHead } from '../types/finance'
 import type { AcademicYear, Class, Section, Student, StudentCreate } from '../types/student'
 import { getSectionLabel } from '../api/auth_state'
 import { isValidIndianMobile, INVALID_PHONE_MSG } from '../utils/phone'
@@ -13,9 +15,136 @@ interface Props {
 }
 
 const ROW: preact.JSX.CSSProperties = { marginBottom: '0.875rem' }
+const SUB_CARD: preact.JSX.CSSProperties = {
+  marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid #e5e7eb',
+}
 const LABEL: preact.JSX.CSSProperties = { display: 'block', fontSize: '0.8rem', color: '#555', marginBottom: '0.25rem' }
 const INPUT: preact.JSX.CSSProperties = { width: '100%', padding: '0.5rem', border: '1px solid #ccc', borderRadius: 4, fontSize: '0.875rem', boxSizing: 'border-box' }
 const INPUT_DISABLED: preact.JSX.CSSProperties = { ...INPUT, background: '#f3f4f6', color: '#6b7280', cursor: 'not-allowed' }
+
+// Sibling/concession discount editor: one percentage, applied to the selected
+// fee heads. Saving replaces the student's whole discount set and recomputes
+// their unpaid ledger rows server-side (paid/waived rows are never touched).
+function DiscountSection({ studentId }: { studentId: string }) {
+  const [heads, setHeads] = useState<FeeHead[]>([])
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [pct, setPct] = useState('')
+  const [loaded, setLoaded] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState('')
+  const [err, setErr] = useState('')
+
+  useEffect(() => {
+    Promise.all([listFeeHeads(), getStudentDiscounts(studentId)])
+      .then(([hs, ds]) => {
+        setHeads(hs.filter((h) => h.is_active))
+        setSelected(new Set(ds.map((d) => d.fee_head_id)))
+        if (ds.length > 0) setPct(String(Number(ds[0].percentage)))
+        setLoaded(true)
+      })
+      .catch((e) => { setErr(e instanceof Error ? e.message : 'Failed to load discounts'); setLoaded(true) })
+  }, [studentId])
+
+  async function save() {
+    setErr(''); setMsg('')
+    const p = Number(pct)
+    if (selected.size > 0 && (!Number.isFinite(p) || p <= 0 || p > 100)) {
+      setErr('Enter a discount percentage between 1 and 100'); return
+    }
+    setSaving(true)
+    try {
+      const res = await setStudentDiscounts({
+        student_id: studentId,
+        items: Array.from(selected).map((fee_head_id) => ({ fee_head_id, percentage: p })),
+      })
+      setMsg(selected.size === 0
+        ? `Discounts cleared — ${res.ledger_rows_updated} pending fee entries restored to full amount`
+        : `Discount saved — ${res.ledger_rows_updated} pending fee entries updated`)
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Failed to save discount') }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <div style={SUB_CARD}>
+      <h4 style={{ margin: '0 0 0.35rem', fontSize: '0.9rem', fontWeight: 600 }}>Sibling / Concession Discount</h4>
+      <p style={{ fontSize: '0.75rem', color: '#6b7280', margin: '0 0 0.75rem' }}>
+        Applies the percentage to the selected fee heads — unpaid dues are recalculated
+        immediately and future fee generation uses the discounted amount. Already-paid
+        months are never changed.
+      </p>
+      {!loaded && <p style={{ fontSize: '0.8rem', color: '#9ca3af' }}>Loading…</p>}
+      {loaded && (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.6rem' }}>
+            <label style={{ fontSize: '0.8rem', color: '#555' }}>Discount</label>
+            <input type="number" min={1} max={100} value={pct}
+              onInput={(e) => setPct((e.target as HTMLInputElement).value)}
+              style={{ width: 70, padding: '0.4rem 0.5rem', border: '1px solid #ccc', borderRadius: 4, fontSize: '0.875rem' }} />
+            <span style={{ fontSize: '0.8rem', color: '#555' }}>% on:</span>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem 1rem', marginBottom: '0.75rem' }}>
+            {heads.map((h) => (
+              <label key={h.id} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.82rem', color: '#374151', cursor: 'pointer' }}>
+                <input type="checkbox" checked={selected.has(h.id)} onChange={(e) => {
+                  const on = (e.target as HTMLInputElement).checked
+                  setSelected((prev) => { const n = new Set(prev); on ? n.add(h.id) : n.delete(h.id); return n })
+                }} />
+                {h.name}
+              </label>
+            ))}
+            {heads.length === 0 && <span style={{ fontSize: '0.8rem', color: '#9ca3af' }}>No fee heads set up yet.</span>}
+          </div>
+          <button type="button" onClick={save} disabled={saving}
+            style={{ padding: '0.5rem 1rem', background: '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600 }}>
+            {saving ? 'Saving…' : selected.size === 0 ? 'Clear Discounts' : 'Save Discount'}
+          </button>
+          {err && <p style={{ color: '#c00', fontSize: '0.78rem', margin: '0.5rem 0 0' }}>{err}</p>}
+          {msg && !err && <p style={{ color: '#1F8A5D', fontSize: '0.78rem', margin: '0.5rem 0 0' }}>✓ {msg}</p>}
+        </>
+      )}
+    </div>
+  )
+}
+
+// Principal-side reset of the parent-portal password (teachers have the same
+// control for their own class in the teacher portal's My Students section).
+function PortalPasswordSection({ studentId }: { studentId: string }) {
+  const [pw, setPw] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState('')
+  const [err, setErr] = useState('')
+
+  async function reset() {
+    setErr(''); setMsg('')
+    if (pw.trim().length < 4) { setErr('Password must be at least 4 characters'); return }
+    setSaving(true)
+    try {
+      await resetPortalPassword(studentId, pw.trim())
+      setMsg('Portal password reset'); setPw('')
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Failed to reset password') }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <div style={SUB_CARD}>
+      <h4 style={{ margin: '0 0 0.35rem', fontSize: '0.9rem', fontWeight: 600 }}>Parent Portal Password</h4>
+      <p style={{ fontSize: '0.75rem', color: '#6b7280', margin: '0 0 0.6rem' }}>
+        Default is the last 4 digits of the parent's phone. Set a new one here if the parent is locked out.
+      </p>
+      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+        <input value={pw} onInput={(e) => setPw((e.target as HTMLInputElement).value)}
+          placeholder="New password (min. 4)"
+          style={{ width: 200, padding: '0.4rem 0.5rem', border: '1px solid #ccc', borderRadius: 4, fontSize: '0.875rem' }} />
+        <button type="button" onClick={reset} disabled={saving}
+          style={{ padding: '0.5rem 1rem', background: '#B4532A', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600 }}>
+          {saving ? 'Resetting…' : 'Reset Password'}
+        </button>
+      </div>
+      {err && <p style={{ color: '#c00', fontSize: '0.78rem', margin: '0.5rem 0 0' }}>{err}</p>}
+      {msg && !err && <p style={{ color: '#1F8A5D', fontSize: '0.78rem', margin: '0.5rem 0 0' }}>✓ {msg}</p>}
+    </div>
+  )
+}
 
 export function StudentForm({ academicYears, classes, student, onSaved, onCancel }: Props) {
   const isEdit = !!student
@@ -215,6 +344,13 @@ export function StudentForm({ academicYears, classes, student, onSaved, onCancel
           </button>
         </div>
       </form>
+
+      {isEdit && student && (
+        <>
+          <DiscountSection studentId={student.id} />
+          <PortalPasswordSection studentId={student.id} />
+        </>
+      )}
     </div>
   )
 }

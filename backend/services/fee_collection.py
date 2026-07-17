@@ -143,3 +143,72 @@ async def record_offline_payment(
         })
 
     return {"payment_id": str(payment_id), "receipt_number": receipt_number}
+
+
+async def waive_fees(
+    conn: asyncpg.Connection,
+    tenant_id: uuid.UUID,
+    user_id: uuid.UUID,
+    student_id: uuid.UUID,
+    ledger_ids: list[uuid.UUID],
+    reason: str,
+) -> dict:
+    """Mark the selected unpaid ledger rows as waived (with a mandatory reason).
+
+    A waiver is a revenue decision, not a payment: no fee_payments row, no
+    receipt, and the rows drop out of outstanding/defaulter/recovery figures
+    without ever counting as collected — the accountant should no longer mark
+    concessions as 'paid'."""
+    reason = (reason or "").strip()
+    if not reason:
+        raise CollectionError("A reason is required to waive fees")
+    if not ledger_ids:
+        raise CollectionError("No fees selected")
+
+    async with conn.transaction():
+        rows = await conn.fetch(
+            """
+            SELECT fl.id, fl.amount_due
+            FROM fee_ledger fl
+            WHERE fl.tenant_id = $1 AND fl.student_id = $2 AND fl.id = ANY($3::uuid[])
+              AND fl.status IN ('pending', 'due', 'overdue')
+            FOR UPDATE
+            """,
+            tenant_id, student_id, ledger_ids,
+        )
+        if len(rows) != len(ledger_ids):
+            raise CollectionError("Some fees are not waivable (already paid or not found)")
+
+        # A row attached to a live payment (e.g. a parent UPI claim awaiting
+        # verification) must be resolved through that payment, not waived away.
+        live = await conn.fetchval(
+            """
+            SELECT 1 FROM fee_payment_items fpi
+            JOIN fee_payments fp ON fp.id = fpi.payment_id
+            WHERE fpi.tenant_id = $1 AND fpi.ledger_id = ANY($2::uuid[])
+              AND fp.status = ANY($3::text[])
+            LIMIT 1
+            """,
+            tenant_id, ledger_ids, list(_LIVE_STATUSES),
+        )
+        if live:
+            raise CollectionError("A payment for these fees is in progress — resolve it first")
+
+        await conn.execute(
+            """
+            UPDATE fee_ledger SET status = 'waived', waiver_reason = $4
+            WHERE tenant_id = $1 AND student_id = $2 AND id = ANY($3::uuid[])
+            """,
+            tenant_id, student_id, ledger_ids, reason[:500],
+        )
+
+        total: Decimal = sum(r["amount_due"] for r in rows)
+        await emit(conn, "FEE_WAIVED", tenant_id, {
+            "student_id": str(student_id),
+            "ledger_ids": [str(i) for i in ledger_ids],
+            "total": str(total),
+            "reason": reason[:500],
+            "waived_by": str(user_id),
+        })
+
+    return {"waived": len(rows), "total": float(total)}

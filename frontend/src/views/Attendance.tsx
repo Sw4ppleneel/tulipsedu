@@ -9,6 +9,13 @@ import type { AttendanceMark, AttendanceSession, AttendanceStatus } from '../typ
 
 type Marks = Record<string, AttendanceStatus>
 
+// Indian date convention (DD/MM/YYYY). Parses the ISO "YYYY-MM-DD" string
+// directly rather than going through Date, so there's no timezone shift risk.
+function fmtDateDDMMYYYY(iso: string): string {
+  const [y, m, d] = iso.split('-')
+  return `${d}/${m}/${y}`
+}
+
 const STATUS_COLOR: Record<AttendanceStatus, string> = { P: '#15803d', L: '#b45309', A: '#dc2626' }
 const STATUS_BG: Record<AttendanceStatus, string>    = { P: '#dcfce7', L: '#fef3c7', A: '#fee2e2' }
 
@@ -270,7 +277,7 @@ export function AttendanceView({ role }: { role?: string }) {
           <div style={{ marginBottom: '0.875rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: '#6b7280', marginBottom: '0.25rem' }}>
               <span>
-                {session.class_name} — {session.section_name} | {session.date}
+                {session.class_name} — {session.section_name} | {fmtDateDDMMYYYY(session.date)}
                 {(session.marked_by_name || localMarker) && (
                   <span style={{ color: '#9ca3af', marginLeft: '0.5rem' }}>
                     · Marked by {session.marked_by_name || localMarker}

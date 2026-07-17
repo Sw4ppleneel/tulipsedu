@@ -5,7 +5,14 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Upl
 
 from core.csv_export import csv_response, require_export_role
 from core.rbac import assert_in_scope, load_class_scope, require_roles
-from models.student import StudentCreate, StudentListResponse, StudentResponse, StudentUpdate
+from models.student import (
+    PortalPasswordReset,
+    StudentContactUpdate,
+    StudentCreate,
+    StudentListResponse,
+    StudentResponse,
+    StudentUpdate,
+)
 from services.student import (
     StudentError,
     create_student,
@@ -13,6 +20,8 @@ from services.student import (
     get_student,
     import_students,
     list_students,
+    reset_portal_password,
+    set_parent_phone,
     update_student,
 )
 
@@ -63,6 +72,58 @@ async def get_students(
             limit=limit,
             offset=offset,
         )
+
+
+# Teaching roles may update the registered parent phone + reset the parent-portal
+# password for students in their own class (scope-asserted per request); admin
+# tier is unrestricted. This backs the parent-password rollout: teachers collect
+# real phone numbers, then the last-4-digits default password works.
+_contact_roles = [
+    Depends(require_roles("principal", "vice_principal", "class_teacher", "teacher")),
+    Depends(load_class_scope),
+]
+
+
+async def _load_scoped_student(request: Request, student_id: UUID) -> StudentResponse:
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        student = await get_student(conn, request.state.tenant_id, student_id)
+    if not student or not student.is_active:
+        raise HTTPException(status_code=404, detail="Student not found")
+    assert_in_scope(request, student.class_id, student.section_id)
+    return student
+
+
+@router.patch("/{student_id}/contact", dependencies=_contact_roles)
+async def update_student_contact(student_id: UUID, data: StudentContactUpdate, request: Request):
+    await _load_scoped_student(request, student_id)
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        updated = await set_parent_phone(
+            conn, request.state.tenant_id, student_id, data.parent_phone
+        )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Student not found")
+    return {"detail": "Parent phone updated", "parent_phone": data.parent_phone}
+
+
+@router.put("/{student_id}/portal-password", dependencies=_contact_roles)
+async def reset_student_portal_password(
+    student_id: UUID, data: PortalPasswordReset, request: Request
+):
+    await _load_scoped_student(request, student_id)
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        try:
+            updated = await reset_portal_password(
+                conn, request.state.tenant_id, student_id,
+                data.new_password, request.state.user_role,
+            )
+        except StudentError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+    if not updated:
+        raise HTTPException(status_code=404, detail="Student not found")
+    return {"detail": "Portal password reset"}
 
 
 # Export must be declared BEFORE /{student_id} to prevent UUID matching /export.csv

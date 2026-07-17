@@ -87,6 +87,23 @@ export function updateStudent(id: string, data: Partial<StudentCreate>): Promise
   return request<Student>(`/students/${id}`, { method: 'PUT', body: JSON.stringify(data) })
 }
 
+// Class-teacher-scoped: update just the registered parent phone (backs the
+// parent-portal password rollout — the default password is the phone's last 4).
+export function updateStudentContact(id: string, parentPhone: string): Promise<{ parent_phone: string }> {
+  return request<{ parent_phone: string }>(`/students/${id}/contact`, {
+    method: 'PATCH',
+    body: JSON.stringify({ parent_phone: parentPhone }),
+  })
+}
+
+// Class-teacher-scoped: staff override of the parent-portal password.
+export function resetPortalPassword(id: string, newPassword: string): Promise<void> {
+  return request<void>(`/students/${id}/portal-password`, {
+    method: 'PUT',
+    body: JSON.stringify({ new_password: newPassword }),
+  })
+}
+
 export async function deactivateStudent(id: string): Promise<void> {
   const auth = getAuthState()
   await fetch(`/api/v1/students/${id}`, {

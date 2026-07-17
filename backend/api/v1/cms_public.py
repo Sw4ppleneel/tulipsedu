@@ -10,7 +10,9 @@ router = APIRouter(prefix="/public", tags=["Public"])
 async def school_info(request: Request):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
-        return await get_school_info(conn, request.state.tenant_id)
+        info = await get_school_info(conn, request.state.tenant_id)
+    info.parent_password = bool(request.state.feature_flags.get("parent_password"))
+    return info
 
 
 @router.get("/pages", response_model=list[PageResponse])

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'preact/hooks'
 import {
   collectOffline, downloadDefaultersCsv, downloadReceiptPdf, getDefaulters, getOutstanding, getPaymentLogs, getStudentLedger,
-  listFeeHeads, listSchedules, openReceiptHtml, sendReminders,
+  listFeeHeads, listSchedules, openReceiptHtml, sendReminders, waiveFees,
 } from '../api/finance'
 import type { Defaulter } from '../api/finance'
 import { listAcademicYears, listClasses, listStudents } from '../api/students'
@@ -338,6 +338,8 @@ function CollectTab() {
   const [status, setStatus] = useState('')
   const [loading, setLoading] = useState(false)
   const [receiptPaymentId, setReceiptPaymentId] = useState('')
+  const [waiving, setWaiving] = useState(false)
+  const [waiveReason, setWaiveReason] = useState('')
 
   useEffect(() => {
     listStudents({ limit: 5000 })
@@ -392,6 +394,26 @@ function CollectTab() {
         reference_no: reference.trim() || undefined,
       })
       await finishCollection(res.payment_id, ledger.student_id)
+    } catch (e) { alert(e instanceof Error ? e.message : 'Error') }
+    finally { setLoading(false) }
+  }
+
+  // Waive = a revenue decision, not a payment: the rows leave outstanding
+  // without ever counting as collected (previously waivers got marked "paid",
+  // inflating revenue).
+  async function waive() {
+    if (!ledger || selected.size === 0 || !waiveReason.trim()) return
+    setLoading(true)
+    try {
+      await waiveFees({
+        student_id: ledger.student_id,
+        ledger_ids: Array.from(selected),
+        reason: waiveReason.trim(),
+      })
+      setStatus('waived')
+      setSelected(new Set())
+      setWaiving(false); setWaiveReason('')
+      setLedger(await getStudentLedger(ledger.student_id))
     } catch (e) { alert(e instanceof Error ? e.message : 'Error') }
     finally { setLoading(false) }
   }
@@ -456,7 +478,7 @@ function CollectTab() {
           {ledger.pending.map((e) => (
             <label key={e.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0', borderBottom: '1px solid #f3f4f6', fontSize: '0.8rem', cursor: 'pointer' }}>
               <input type="checkbox" checked={selected.has(e.id)} onChange={(ev) => {
-                if (status === 'paid') { setStatus(''); setReceiptPaymentId('') }
+                if (status) { setStatus(''); setReceiptPaymentId('') }
                 const checked = (ev.target as HTMLInputElement).checked
                 setSelected((p) => { const n = new Set(p); checked ? n.add(e.id) : n.delete(e.id); return n })
               }} />
@@ -479,9 +501,35 @@ function CollectTab() {
                   placeholder={method === 'cheque' ? 'Cheque no. (optional)' : method === 'upi' ? 'UPI ref / UTR (optional)' : 'Reference no. (optional)'}
                   style={{ ...INP, width: '100%', marginBottom: '0.6rem' }} />
               )}
-              <button onClick={pay} disabled={loading} style={{ padding: '0.625rem 1.25rem', background: '#1F8A5D', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600 }}>
-                {loading ? 'Recording…' : `Collect ${fmt(totalSelected)} (${selected.size} item${selected.size !== 1 ? 's' : ''})`}
-              </button>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <button onClick={pay} disabled={loading} style={{ padding: '0.625rem 1.25rem', background: '#1F8A5D', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600 }}>
+                  {loading ? 'Recording…' : `Collect ${fmt(totalSelected)} (${selected.size} item${selected.size !== 1 ? 's' : ''})`}
+                </button>
+                <button onClick={() => { setWaiving((v) => !v); setWaiveReason('') }} disabled={loading}
+                  style={{ padding: '0.625rem 1rem', background: waiving ? '#7c2d12' : '#fff', color: waiving ? '#fff' : '#7c2d12', border: '1px solid #7c2d12', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600 }}>
+                  {waiving ? 'Cancel waive' : 'Waive…'}
+                </button>
+              </div>
+              {waiving && (
+                <div style={{ marginTop: '0.6rem', padding: '0.75rem', background: '#fff7ed', border: '1px solid #fdba74', borderRadius: 6 }}>
+                  <p style={{ fontSize: '0.78rem', color: '#7c2d12', margin: '0 0 0.5rem' }}>
+                    Waiving removes these fees from dues <strong>without counting them as collected</strong>.
+                    Use this for approved concessions — not for payments received.
+                  </p>
+                  <input value={waiveReason} onInput={(e) => setWaiveReason((e.target as HTMLInputElement).value)}
+                    placeholder="Reason (required) — e.g. fee concession approved by principal"
+                    style={{ ...INP, width: '100%', marginBottom: '0.5rem', boxSizing: 'border-box' }} />
+                  <button onClick={waive} disabled={loading || !waiveReason.trim()}
+                    style={{ padding: '0.5rem 1rem', background: '#7c2d12', color: '#fff', border: 'none', borderRadius: 4, cursor: waiveReason.trim() ? 'pointer' : 'not-allowed', fontSize: '0.82rem', fontWeight: 600, opacity: waiveReason.trim() ? 1 : 0.6 }}>
+                    {loading ? 'Waiving…' : `Waive ${fmt(totalSelected)} (${selected.size} item${selected.size !== 1 ? 's' : ''})`}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+          {status === 'waived' && (
+            <div style={{ marginTop: '1rem', padding: '1rem', background: '#fff7ed', borderRadius: 6, fontSize: '0.85rem', color: '#7c2d12', fontWeight: 600 }}>
+              ✓ Fees waived. They no longer appear in dues and are not counted as revenue.
             </div>
           )}
           {status === 'paid' && receiptPaymentId && (

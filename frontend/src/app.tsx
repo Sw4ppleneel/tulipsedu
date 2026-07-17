@@ -36,13 +36,29 @@ function ParentLogin({
 }) {
   const [slug, setSlug] = useState(getSubdomain)
   const [admNo, setAdmNo] = useState('')
+  const [password, setPassword] = useState('')
+  // null = flag unknown (school-info not loaded yet) → hide the field until known
+  const [needsPassword, setNeedsPassword] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState('')
+
+  // The tenant decides whether parent login needs a password
+  // (feature_flags.parent_password, surfaced on the public school-info endpoint).
+  useEffect(() => {
+    const s = slug.trim().toLowerCase()
+    if (!s) { setNeedsPassword(null); return }
+    let cancelled = false
+    fetch(`/api/v1/public/school-info`, { headers: { 'X-Tenant-Slug': s } })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (!cancelled) setNeedsPassword(d ? !!d.parent_password : null) })
+      .catch(() => { if (!cancelled) setNeedsPassword(null) })
+    return () => { cancelled = true }
+  }, [slug])
 
   async function handleLogin(e: Event) {
     e.preventDefault()
     setLoading(true); setErr('')
-    try { onSuccess(await loginByAdmissionNo(slug, admNo.trim()), slug) }
+    try { onSuccess(await loginByAdmissionNo(slug, admNo.trim(), needsPassword ? password : undefined), slug) }
     catch (ex) { setErr(ex instanceof Error ? ex.message : 'Login failed') }
     finally { setLoading(false) }
   }
@@ -70,6 +86,15 @@ function ParentLogin({
             <input class="input" value={admNo} onInput={e => setAdmNo((e.target as HTMLInputElement).value)}
               placeholder="e.g. 2024001" required autocomplete="off" />
           </div>
+          {needsPassword && (
+            <div>
+              <label class="lbl">Password</label>
+              <PasswordInput value={password} onInput={setPassword} placeholder="Password" required autocomplete="current-password" />
+              <p class="text-muted" style={{ fontSize: '.7rem', marginTop: '.3rem', marginBottom: 0 }}>
+                First time? Use the last 4 digits of your registered mobile number.
+              </p>
+            </div>
+          )}
           <button class="btn btn-primary btn-lg" type="submit" disabled={loading} style={{ width: '100%', marginTop: '.25rem' }}>
             {loading ? 'Signing in…' : 'View my child'}
           </button>

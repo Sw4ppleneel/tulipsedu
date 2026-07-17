@@ -7,6 +7,7 @@ import asyncpg
 
 from core.events import emit
 from models.finance import (
+    DiscountItem,
     FeeHeadCreate,
     FeeHeadResponse,
     FeeScheduleCreate,
@@ -16,6 +17,7 @@ from models.finance import (
     MonthYearPair,
     OutstandingReport,
     OutstandingStudent,
+    StudentDiscountResponse,
     StudentLedger,
 )
 from services.receipt import period_label
@@ -247,6 +249,132 @@ async def import_fee_structure_excel(
     }
 
 
+# ── Student fee discounts (sibling concessions etc.) ─────────────────────────
+
+_CENT = Decimal("0.01")
+
+
+def _discounted(amount: Decimal, pct: Optional[Decimal]) -> Decimal:
+    if not pct:
+        return amount
+    return (amount * (Decimal(100) - pct) / Decimal(100)).quantize(_CENT)
+
+
+async def _load_discount_map(
+    conn: asyncpg.Connection, tenant_id: uuid.UUID, student_id: Optional[uuid.UUID] = None
+) -> dict[tuple[uuid.UUID, uuid.UUID], Decimal]:
+    """(student_id, fee_head_id) → percentage, for ledger generation."""
+    if student_id:
+        rows = await conn.fetch(
+            "SELECT student_id, fee_head_id, percentage FROM student_fee_discounts"
+            " WHERE tenant_id = $1 AND student_id = $2",
+            tenant_id, student_id,
+        )
+    else:
+        rows = await conn.fetch(
+            "SELECT student_id, fee_head_id, percentage FROM student_fee_discounts"
+            " WHERE tenant_id = $1",
+            tenant_id,
+        )
+    return {(r["student_id"], r["fee_head_id"]): r["percentage"] for r in rows}
+
+
+async def list_student_discounts(
+    conn: asyncpg.Connection, tenant_id: uuid.UUID, student_id: uuid.UUID
+) -> list[StudentDiscountResponse]:
+    rows = await conn.fetch(
+        """
+        SELECT d.fee_head_id, fh.name AS fee_head_name, d.percentage, d.reason
+        FROM student_fee_discounts d
+        JOIN fee_heads fh ON fh.id = d.fee_head_id
+        WHERE d.tenant_id = $1 AND d.student_id = $2
+        ORDER BY fh.sort_order, fh.name
+        """,
+        tenant_id, student_id,
+    )
+    return [StudentDiscountResponse(**dict(r)) for r in rows]
+
+
+async def set_student_discounts(
+    conn: asyncpg.Connection,
+    tenant_id: uuid.UUID,
+    user_id: uuid.UUID,
+    student_id: uuid.UUID,
+    items: list[DiscountItem],
+    reason: str = "sibling",
+) -> dict:
+    """Replace the student's discount set and recompute their unpaid ledger rows.
+
+    Recomputation always starts from the fee-schedule base amount, so repeated
+    edits never compound. Only pending/due/overdue rows that map to a schedule
+    are touched — paid/waived rows and carried-forward arrears (no schedule in
+    their year) stay untouched. When the same fee head has both a class-specific
+    and an all-classes schedule, the class-specific amount wins (same precedence
+    as generation)."""
+    async with conn.transaction():
+        student = await conn.fetchrow(
+            "SELECT class_id FROM students WHERE id = $1 AND tenant_id = $2 AND is_active = TRUE",
+            student_id, tenant_id,
+        )
+        if not student:
+            raise FinanceError("Student not found")
+
+        await conn.execute(
+            "DELETE FROM student_fee_discounts WHERE tenant_id = $1 AND student_id = $2",
+            tenant_id, student_id,
+        )
+        if items:
+            await conn.executemany(
+                """
+                INSERT INTO student_fee_discounts
+                    (tenant_id, student_id, fee_head_id, percentage, reason, created_by)
+                VALUES ($1, $2, $3, $4, $5, $6)
+                """,
+                [
+                    (tenant_id, student_id, it.fee_head_id, it.percentage,
+                     (reason or "sibling").strip()[:100] or "sibling", user_id)
+                    for it in items
+                ],
+            )
+
+        result = await conn.execute(
+            """
+            UPDATE fee_ledger fl
+            SET amount_due = ROUND(s.amount * (100 - COALESCE(d.percentage, 0)) / 100, 2)
+            FROM (
+                SELECT DISTINCT ON (fee_head_id, academic_year_id)
+                       fee_head_id, academic_year_id, amount
+                FROM fee_schedules
+                WHERE tenant_id = $1 AND (class_id IS NULL OR class_id = $3)
+                ORDER BY fee_head_id, academic_year_id, class_id NULLS LAST
+            ) s
+            LEFT JOIN student_fee_discounts d
+                   ON d.tenant_id = $1 AND d.student_id = $2 AND d.fee_head_id = s.fee_head_id
+            WHERE fl.tenant_id = $1 AND fl.student_id = $2
+              AND fl.status IN ('pending', 'due', 'overdue')
+              AND fl.fee_head_id = s.fee_head_id
+              AND fl.academic_year_id = s.academic_year_id
+            """,
+            tenant_id, student_id, student["class_id"],
+        )
+        rows_updated = int(result.split()[-1])
+
+        await emit(conn, "STUDENT_DISCOUNT_SET", tenant_id, {
+            "student_id": str(student_id),
+            "discounts": [
+                {"fee_head_id": str(it.fee_head_id), "percentage": str(it.percentage)}
+                for it in items
+            ],
+            "rows_updated": rows_updated,
+            "set_by": str(user_id),
+        })
+
+    return {
+        "discounts": len(items),
+        "ledger_rows_updated": rows_updated,
+    }
+
+
 # ── Ledger Generation ─────────────────────────────────────────────────────────
 
 async def generate_ledger(
@@ -271,6 +399,8 @@ async def generate_ledger(
         tenant_id, data.academic_year_id,
     )
 
+    discounts = await _load_discount_map(conn, tenant_id)
+
     entries: list[tuple] = []
     for student in students:
         for sched in schedules:
@@ -283,17 +413,20 @@ async def generate_ledger(
             if sf == "hosteler" and not student["is_hosteler"]:
                 continue
 
+            amount = _discounted(
+                sched["amount"], discounts.get((student["id"], sched["fee_head_id"]))
+            )
             if sched["fee_type"] == "monthly":
                 for my in data.month_year_pairs:
                     entries.append((
                         tenant_id, student["id"], sched["fee_head_id"],
-                        data.academic_year_id, my.month, my.year, sched["amount"],
+                        data.academic_year_id, my.month, my.year, amount,
                     ))
             elif data.include_annual:
                 base_year = data.month_year_pairs[0].year if data.month_year_pairs else 2025
                 entries.append((
                     tenant_id, student["id"], sched["fee_head_id"],
-                    data.academic_year_id, None, base_year, sched["amount"],
+                    data.academic_year_id, None, base_year, amount,
                 ))
 
     if not entries:
@@ -343,6 +476,7 @@ async def generate_ledger_for_new_student(
     if not schedules:
         return 0
     pairs = await _derive_month_year_pairs(conn, tenant_id, academic_year_id)
+    discounts = await _load_discount_map(conn, tenant_id, student_id)
     entries: list[tuple] = []
     for sched in schedules:
         sf = sched["student_filter"]
@@ -350,14 +484,17 @@ async def generate_ledger_for_new_student(
             continue
         if sf == "hosteler" and not is_hosteler:
             continue
+        amount = _discounted(
+            sched["amount"], discounts.get((student_id, sched["fee_head_id"]))
+        )
         if sched["fee_type"] == "monthly":
             for my in pairs:
                 entries.append((tenant_id, student_id, sched["fee_head_id"],
-                                 academic_year_id, my.month, my.year, sched["amount"]))
+                                 academic_year_id, my.month, my.year, amount))
         else:
             base_year = pairs[0].year if pairs else 2025
             entries.append((tenant_id, student_id, sched["fee_head_id"],
-                             academic_year_id, None, base_year, sched["amount"]))
+                             academic_year_id, None, base_year, amount))
     if not entries:
         return 0
     await conn.executemany(

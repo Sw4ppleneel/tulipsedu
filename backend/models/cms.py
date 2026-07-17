@@ -64,3 +64,6 @@ class AnnouncementResponse(BaseModel):
 class SchoolInfo(BaseModel):
     name: str
     slug: str
+    # True when the tenant requires a password on parent-portal login
+    # (feature_flags.parent_password) — tells the login UI to show the field.
+    parent_password: bool = False
