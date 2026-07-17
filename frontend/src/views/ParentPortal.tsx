@@ -63,7 +63,10 @@ function PayClaimModal({ upi, schoolName, amount, note, onClose, onClaim }: {
           <>
             <img src={qr.createDataURL(5, 6)} alt="UPI QR" style={{ width: 190, height: 190, imageRendering: 'pixelated', borderRadius: 8, border: '1px solid var(--gray-200)' }} />
             <div class="text-xs text-muted" style={{ margin: '.5rem 0 .875rem' }}>Scan with Google Pay · PhonePe · Paytm · BHIM</div>
-            <a href={uri} class="btn btn-accent btn-lg" style={{ display: 'block', width: '100%', marginBottom: '.5rem', textDecoration: 'none' }}>Open UPI app</a>
+            <a href={uri} class="btn btn-accent btn-lg" style={{ display: 'block', width: '100%', textDecoration: 'none' }}>Open UPI app</a>
+            <div class="text-xs text-muted" style={{ margin: '.4rem 0 .875rem' }}>
+              If your app blocks this for security reasons, scan the QR code above instead.
+            </div>
             <button class="btn btn-primary btn-lg" style={{ width: '100%' }} onClick={() => setStep('confirm')}>I’ve paid →</button>
             <button onClick={onClose} class="text-sm text-muted" style={{ background: 'none', border: 'none', cursor: 'pointer', marginTop: '.7rem', fontFamily: 'inherit' }}>Cancel</button>
           </>
