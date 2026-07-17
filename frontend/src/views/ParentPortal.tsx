@@ -16,8 +16,18 @@ import { usePwaInstall } from '../hooks/usePwaInstall'
 const MONTHS = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const periodLabel = (m: number | null, y: number) => (m ? `${MONTHS[m]} ${y}` : `${y} (one-time)`)
 const inr = (n: number) => '₹' + n.toLocaleString('en-IN')
-const upiUri = (vpa: string, name: string, amount: number, note: string) =>
-  `upi://pay?${new URLSearchParams({ pa: vpa, pn: name, am: amount.toFixed(2), cu: 'INR', tn: note })}`
+// UPI's spec calls for RFC 3986 percent-encoding (spaces as %20). URLSearchParams
+// uses application/x-www-form-urlencoded instead (spaces as '+'), which the OS's
+// own upi:// intent handler tolerates (tapping "Open UPI app" worked fine) but a
+// UPI app's own QR-scan parser can be stricter about — leaving literal '+'
+// characters in pn/tn that get treated as malformed and silently dropped, so the
+// payee name and note (which carries the student's name + admission number)
+// came through on tap but not on scan.
+const upiUri = (vpa: string, name: string, amount: number, note: string) => {
+  const params: Record<string, string> = { pa: vpa, pn: name, am: amount.toFixed(2), cu: 'INR', tn: note }
+  const qs = Object.entries(params).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&')
+  return `upi://pay?${qs}`
+}
 
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
