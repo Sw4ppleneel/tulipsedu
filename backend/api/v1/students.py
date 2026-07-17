@@ -43,7 +43,7 @@ async def get_students(
     academic_year_id: Optional[UUID] = Query(None),
     class_id: Optional[UUID] = Query(None),
     section_id: Optional[UUID] = Query(None),
-    limit: int = Query(100, ge=1, le=500),
+    limit: int = Query(100, ge=1, le=5000),
     offset: int = Query(0, ge=0),
 ):
     scope = getattr(request.state, "class_scope", None)

@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'preact/hooks'
+import { useEffect, useMemo, useState } from 'preact/hooks'
 import {
   collectOffline, downloadDefaultersCsv, downloadReceiptPdf, getDefaulters, getOutstanding, getPaymentLogs, getStudentLedger,
   listFeeHeads, listSchedules, openReceiptHtml, sendReminders,
 } from '../api/finance'
 import type { Defaulter } from '../api/finance'
-import { listAcademicYears, listClasses } from '../api/students'
+import { listAcademicYears, listClasses, listStudents } from '../api/students'
 import { useIsMobile } from '../hooks/useIsMobile'
-import type { AcademicYear, Class } from '../types/student'
+import type { AcademicYear, Class, Student } from '../types/student'
 import type { FeeHead, FeeSchedule, OutstandingStudent } from '../types/finance'
 
 type Tab = 'structure' | 'outstanding' | 'defaulters' | 'logs' | 'collect'
@@ -328,7 +328,9 @@ const PAY_METHODS = [
 type PayMethod = typeof PAY_METHODS[number]['v']
 
 function CollectTab() {
-  const [admNo, setAdmNo] = useState('')
+  const [roster, setRoster] = useState<Student[] | null>(null)
+  const [rosterError, setRosterError] = useState('')
+  const [query, setQuery] = useState('')
   const [ledger, setLedger] = useState<import('../types/finance').StudentLedger | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [method, setMethod] = useState<PayMethod>('cash')
@@ -337,18 +339,35 @@ function CollectTab() {
   const [loading, setLoading] = useState(false)
   const [receiptPaymentId, setReceiptPaymentId] = useState('')
 
-  async function loadStudent(e: Event) {
-    e.preventDefault()
+  useEffect(() => {
+    listStudents({ limit: 5000 })
+      .then((res) => setRoster(res.items))
+      .catch((e) => setRosterError(e instanceof Error ? e.message : 'Failed to load roster'))
+  }, [])
+
+  const matches = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q || !roster) return []
+    return roster
+      .filter((s) =>
+        s.admission_no.toLowerCase().includes(q) ||
+        `${s.first_name} ${s.last_name}`.toLowerCase().includes(q)
+      )
+      .slice(0, 25)
+  }, [roster, query])
+
+  async function loadStudent(student: Student) {
     setLoading(true); setLedger(null); setSelected(new Set()); setReceiptPaymentId(''); setStatus('')
     try {
-      const { listStudents } = await import('../api/students')
-      const res = await listStudents({ limit: 500 })
-      const student = res.items.find((s) => s.admission_no === admNo)
-      if (!student) { alert('Student not found'); return }
       const l = await getStudentLedger(student.id)
       setLedger(l)
     } catch (e) { alert(e instanceof Error ? e.message : 'Error') }
     finally { setLoading(false) }
+  }
+
+  function backToSearch() {
+    setLedger(null); setSelected(new Set())
+    setReceiptPaymentId(''); setStatus(''); setQuery('')
   }
 
   // Reset after a completed collection so the next payment can start cleanly:
@@ -382,14 +401,56 @@ function CollectTab() {
 
   return (
     <div style={{ maxWidth: 560 }}>
-      <form onSubmit={loadStudent} style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
-        <input value={admNo} onInput={(e) => setAdmNo((e.target as HTMLInputElement).value)} placeholder="Admission number" style={{ ...INP, flex: 1 }} required />
-        <button type="submit" disabled={loading} style={{ padding: '0.5rem 1rem', background: '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem' }}>Load</button>
-      </form>
+      {!ledger && (
+        <>
+          <input
+            value={query}
+            onInput={(e) => setQuery((e.target as HTMLInputElement).value)}
+            placeholder="Search by name or admission number…"
+            style={{ ...INP, width: '100%', marginBottom: '0.75rem', boxSizing: 'border-box' }}
+            autoFocus
+          />
+          {rosterError && <p style={{ color: '#c00', fontSize: '0.8rem' }}>{rosterError}</p>}
+          {!roster && !rosterError && <p style={{ color: '#9ca3af', fontSize: '0.8rem' }}>Loading roster…</p>}
+
+          {query.trim() && roster && (
+            matches.length === 0 ? (
+              <p style={{ color: '#9ca3af', fontSize: '0.85rem', padding: '0.5rem 0' }}>No students match "{query}".</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {matches.map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => loadStudent(s)}
+                    disabled={loading}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem',
+                      textAlign: 'left', padding: '0.6rem 0.8rem', background: '#fff', border: '1px solid #e5e7eb',
+                      borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit',
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#14463A' }}>{s.first_name} {s.last_name}</div>
+                      <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.15rem' }}>
+                        {s.class_name ?? '—'}{s.section_name ? ` · ${s.section_name}` : ''} · Roll #{s.roll_number} · {s.parent_phone}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#6b7280', flexShrink: 0 }}>{s.admission_no}</div>
+                  </button>
+                ))}
+                {matches.length === 25 && <p style={{ fontSize: '0.72rem', color: '#9ca3af' }}>Showing first 25 matches — refine your search for more.</p>}
+              </div>
+            )
+          )}
+        </>
+      )}
 
       {ledger && (
         <div>
-          <p style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.75rem' }}>{ledger.student_name} · {ledger.admission_no} · {ledger.class_section}</p>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+            <p style={{ fontSize: '0.875rem', fontWeight: 600, margin: 0 }}>{ledger.student_name} · {ledger.admission_no} · {ledger.class_section}</p>
+            <button onClick={backToSearch} style={{ padding: '0.3rem 0.7rem', background: '#f3f4f6', color: '#374151', border: '1px solid #d1d5db', borderRadius: 4, cursor: 'pointer', fontSize: '0.78rem', flexShrink: 0 }}>← Search again</button>
+          </div>
           <p style={{ fontSize: '0.8rem', color: '#6b7280', marginBottom: '0.5rem' }}>Select dues to pay:</p>
           {ledger.pending.length === 0 && <p style={{ fontSize: '0.8rem', color: '#1F8A5D' }}>✓ No pending dues</p>}
           {ledger.pending.map((e) => (
