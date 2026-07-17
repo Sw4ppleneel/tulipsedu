@@ -65,6 +65,29 @@ Building Fee, Poor Fund, Smart Classes, Computer, Games/P.T, Report Card
 through Class 4, ₹800 Class 5-8) + Bus Fee (monthly, ₹700, transport
 students only).
 
+## 🔧 BUILT 2026-07-17 — Name-based search for offline fee collection
+
+Owner request: accountant could only find a student by exact admission
+number in the Collect Fee tab; add name search too, showing profile cards.
+
+**Implementation:** `CollectTab` (`FeesAdmin.tsx`) now loads the full
+roster once on mount (`listStudents({limit: 5000})`) and filters
+client-side as the accountant types — matches on admission number OR
+`first_name + last_name` substring, case-insensitive, capped at 25 results
+rendered as clickable cards (name, class/section, roll number, phone,
+admission number). Clicking a card loads that student's ledger exactly
+like the old exact-match flow; a "← Search again" link resets back to
+search mode. Also bumped `GET /students`' limit ceiling 500 → 5000
+(`api/v1/students.py`) to match the platform's stated max tenant size —
+same silent-truncation class of bug as the Outstanding Dues fix, caught
+this time before it shipped as a visible bug.
+
+**Not click-tested in a browser** — no chromium-cli/playwright available
+in this environment (same limitation noted for the PMIC photo work
+earlier). Verified via typecheck + backend syntax check + code review;
+owner is the one actually testing live via the Daffodils pilot, so this
+will get real usage quickly.
+
 ## ✅ 2026-07-16 — Scrubbed 2 leaked passwords from git history + rotated both
 
 Owner asked to remove the leaked-password commit info. Auditing found the
