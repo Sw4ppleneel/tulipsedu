@@ -65,6 +65,26 @@ Building Fee, Poor Fund, Smart Classes, Computer, Games/P.T, Report Card
 through Class 4, ₹800 Class 5-8) + Bus Fee (monthly, ₹700, transport
 students only).
 
+## ✅ DEPLOYED 2026-07-17 — Fix: UPI QR scan didn't fill payee name/note (tap did)
+
+Live report: tapping "Open UPI app" correctly showed the student's name +
+admission number in the UPI app, but scanning the same QR with a UPI
+app's camera only brought through the amount.
+
+**Root cause:** `upiUri()` (`ParentPortal.tsx`) built the query string with
+`URLSearchParams`, which serializes as `application/x-www-form-urlencoded`
+— spaces become `+`. The UPI QR spec calls for RFC 3986 percent-encoding
+(`%20`). The OS's own `upi://` intent handler tolerates `+`-as-space
+(tap worked), but a UPI app's own QR-scan parser reads the raw QR text
+more strictly — literal `+` in the payee name/note looks malformed and
+gets silently dropped, while `am` (no spaces) was unaffected either way.
+Verified: `URLSearchParams({tn: note})` → `Daffodils+Public+School+%7C+...`
+vs `encodeURIComponent(note)` → `Daffodils%20Public%20School%20%7C%20...`.
+
+**Fix:** build the query string manually with `encodeURIComponent`
+instead of `URLSearchParams`. Same `uri` backs both the QR and the tap
+link, so one change fixes both. Frontend-only deploy, smoke tests passed.
+
 ## 🔧 BUILT 2026-07-17 — Name-based search for offline fee collection
 
 Owner request: accountant could only find a student by exact admission
