@@ -1,5 +1,33 @@
 # BUILD.md
 
+## ⚠️ BLOCKED 2026-07-17 — SSH to prod (62.72.13.103:22) unreachable
+
+Discovered while trying to create Sudha Tiwari's PMIC login. `nc -zv
+62.72.13.103 22` times out; HTTPS to the live site works fine
+(`/health` → 200), so the app itself is healthy — this is specifically
+port 22 being unreachable from this environment, not a prod outage.
+Owner not aware of any firewall/security-group change; agreed to wait
+and retry rather than dig into server-side config right now.
+
+**Blocks:** `scripts/deploy.sh` (rsync + docker exec both need SSH) and
+any one-off DB script (the `docker cp` + `docker exec` pattern this
+project relies on throughout). Committing/pushing to GitHub is
+unaffected (HTTPS remote, not SSH).
+
+**Pending once SSH is back:**
+- Deploy `origin/main` — has unreleased work queued up, including the
+  attendance DD/MM/YYYY date-format fix (this session) and a same-day
+  batch of features already on `main` that weren't built by this
+  session's agent (parent-portal passwords, teacher roster tools, fee
+  waive + sibling discounts, **migrations 039-040 — check migration
+  status carefully on first successful deploy**, don't assume they're
+  already applied).
+- Create Sudha Tiwari's PMIC login: real number confirmed as
+  `7061530224` (owner clarified the earlier `9334679531` — a duplicate
+  of Umesh Yadav's number — was given in error). Not yet checked
+  against prod for a phone collision — do that before creating the
+  login, same as every other import this session.
+
 # Project Status
 
 Project: Tulips.edu
