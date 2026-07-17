@@ -85,6 +85,22 @@ vs `encodeURIComponent(note)` → `Daffodils%20Public%20School%20%7C%20...`.
 instead of `URLSearchParams`. Same `uri` backs both the QR and the tap
 link, so one change fixes both. Frontend-only deploy, smoke tests passed.
 
+**Follow-up (not a bug, no further fix needed):** owner reported PhonePe
+still shows no note/message after the fix. Confirmed the payee name (school
+name) now displays correctly on PhonePe scan (proof the encoding fix
+worked) — but the `tn` note (which carries student name + admission
+number) still doesn't show. Per current docs, this looks like a PhonePe/
+Google Pay product limitation, not an encoding issue: **Paytm is the only
+major UPI app that prominently surfaces `tn` on its scan confirmation
+screen; PhonePe and GPay generally don't display it at all**, regardless
+of encoding correctness. Doesn't affect actual reconciliation — the
+accountant verifies payments via the parent's in-app "I've paid" claim
+(tied to their logged-in student/fee/amount), not by reading PhonePe's
+screen; the note was only ever a courtesy for the parent. Offered folding
+the admission number into the payee-name field instead (the one field
+that reliably displays everywhere) as a workaround — owner declined,
+kept payee name as just the school name.
+
 ## 🔧 BUILT 2026-07-17 — Name-based search for offline fee collection
 
 Owner request: accountant could only find a student by exact admission
