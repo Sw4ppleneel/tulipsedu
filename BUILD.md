@@ -65,6 +65,32 @@ Building Fee, Poor Fund, Smart Classes, Computer, Games/P.T, Report Card
 through Class 4, ₹800 Class 5-8) + Bus Fee (monthly, ₹700, transport
 students only).
 
+## ✅ DEPLOYED 2026-07-17 — PhonePe security-blocked the tap-to-pay link; added QR fallback hint
+
+Live report: PhonePe rejected tapping "Open UPI app" with a security
+message ("use UPI ID, QR code, or mobile number"). Confirmed via
+follow-up: only the tap link, not the QR scan (which works, per the
+encoding fix above).
+
+**Why:** likely 2026 UPI ecosystem security tightening, not a Tulips.edu
+bug per se. NPCI deprecated manual UPI-ID/mobile-number entry ("UPI
+Collect") from 28 Feb 2026, and UPI 2.0 pushes signed intents — apps are
+increasingly wary of unsigned `upi://` deep links tapped directly from a
+web page (no way to verify the initiating site is legitimate; this
+pattern is a known phishing vector), versus a QR scan, which requires a
+deliberate physical action and apparently goes through different/more
+trusting validation on PhonePe. Tulips.edu's link is unsigned (built
+client-side, not through a registered PSP) — this is the same gap a real
+payment gateway (Razorpay/PhonePe PG, discussed with the owner
+2026-07-16) would close, since gateway-issued intents are cryptographically
+signed and recognized as legitimate merchant transactions.
+
+**No real fix available without a payment gateway.** Added a small hint
+under the "Open UPI app" button: "If your app blocks this for security
+reasons, scan the QR code above instead." Left the button in place since
+this looks PhonePe-specific — no evidence GPay/Paytm/BHIM have the same
+issue. Frontend-only deploy, smoke tests passed.
+
 ## ✅ DEPLOYED 2026-07-17 — Fix: UPI QR scan didn't fill payee name/note (tap did)
 
 Live report: tapping "Open UPI app" correctly showed the student's name +
