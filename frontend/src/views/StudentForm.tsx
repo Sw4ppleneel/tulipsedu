@@ -180,6 +180,9 @@ export function StudentForm({ academicYears, classes, student, onSaved, onCancel
   )
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  // Optional at creation time — if left blank, the parent portal falls back to
+  // its default (last 4 digits of parent_phone) the same as every other student.
+  const [initialPassword, setInitialPassword] = useState('')
   // Skip clearing section_id on the effect's first run in edit mode, so the
   // student's existing section survives the initial class_id -> sections sync.
   const skipNextClear = useRef(isEdit)
@@ -202,13 +205,19 @@ export function StudentForm({ academicYears, classes, student, onSaved, onCancel
     e.preventDefault()
     setError('')
     if (!isValidIndianMobile(form.parent_phone)) { setError(INVALID_PHONE_MSG); return }
+    if (!isEdit && initialPassword && initialPassword.trim().length < 4) {
+      setError('Portal password must be at least 4 characters'); return
+    }
     setLoading(true)
     try {
       if (isEdit && student) {
         const { admission_no: _admission_no, academic_year_id: _academic_year_id, ...editable } = form
         await updateStudent(student.id, editable)
       } else {
-        await createStudent(form)
+        const created = await createStudent(form)
+        if (initialPassword.trim()) {
+          await resetPortalPassword(created.id, initialPassword.trim())
+        }
       }
       onSaved()
     } catch (err) {
@@ -315,6 +324,18 @@ export function StudentForm({ academicYears, classes, student, onSaved, onCancel
           <label style={LABEL}>Parent Phone (10 digits)</label>
           <input type="tel" value={form.parent_phone} onInput={(e) => set('parent_phone', (e.target as HTMLInputElement).value)} style={INPUT} placeholder="9876543210" maxLength={10} required />
         </div>
+
+        {!isEdit && (
+          <div style={ROW}>
+            <label style={LABEL}>Parent Portal Password (optional)</label>
+            <input
+              value={initialPassword}
+              onInput={(e) => setInitialPassword((e.target as HTMLInputElement).value)}
+              style={INPUT}
+              placeholder="Leave blank to default to last 4 digits of parent phone"
+            />
+          </div>
+        )}
 
         <div style={{ ...ROW, display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', color: '#444', cursor: 'pointer' }}>
