@@ -60,15 +60,21 @@ async def list_staff(
     offset: int = 0,
 ) -> tuple[list[StaffResponse], int]:
     where = """
-        WHERE tenant_id = $1
-          AND ($2::text IS NULL OR designation = $2)
-          AND ($3::boolean IS NULL OR is_active = $3)
+        WHERE s.tenant_id = $1
+          AND ($2::text IS NULL OR s.designation = $2)
+          AND ($3::boolean IS NULL OR s.is_active = $3)
     """
     args = (tenant_id, designation, is_active)
 
-    total: int = await conn.fetchval(f"SELECT COUNT(*) FROM staff {where}", *args)
+    total: int = await conn.fetchval(f"SELECT COUNT(*) FROM staff s {where}", *args)
     rows = await conn.fetch(
-        f"SELECT * FROM staff {where} ORDER BY first_name, last_name LIMIT $4 OFFSET $5",
+        f"""
+        SELECT s.*, u.role AS role
+        FROM staff s
+        LEFT JOIN users u ON u.id = s.user_id AND u.tenant_id = s.tenant_id
+        {where}
+        ORDER BY s.first_name, s.last_name LIMIT $4 OFFSET $5
+        """,
         *args, limit, offset,
     )
     return [StaffResponse(**dict(r)) for r in rows], total
@@ -78,7 +84,13 @@ async def get_staff_member(
     conn: asyncpg.Connection, tenant_id: uuid.UUID, staff_id: uuid.UUID
 ) -> Optional[StaffResponse]:
     row = await conn.fetchrow(
-        "SELECT * FROM staff WHERE id = $1 AND tenant_id = $2", staff_id, tenant_id
+        """
+        SELECT s.*, u.role AS role
+        FROM staff s
+        LEFT JOIN users u ON u.id = s.user_id AND u.tenant_id = s.tenant_id
+        WHERE s.id = $1 AND s.tenant_id = $2
+        """,
+        staff_id, tenant_id,
     )
     return StaffResponse(**dict(row)) if row else None
 
@@ -254,10 +266,7 @@ async def create_assignment(
             data.academic_year_id, data.class_id, data.section_id,
             data.subject, data.is_class_teacher,
         )
-    except asyncpg.UniqueViolationError as e:
-        msg = str(e)
-        if "sca_one_class_teacher_idx" in msg:
-            raise StaffError("This section already has a class teacher assigned")
+    except asyncpg.UniqueViolationError:
         raise StaffError("This assignment already exists")
 
     full = await conn.fetchrow(

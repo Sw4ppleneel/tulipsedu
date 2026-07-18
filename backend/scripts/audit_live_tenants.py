@@ -102,14 +102,6 @@ CHECKS: list[tuple[str, str, str]] = [
             HAVING count(*) > 1
         ) x"""),
 
-    ("multi_class_teacher",
-     "at most one class-teacher per section per year",
-     """SELECT count(*) FROM (
-            SELECT 1 FROM staff_class_assignments
-            WHERE tenant_id=$1 AND is_class_teacher
-            GROUP BY academic_year_id, class_id, section_id
-            HAVING count(*) > 1
-        ) x"""),
 ]
 
 

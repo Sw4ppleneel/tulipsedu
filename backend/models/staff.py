@@ -55,6 +55,7 @@ class StaffResponse(BaseModel):
     date_of_birth: Optional[date]
     is_active: bool
     created_at: datetime
+    role: Optional[str] = None
 
 
 class StaffRoleAssign(BaseModel):

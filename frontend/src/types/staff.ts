@@ -12,6 +12,7 @@ export interface Staff {
   date_of_birth: string | null
   is_active: boolean
   created_at: string
+  role: string | null
 }
 
 export interface StaffListResponse {

@@ -16,7 +16,7 @@ const ROLE_LABELS: Record<StaffRole, string> = {
 }
 
 function AccessModal({ member, onClose, onDone }: { member: Staff; onClose: () => void; onDone: () => void }) {
-  const [role, setRole] = useState<StaffRole>('teacher')
+  const [role, setRole] = useState<StaffRole>((member.role as StaffRole) ?? 'teacher')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState<{ password: string } | null>(null)
@@ -156,6 +156,14 @@ function LoginPill() {
   )
 }
 
+function RolePill({ role }: { role: string }) {
+  return (
+    <span style={{ padding: '2px 7px', background: '#EDF3EE', color: '#14463A', borderRadius: 9999, fontSize: '0.7rem', fontWeight: 600, whiteSpace: 'nowrap' }}>
+      {ROLE_LABELS[role as StaffRole] ?? role}
+    </span>
+  )
+}
+
 function ManageAccessButton({ onClick }: { onClick: () => void }) {
   return (
     <button
@@ -189,7 +197,12 @@ function StaffRow({ member, mobile, canManageAccess, onManageAccess }: {
           <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {member.first_name} {member.last_name}
           </span>
-          {member.user_id && <span style={{ marginLeft: 'auto', flexShrink: 0 }}><LoginPill /></span>}
+          {member.user_id && (
+            <span style={{ marginLeft: 'auto', flexShrink: 0, display: 'flex', gap: '0.3rem' }}>
+              {member.role && <RolePill role={member.role} />}
+              <LoginPill />
+            </span>
+          )}
         </div>
         <div style={{ color: '#6b7280', fontSize: '0.72rem', display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
           <span>{member.designation}</span><span aria-hidden>·</span>
@@ -216,7 +229,8 @@ function StaffRow({ member, mobile, canManageAccess, onManageAccess }: {
       <span style={{ width: 150, color: '#374151', flexShrink: 0 }}>{member.designation}</span>
       <span style={{ width: 130, color: '#6b7280', flexShrink: 0 }}>{member.department ?? '—'}</span>
       <span style={{ width: 110, color: '#6b7280', flexShrink: 0 }}>{member.phone_number}</span>
-      <span style={{ width: 80, flexShrink: 0 }}>
+      <span style={{ width: 130, flexShrink: 0, display: 'flex', gap: '0.3rem' }}>
+        {member.role && <RolePill role={member.role} />}
         {member.user_id && <LoginPill />}
       </span>
       <span style={{ width: 116, textAlign: 'right', flexShrink: 0 }}>
@@ -238,7 +252,7 @@ function TableHeader({ showAccessCol }: { showAccessCol: boolean }) {
       <span style={{ width: 150, flexShrink: 0 }}>DESIGNATION</span>
       <span style={{ width: 130, flexShrink: 0 }}>DEPARTMENT</span>
       <span style={{ width: 110, flexShrink: 0 }}>PHONE</span>
-      <span style={{ width: 80, flexShrink: 0 }}></span>
+      <span style={{ width: 130, flexShrink: 0 }}>ACCESS</span>
       {showAccessCol && <span style={{ width: 116, flexShrink: 0 }}></span>}
     </div>
   )
