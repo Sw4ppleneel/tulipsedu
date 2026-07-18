@@ -1,27 +1,33 @@
 # BUILD.md
 
-## ⚠️ BLOCKED 2026-07-17 — SSH to prod (62.72.13.103:22) unreachable
+## ✅ RESOLVED 2026-07-18 — SSH-to-prod outage (root cause: Hostinger VPS Firewall default-deny)
 
-Discovered while trying to create Sudha Tiwari's PMIC login. `nc -zv
-62.72.13.103 22` times out; HTTPS to the live site works fine
-(`/health` → 200), so the app itself is healthy — this is specifically
-port 22 being unreachable from this environment, not a prod outage.
-Owner not aware of any firewall/security-group change; agreed to wait
-and retry rather than dig into server-side config right now.
+Was blocked ~1 day (first noticed 2026-07-17 while trying to create Sudha
+Tiwari's PMIC login). Root cause, found via console access (hPanel browser
+terminal, since SSH itself was the thing blocked):
 
-**Blocks:** `scripts/deploy.sh` (rsync + docker exec both need SSH) and
-any one-off DB script (the `docker cp` + `docker exec` pattern this
-project relies on throughout). Committing/pushing to GitHub is
-unaffected (HTTPS remote, not SSH).
+- `sshd`, `ufw`, and `iptables` on the box were all clean/healthy the entire
+  time — never the cause. A full reboot didn't fix it either.
+- Hostinger's **VPS Firewall** (a network-edge firewall separate from `ufw`,
+  configurable in hPanel → VPS → Security → Firewall) had **zero rules**,
+  which — confirmed by Hostinger support — means **drop all inbound
+  traffic**, not pass-through. This explained every symptom: direct-IP 80/443
+  timing out too (only Cloudflare-proxied HTTP worked), `tcpdump` on the box
+  showing zero SYN packets arriving from any external client during live
+  connection attempts (traffic never reached the VM's NIC at all), and it
+  persisting across a reboot (nothing wrong with the VM itself).
+- Fix: created firewall group `srv1729216-base` in hPanel with Accept rules
+  for TCP 22/80/443 (source: Any), synced. Access returned within minutes.
+- Note for later: this firewall must have been newly provisioned/enforced
+  around 2026-07-17 — the box had working SSH-based deploys as recently as
+  2026-07-16, so "zero rules" cannot have always meant deny-all on this
+  account. Cause of the change itself (platform-side rollout vs
+  abuse-triggered auto-provisioning) was never confirmed with Hostinger —
+  worth asking if it recurs.
 
-**Pending once SSH is back:**
-- Deploy `origin/main` — has unreleased work queued up, including the
-  attendance DD/MM/YYYY date-format fix (this session) and a same-day
-  batch of features already on `main` that weren't built by this
-  session's agent (parent-portal passwords, teacher roster tools, fee
-  waive + sibling discounts, **migrations 039-040 — check migration
-  status carefully on first successful deploy**, don't assume they're
-  already applied).
+**Deploy of `origin/main` — DONE 2026-07-18**, see entry below. Two queued
+items from the outage are **still pending** (unrelated to code deploy, not
+actioned automatically — need explicit go-ahead):
 - Create Sudha Tiwari's PMIC login: real number confirmed as
   `7061530224` (owner clarified the earlier `9334679531` — a duplicate
   of Umesh Yadav's number — was given in error). Not yet checked
@@ -51,11 +57,21 @@ Last Updated: 2026-07-13
 Current Phase: Phase 2 Workflow ERP — lifecycle state machines in progress
 Current Sprint: Sprint 5 — W14 Analytics (next), W11 Rollover, W10 Admissions, Exam module enhancements
 
-## 🔧 BUILT 2026-07-17 — Parent-portal passwords + teacher roster tools + fee waive + sibling discounts (migrations 039–040)
+## ✅ DEPLOYED 2026-07-18 — Parent-portal passwords + teacher roster tools + fee waive + sibling discounts (migrations 039–040)
 
-**NOT YET DEPLOYED** (built + 20/20 service-level checks against the dev DB,
-rolled back, zero drift; tsc + vite build clean). Deploy applies 039 + 040 via
-entrypoint; no new dependency.
+Built + 20/20 service-level checks against the dev DB (rolled back, zero
+drift); tsc + vite build clean. **Deploy held ~1 day on the SSH-to-prod
+outage below** (Hostinger VPS Firewall — see resolution note at top of this
+file); shipped the moment access returned, bundled with `c748334`
+(password-revert script, unrelated) which had also landed on `main` during
+the outage.
+
+Verified live on prod post-deploy: gate passed (4 tests), DB backup taken
+before migration (`tulipsedu-2026-07-18-0700.sql.gz`), `schema_migrations`
+confirms 039 + 040 applied, `students.portal_password_hash` and
+`student_fee_discounts` present in the live schema, all 4 containers healthy
+post-reboot, `/health` → `ok`, full smoke suite green (backend 401-gating,
+SPA, all 4 public school sites). No new dependency.
 
 **1. Parent-portal password (migration 039, owner-directed).** Parent login was
 admission number only — and admission numbers are sequential/guessable
