@@ -25,23 +25,28 @@ terminal, since SSH itself was the thing blocked):
   abuse-triggered auto-provisioning) was never confirmed with Hostinger —
   worth asking if it recurs.
 
-**Deploy of `origin/main` — DONE 2026-07-18**, see entry below. Two queued
-items from the outage are **still pending** (unrelated to code deploy, not
-actioned automatically — need explicit go-ahead):
-- Create Sudha Tiwari's PMIC login: real number confirmed as
-  `7061530224` (owner clarified the earlier `9334679531` — a duplicate
-  of Umesh Yadav's number — was given in error). Not yet checked
-  against prod for a phone collision — do that before creating the
-  login, same as every other import this session.
-- Revert Umesh Yadav's and Seema Toppo's passwords back to the
-  standard convention (`phone[:4]@FirstName`) — owner decided the
+**Deploy of `origin/main` — DONE 2026-07-18**, see entry below. Both
+remaining items from the outage are now also **DONE 2026-07-18**:
+- **Sudha Tiwari's PMIC login created** — real number `7061530224`
+  (her old staff row still held the duplicate `9334679531` from the
+  original import, but had no `user_id`, so no collision). Checked for
+  a phone collision first (none), then created via new
+  `backend/scripts/create_staff_login.py <tenant_slug> <employee_no>
+  <phone> <role>` (run for `premchandmahtoic` / `EMP011` /
+  `7061530224` / `teacher`) — sets `staff.phone_number` +
+  `staff.user_id`, password follows the standard convention. All 12
+  PMIC staff now have working logins.
+- **Umesh Yadav + Seema Toppo passwords reverted** to the standard
+  convention (`phone[:4]@FirstName`) via
+  `backend/scripts/revert_password.py <tenant_slug> <phone>
+  <first_name>` (run for `premchandmahtoic` / `9334679531` / `Umesh`
+  and `premchandmahtoic` / `7903181033` / `Seema`) — owner decided the
   2026-07-16 random rotation (see below) is no longer needed now that
   the leak is scrubbed from git history; repo is private and both will
   change their password on first login anyway via the self-service
-  flow. Script ready: `backend/scripts/revert_password.py <tenant_slug>
-  <phone> <first_name>` — run for `premchandmahtoic` / `9334679531` /
-  `Umesh` and `premchandmahtoic` / `7903181033` / `Seema`. Back up the
-  DB first per the standard one-off-script pattern.
+  flow.
+
+DB backed up (`backup_db.sh`) before each of the two writes above.
 
 # Project Status
 
