@@ -307,6 +307,18 @@ Constraints: UNIQUE (tenant_id, employee_id)
 
 ---
 
+## staff_class_assignments
+
+Purpose: teacher ↔ class/section assignments (subject-teacher and/or class-teacher).
+
+Fields: id, tenant_id, staff_id, academic_year_id, class_id, section_id, subject (nullable), is_class_teacher (default FALSE), created_at
+
+Constraints:
+* UNIQUE (tenant_id, academic_year_id, staff_id, class_id, section_id, subject) WHERE subject IS NOT NULL
+* (Removed migration 041) previously UNIQUE on (tenant_id, academic_year_id, class_id, section_id) WHERE is_class_teacher — **multiple class teachers per section are now allowed** (owner request). `sca_class_teacher_idx` (non-unique) replaces it for lookup performance.
+
+---
+
 ## attendance_sessions
 
 Fields: id, tenant_id, class_id, section_id, academic_year_id, date, period, opened_by, submitted_at, created_at
@@ -631,8 +643,8 @@ ledger rows recomputed from schedule base amounts. Audit-only.
 ## Staff
 
 ### POST /api/v1/staff — Implemented
-### GET /api/v1/staff — Implemented
-### GET /api/v1/staff/:id — Implemented
+### GET /api/v1/staff — Implemented (response includes `role`, LEFT JOINed from `users`; null if no login yet)
+### GET /api/v1/staff/:id — Implemented (same)
 ### PUT /api/v1/staff/:id — Implemented
 ### PUT /api/v1/staff/:id/role — Implemented (principal-only; assigns role, grants login on first assignment)
 ### PUT /api/v1/staff/:id/password — Implemented (principal-only; overrides a staff member's password directly, no current-password check)

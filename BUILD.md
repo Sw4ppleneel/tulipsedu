@@ -1,5 +1,53 @@
 # BUILD.md
 
+## ✅ DEPLOYED 2026-07-18 — Multiple class teachers per section + staff role visibility + parent-password rollout LIVE (migration 041)
+
+Owner requests, three bundled:
+
+**1. Multiple class teachers per section (migration 041).** The only blocker
+was `sca_one_class_teacher_idx`, a partial unique index enforcing exactly one
+`is_class_teacher=TRUE` row per (tenant, academic_year, class, section) —
+dropped, replaced with a plain filtered index (`sca_class_teacher_idx`) for
+lookup performance. No API/service logic assumed singularity elsewhere except
+one exception-message branch in `create_assignment` (removed) and the daily
+`audit_live_tenants.py` invariant `multi_class_teacher` (removed — multiple is
+now a valid, intended state). Live-verified: 2 class teachers assigned to the
+same section on a real tenant, rolled back, zero drift.
+
+**2. Staff role wasn't visible anywhere in the UI (root cause of "principal
+updating access did not immediately update on the page").** Not a
+caching/refresh bug — `GET /staff` never returned `role` at all
+(`StaffResponse` had no field for it, `list_staff`/`get_staff_member` never
+joined `users`). The Staff list had nowhere to show a role change even after a
+correct save, and the Manage Access modal's dropdown always defaulted to
+`'teacher'` regardless of the member's actual current role — so it looked
+broken but the underlying `PUT /staff/:id/role` call was working the whole
+time. Fixed: `StaffResponse.role` (LEFT JOIN staff→users), a role pill in the
+Staff list (desktop + mobile), and the modal now initializes to the member's
+current role.
+
+**3. Parent-portal password rollout (migration 039, deployed 2026-07-17) is
+now LIVE for all 4 tenants** — `feature_flags.parent_password = true` set for
+daffodilspublicschool, premchandmahtoic, premchandhighschool,
+vivekmemorialhighschool (existing flags on premchandmahtoic preserved via
+JSONB merge). Verified end-to-end on prod: `/public/school-info` returns
+`parent_password: true`; login without a password now correctly 401s
+`"Password required"`.
+**Known impact, not a bug — needs follow-up:** DPS has **43** students with
+placeholder parent-phone (`0000000000`) and PMIC has **3** — those families
+cannot log into the parent portal until a teacher fills in a real number via
+the teacher portal's **My Students** tool (built 2026-07-17). Premchand High
+School and Vivek Memorial show 0 placeholder phones each, but both are a flat,
+round 30 students — likely still seed/demo rosters rather than real imports
+(never confirmed this session); worth checking before treating their "clean"
+phone data as real. Also added: admins can now set a student's initial portal
+password directly in the "Add Student" form (previously only settable after
+creation, via edit-mode reset).
+
+DB backed up before the flag flip: `tulipsedu-2026-07-18-1737.sql.gz`. Full
+deploy (gate → migration 041 → rsync → build/health-check → smoke tests) all
+green.
+
 ## ✅ RESOLVED 2026-07-18 — SSH-to-prod outage (root cause: Hostinger VPS Firewall default-deny)
 
 Was blocked ~1 day (first noticed 2026-07-17 while trying to create Sudha
