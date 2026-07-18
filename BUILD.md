@@ -27,6 +27,15 @@ unaffected (HTTPS remote, not SSH).
   of Umesh Yadav's number — was given in error). Not yet checked
   against prod for a phone collision — do that before creating the
   login, same as every other import this session.
+- Revert Umesh Yadav's and Seema Toppo's passwords back to the
+  standard convention (`phone[:4]@FirstName`) — owner decided the
+  2026-07-16 random rotation (see below) is no longer needed now that
+  the leak is scrubbed from git history; repo is private and both will
+  change their password on first login anyway via the self-service
+  flow. Script ready: `backend/scripts/revert_password.py <tenant_slug>
+  <phone> <first_name>` — run for `premchandmahtoic` / `9334679531` /
+  `Umesh` and `premchandmahtoic` / `7903181033` / `Seema`. Back up the
+  DB first per the standard one-off-script pattern.
 
 # Project Status
 
