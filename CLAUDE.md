@@ -2,18 +2,43 @@
 
 This file provides strict, non-negotiable architectural guidance to Claude Code when editing, refactoring, or generating code within this repository.
 
-# ⚠️ Current Data State (2026-06-19)
+# ⚠️ Current Data State (updated 2026-07-20)
 
-**ALL DATA — including everything on PRODUCTION (`swap@62.72.13.103`) — is MOCK/seed data.**
-There are no real students, parents, staff, fees, or payments yet; the four live tenants
-(`daffodilspublicschool`, `premchandhighschool`, `premchandmahtoic`, `vivekmemorialhighschool`)
-are seeded demos for testing and demos. Consequences:
+Real onboarding has started. **Not all four live tenants are the same anymore** —
+check the slug before touching anything.
 
-* Destructive prod data operations (wiping/regenerating fees, deleting students, etc.) are
-  **low-risk right now** — but still confirm scope and keep operations tenant-scoped + reversible.
-* No real PII or real money is involved yet; the ₹1 "test" fees and seed logins are deliberate.
-* **Revisit this note before first real onboarding.** Once a real institution's data lands on
-  prod, this section must be removed and prod data treated as production-grade (no ad-hoc mutations).
+## 🔒 `daffodilspublicschool` (DPS) and `premchandmahtoic` (PMIC) — REAL DATA. DO NOT TOUCH.
+
+Both carry real students, real staff, real parents, and real fee amounts — DPS has 401
+real students with a real fee structure and ₹-denominated ledger; PMIC has a real
+imported teacher roster. As of 2026-07-18 the parent portal on both requires a real
+password (`feature_flags.parent_password`), and real families are actively logging in.
+
+**Rule: no ad-hoc data mutation, reset, wipe, regeneration, or test/seed script may run
+against these two tenants without the owner explicitly authorizing that specific
+operation in the moment.** This includes anything that was previously routine on mock
+data — `reset_and_import_*`, fee regeneration, bulk password rotation, deleting/recreating
+students, etc. Before running any one-off script or destructive operation anywhere in this
+repo, check which tenant(s) it targets; if it's DPS or PMIC, stop and confirm with the
+owner first, even if the operation looks the same as one that's been run safely before on
+mock data. Reversible, tenant-scoped, read-only, and additive operations (e.g. a single
+parent's phone-number correction the owner asked for) are fine — the rule is about
+*unprompted or destructive* operations, not all interaction with these tenants.
+
+## `premchandhighschool` and `vivekmemorialhighschool` — status unconfirmed
+
+Both show a flat, round 30-student roster with zero placeholder phone numbers — this
+looks like leftover seed/demo data rather than a real import, but it was never explicitly
+confirmed either way (as of 2026-07-18). **Do not assume either way — verify with the
+owner before doing anything destructive here too**, and update this section once
+confirmed (mock → keep as a safe testing ground; real → fold into the DO NOT TOUCH rule
+above).
+
+## Keep this section current
+
+Update it the moment another tenant's data state changes (new real onboarding, or a
+confirmation that a tenant is still mock). Don't let it go stale like the previous
+version of this note did — it said "all mock" for a month after DPS and PMIC went real.
 
 # Project Overview
 
