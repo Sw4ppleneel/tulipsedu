@@ -43,6 +43,11 @@ async def main() -> None:
         """,
         tenant_id, phone, pw_hash,
     )
+    await conn.execute("DELETE FROM user_roles WHERE tenant_id = $1 AND user_id = $2", tenant_id, user["id"])
+    await conn.execute(
+        "INSERT INTO user_roles (tenant_id, user_id, role) VALUES ($1, $2, 'superadmin')",
+        tenant_id, user["id"],
+    )
     print(f"Superadmin: {phone} → {user['id']}")
     print()
     print("Login (superadmin):")

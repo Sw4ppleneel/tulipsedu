@@ -33,7 +33,7 @@ router = APIRouter(prefix="/parent", tags=["Parent Portal"])
 
 def _require_parent(request: Request) -> uuid.UUID:
     """Returns the student_id the JWT is scoped to (admission-number session)."""
-    if getattr(request.state, "user_role", None) != "parent":
+    if "parent" not in getattr(request.state, "user_roles", frozenset()):
         raise HTTPException(status_code=403, detail="Parent access only")
     return uuid.UUID(request.state.user_id)
 

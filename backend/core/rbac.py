@@ -1,14 +1,19 @@
 """Role-based access control.
 
 Two layers:
-  1. require_roles(*roles)  — coarse gate. Is this role allowed on the route?
+  1. require_roles(*roles)  — coarse gate. Is any of this caller's roles
+                               allowed on the route?
   2. load_class_scope        — fine gate. Resolves a teaching user's assigned
                                (class_id, section_id) set into request.state so
                                handlers can reject out-of-scope writes.
 
-The JWT already carries `role` (signed in services/auth.py) and the tenant
-middleware sets request.state.user_role. Guards read from there. superadmin
-is implicitly permitted on every gate. Parents auth via a separate path and
+A staff member can hold more than one role at once (e.g. accountant +
+teacher). The JWT carries `roles` (a list, signed in services/auth.py) and
+the tenant middleware sets request.state.user_roles (a frozenset). Guards
+check set membership/intersection against the caller's full role set —
+never just whichever role happens to be "active" in the frontend UI, since
+that's a display-only concept the backend never sees. superadmin is
+implicitly permitted on every gate. Parents auth via a separate path and
 never reach these staff routes.
 """
 
@@ -22,7 +27,8 @@ UNRESTRICTED_ROLES = frozenset({"superadmin", "principal", "vice_principal", "ac
 
 
 def require_roles(*allowed: str):
-    """Return a dependency that 403s unless the caller's role is permitted.
+    """Return a dependency that 403s unless one of the caller's held roles
+    is permitted.
 
     superadmin is always allowed. Usage:
         APIRouter(..., dependencies=[Depends(require_roles("principal"))])
@@ -31,8 +37,8 @@ def require_roles(*allowed: str):
     allowed_set = frozenset(allowed) | {"superadmin"}
 
     def guard(request: Request) -> None:
-        role = getattr(request.state, "user_role", None)
-        if role not in allowed_set:
+        roles = getattr(request.state, "user_roles", frozenset())
+        if not (roles & allowed_set):
             raise HTTPException(
                 status_code=403, detail="Insufficient role for this operation"
             )
@@ -44,14 +50,16 @@ async def load_class_scope(request: Request) -> None:
     """Populate request.state.class_scope and request.state.staff_id.
 
     class_scope is:
-      - None            for unrestricted roles (admin tier) — no filtering.
+      - None            if the caller holds any unrestricted role (admin
+                        tier) — no filtering, even if they also hold a
+                        scoped role like teacher.
       - set of (class_id, section_id) tuples for teaching roles.
         An empty set means the user has no assignments and may touch nothing.
     """
-    role = getattr(request.state, "user_role", None)
+    roles = getattr(request.state, "user_roles", frozenset())
     request.state.staff_id = None
 
-    if role in UNRESTRICTED_ROLES:
+    if roles & UNRESTRICTED_ROLES:
         request.state.class_scope = None
         return
 

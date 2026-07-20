@@ -22,14 +22,15 @@ async def admission_stale(conn: asyncpg.Connection, event: "Event") -> None:
         """
         INSERT INTO notifications
             (tenant_id, recipient_type, recipient_id, type, title, body, ref)
-        SELECT $1, 'user', u.id, 'ADMISSION_STALE',
+        SELECT DISTINCT $1, 'user', u.id, 'ADMISSION_STALE',
                'Admission needs attention (' || $4 || ' days)',
                $5 || ' has been in "' || $3 || '" stage for ' || $4
                    || ' day(s) with no update. Please move it forward or mark it rejected.',
                $2
         FROM users u
+        JOIN user_roles ur ON ur.user_id = u.id AND ur.tenant_id = u.tenant_id
         WHERE u.tenant_id = $1
-          AND u.role IN ('principal', 'vice_principal')
+          AND ur.role IN ('principal', 'vice_principal')
         ON CONFLICT DO NOTHING
         """,
         event.tenant_id, admission_id, status, age_days, applicant_name,

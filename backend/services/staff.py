@@ -69,9 +69,13 @@ async def list_staff(
     total: int = await conn.fetchval(f"SELECT COUNT(*) FROM staff s {where}", *args)
     rows = await conn.fetch(
         f"""
-        SELECT s.*, u.role AS role
+        SELECT s.*, COALESCE(ur.roles, ARRAY[]::varchar[]) AS roles
         FROM staff s
-        LEFT JOIN users u ON u.id = s.user_id AND u.tenant_id = s.tenant_id
+        LEFT JOIN LATERAL (
+            SELECT array_agg(role ORDER BY role) AS roles
+            FROM user_roles
+            WHERE user_id = s.user_id AND tenant_id = s.tenant_id
+        ) ur ON true
         {where}
         ORDER BY s.first_name, s.last_name LIMIT $4 OFFSET $5
         """,
@@ -85,9 +89,13 @@ async def get_staff_member(
 ) -> Optional[StaffResponse]:
     row = await conn.fetchrow(
         """
-        SELECT s.*, u.role AS role
+        SELECT s.*, COALESCE(ur.roles, ARRAY[]::varchar[]) AS roles
         FROM staff s
-        LEFT JOIN users u ON u.id = s.user_id AND u.tenant_id = s.tenant_id
+        LEFT JOIN LATERAL (
+            SELECT array_agg(role ORDER BY role) AS roles
+            FROM user_roles
+            WHERE user_id = s.user_id AND tenant_id = s.tenant_id
+        ) ur ON true
         WHERE s.id = $1 AND s.tenant_id = $2
         """,
         staff_id, tenant_id,
@@ -130,18 +138,40 @@ async def deactivate_staff(
     return result == "UPDATE 1"
 
 
-async def set_staff_role(
-    conn: asyncpg.Connection, tenant_id: uuid.UUID, staff_id: uuid.UUID, role: str
+async def _replace_user_roles(
+    conn: asyncpg.Connection, tenant_id: uuid.UUID, user_id: uuid.UUID, roles: list[str]
+) -> None:
+    """Full-replace a user's held role set (delete then bulk-insert), used by
+    both set_staff_roles and import_staff so the two don't re-implement this
+    separately."""
+    await conn.execute(
+        "DELETE FROM user_roles WHERE tenant_id = $1 AND user_id = $2",
+        tenant_id, user_id,
+    )
+    await conn.executemany(
+        "INSERT INTO user_roles (tenant_id, user_id, role) VALUES ($1, $2, $3)",
+        [(tenant_id, user_id, role) for role in roles],
+    )
+
+
+async def set_staff_roles(
+    conn: asyncpg.Connection, tenant_id: uuid.UUID, staff_id: uuid.UUID, roles: list[str]
 ) -> Optional[StaffAccessResult]:
-    """Assign/change a staff member's role. Grants a login on first assignment
-    (username = phone number, password = first 4 digits of phone + "@" + first
-    name — same convention already used for bulk imports), otherwise just
-    updates the role on their existing login. Returns None if the staff
-    member doesn't exist (404 at the API layer); raises StaffError for
-    validation problems (invalid role, phone already claimed by someone
-    else's login)."""
-    if role not in VALID_ROLES:
-        raise StaffError(f"Invalid role '{role}'. Valid: {', '.join(sorted(VALID_ROLES))}")
+    """Assign/replace a staff member's held role set (a staff member may hold
+    more than one role at once, e.g. accountant + teacher). Grants a login on
+    first assignment (username = phone number, password = first 4 digits of
+    phone + "@" + first name — same convention already used for bulk
+    imports), otherwise replaces the roles on their existing login. Returns
+    None if the staff member doesn't exist (404 at the API layer); raises
+    StaffError for validation problems (invalid role, phone already claimed
+    by someone else's login)."""
+    invalid = [r for r in roles if r not in VALID_ROLES]
+    if invalid:
+        raise StaffError(
+            f"Invalid role(s) {invalid}. Valid: {', '.join(sorted(VALID_ROLES))}"
+        )
+    if not roles:
+        raise StaffError("At least one role is required")
 
     staff = await conn.fetchrow(
         "SELECT id, user_id, phone_number, first_name FROM staff WHERE id = $1 AND tenant_id = $2",
@@ -152,11 +182,14 @@ async def set_staff_role(
 
     login_created = False
     generated_password: Optional[str] = None
+    # users.role stays NOT NULL and is a frozen legacy snapshot (roles[0]) —
+    # no new code reads it; the real source of truth is user_roles.
+    primary_role = roles[0]
 
     if staff["user_id"] is not None:
         await conn.execute(
             "UPDATE users SET role = $1 WHERE id = $2 AND tenant_id = $3",
-            role, staff["user_id"], tenant_id,
+            primary_role, staff["user_id"], tenant_id,
         )
         user_id = staff["user_id"]
     else:
@@ -182,7 +215,7 @@ async def set_staff_role(
             ON CONFLICT (tenant_id, phone_number) DO UPDATE SET role = EXCLUDED.role
             RETURNING id
             """,
-            tenant_id, staff["phone_number"], pw_hash, role,
+            tenant_id, staff["phone_number"], pw_hash, primary_role,
         )
         user_id = user_row["id"]
         await conn.execute(
@@ -191,8 +224,14 @@ async def set_staff_role(
         )
         login_created = True
 
+    # Full replace applies uniformly to both branches above — this also
+    # closes a latent edge case where an orphaned users row (no staff row
+    # pointing at it, so the collision check above wouldn't have caught it)
+    # could otherwise retain a stale role set from whatever it used to be.
+    await _replace_user_roles(conn, tenant_id, user_id, roles)
+
     await emit(conn, "STAFF_ROLE_ASSIGNED", tenant_id, {
-        "staff_id": str(staff_id), "role": role, "login_created": login_created,
+        "staff_id": str(staff_id), "roles": roles, "login_created": login_created,
     })
 
     member = await get_staff_member(conn, tenant_id, staff_id)
@@ -445,6 +484,7 @@ async def import_staff(
                 user_id = user_row["id"]
                 if user_row["inserted"]:
                     users_created += 1
+                await _replace_user_roles(conn, tenant_id, user_id, [role])
 
             result = await conn.fetchrow(
                 """

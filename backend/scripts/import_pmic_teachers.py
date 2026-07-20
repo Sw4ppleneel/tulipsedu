@@ -206,6 +206,14 @@ async def main():
                     if user_row["inserted"]:
                         users_created += 1
                     user_id = user_row["id"]
+                    await conn.execute(
+                        "DELETE FROM user_roles WHERE tenant_id = $1 AND user_id = $2",
+                        tenant_id, user_id,
+                    )
+                    await conn.execute(
+                        "INSERT INTO user_roles (tenant_id, user_id, role) VALUES ($1, $2, $3)",
+                        tenant_id, user_id, rec["role"],
+                    )
 
                 result = await conn.fetchrow(
                     """

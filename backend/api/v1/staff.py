@@ -12,7 +12,7 @@ from models.staff import (
     StaffCreate,
     StaffPasswordReset,
     StaffResponse,
-    StaffRoleAssign,
+    StaffRolesAssign,
     StaffUpdate,
 )
 from services.staff import (
@@ -29,7 +29,7 @@ from services.staff import (
     list_assignments,
     list_staff,
     reset_staff_password,
-    set_staff_role,
+    set_staff_roles,
     update_staff,
 )
 
@@ -129,12 +129,12 @@ async def edit_staff(staff_id: UUID, data: StaffUpdate, request: Request):
     return member
 
 
-@router.put("/{staff_id}/role", response_model=StaffAccessResult, dependencies=[_principal_only])
-async def assign_role(staff_id: UUID, data: StaffRoleAssign, request: Request):
+@router.put("/{staff_id}/roles", response_model=StaffAccessResult, dependencies=[_principal_only])
+async def assign_roles(staff_id: UUID, data: StaffRolesAssign, request: Request):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
         try:
-            result = await set_staff_role(conn, request.state.tenant_id, staff_id, data.role)
+            result = await set_staff_roles(conn, request.state.tenant_id, staff_id, data.roles)
         except StaffError as e:
             raise HTTPException(status_code=409, detail=str(e))
     if not result:

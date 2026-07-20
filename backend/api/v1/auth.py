@@ -42,11 +42,24 @@ async def auth_refresh(req: RefreshRequest, request: Request):
     if str(tenant_id) != str(claims.get("tenant_id")):
         raise HTTPException(status_code=403, detail="Tenant mismatch")
 
+    # Re-query current roles rather than trusting the refresh token's own
+    # (possibly stale) claims — a role change made after the original login
+    # takes effect on the next refresh instead of only on next full login.
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        roles_rows = await conn.fetch(
+            "SELECT role FROM user_roles WHERE tenant_id = $1 AND user_id = $2",
+            tenant_id, UUID(claims["sub"]),
+        )
+    roles = [r["role"] for r in roles_rows]
+    if not roles:
+        raise HTTPException(status_code=401, detail="Account has no assigned role")
+
     token_data = {
         "sub": claims["sub"],
         "tenant_id": claims["tenant_id"],
         "tenant_slug": claims.get("tenant_slug", ""),
-        "role": claims["role"],
+        "roles": roles,
     }
 
     return TokenResponse(

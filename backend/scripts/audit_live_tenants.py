@@ -85,6 +85,13 @@ CHECKS: list[tuple[str, str, str]] = [
      r"""SELECT count(*) FROM staff
         WHERE tenant_id=$1 AND is_active AND phone_number !~ '^[6-9][0-9]{9}$'"""),
 
+    ("staff_user_missing_roles",
+     "every active staff row's linked login has at least one user_roles entry",
+     """SELECT count(*) FROM staff s
+        JOIN users u ON u.id = s.user_id AND u.tenant_id = s.tenant_id
+        WHERE s.tenant_id=$1 AND s.is_active
+          AND NOT EXISTS (SELECT 1 FROM user_roles ur WHERE ur.user_id = u.id)"""),
+
     ("multiple_current_years",
      "at most one is_current academic year per tenant",
      "SELECT GREATEST(count(*)-1, 0) FROM academic_years WHERE tenant_id=$1 AND is_current"),

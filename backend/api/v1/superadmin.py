@@ -7,8 +7,8 @@ router = APIRouter(prefix="/superadmin", tags=["superadmin"])
 
 
 def _require_superadmin(request: Request) -> None:
-    role = getattr(request.state, "user_role", None)
-    if role != "superadmin":
+    roles = getattr(request.state, "user_roles", frozenset())
+    if "superadmin" not in roles:
         raise HTTPException(status_code=403, detail="Superadmin access required")
 
 

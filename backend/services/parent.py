@@ -99,7 +99,7 @@ async def login_by_admission_no(
         "sub": str(student["id"]),
         "tenant_id": str(tenant_id),
         "tenant_slug": tenant_slug,
-        "role": "parent",
+        "roles": ["parent"],
     }
     await emit(conn, "PARENT_LOGIN", tenant_id, {"student_id": str(student["id"])})
 
@@ -252,7 +252,7 @@ async def verify_otp(
         "sub": str(parent_id),
         "tenant_id": str(tenant_id),
         "tenant_slug": tenant_slug,
-        "role": "parent",
+        "roles": ["parent"],
     }
     return {
         "access_token": create_access_token(token_data),

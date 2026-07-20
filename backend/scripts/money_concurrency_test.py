@@ -36,9 +36,13 @@ async def main():
     acc_uid = await conn.fetchval(
         "INSERT INTO users (tenant_id, phone_number, password_hash, role) VALUES ($1,$2,$3,'accountant') RETURNING id",
         tid, "9100000001", hash_password(PW))
-    await conn.fetchval(
+    await conn.execute(
+        "INSERT INTO user_roles (tenant_id, user_id, role) VALUES ($1,$2,'accountant')", tid, acc_uid)
+    prin_uid = await conn.fetchval(
         "INSERT INTO users (tenant_id, phone_number, password_hash, role) VALUES ($1,$2,$3,'principal') RETURNING id",
         tid, "9100000002", hash_password(PW))
+    await conn.execute(
+        "INSERT INTO user_roles (tenant_id, user_id, role) VALUES ($1,$2,'principal')", tid, prin_uid)
 
     H = {"X-Tenant-Slug": SLUG}
     try:

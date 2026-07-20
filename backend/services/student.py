@@ -437,7 +437,8 @@ async def reset_portal_password(
 ) -> bool:
     """Staff override of a student's parent-portal password (no current-password
     check — that's the point of a staff reset). Class-teacher scope is enforced
-    at the API layer."""
+    at the API layer. `by_role` is an audit-log label only (not an authz
+    decision) — the caller may hold multiple roles, comma-joined."""
     from services.parent import MIN_PORTAL_PASSWORD_LEN
 
     new_password = (new_password or "").strip()

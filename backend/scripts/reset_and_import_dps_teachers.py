@@ -172,6 +172,10 @@ async def main():
                     tenant_id, rec["phone"], pw_hash, rec["role"],
                 )
                 user_id = user_row["id"]
+                await conn.execute(
+                    "INSERT INTO user_roles (tenant_id, user_id, role) VALUES ($1, $2, $3)",
+                    tenant_id, user_id, rec["role"],
+                )
             await conn.execute(
                 """
                 INSERT INTO staff

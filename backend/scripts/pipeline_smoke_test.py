@@ -67,6 +67,10 @@ async def setup_db() -> dict:
             "INSERT INTO users (tenant_id, phone_number, password_hash, role) VALUES ($1,$2,$3,$4) RETURNING id",
             tid, phone, hash_password(PW), role,
         )
+        await conn.execute(
+            "INSERT INTO user_roles (tenant_id, user_id, role) VALUES ($1, $2, $3)",
+            tid, uid, role,
+        )
         users[role] = {"id": uid, "phone": phone}
     await conn.close()
     return {"tenant_id": tid, "users": users}

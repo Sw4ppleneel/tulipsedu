@@ -56,6 +56,10 @@ async def _provision(slug: str) -> dict:
                 "VALUES ($1,$2,$3,$4) RETURNING id",
                 tid, phone, hash_password(PW), role,
             )
+            await conn.execute(
+                "INSERT INTO user_roles (tenant_id, user_id, role) VALUES ($1,$2,$3)",
+                tid, uid, role,
+            )
             users[role] = {"id": str(uid), "phone": phone}
         ay = await conn.fetchval(
             "INSERT INTO academic_years (tenant_id, name, start_date, end_date, is_current) "

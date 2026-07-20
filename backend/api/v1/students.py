@@ -117,7 +117,8 @@ async def reset_student_portal_password(
         try:
             updated = await reset_portal_password(
                 conn, request.state.tenant_id, student_id,
-                data.new_password, request.state.user_role,
+                data.new_password,
+                ", ".join(sorted(getattr(request.state, "user_roles", frozenset()))),
             )
         except StudentError as e:
             raise HTTPException(status_code=422, detail=str(e))

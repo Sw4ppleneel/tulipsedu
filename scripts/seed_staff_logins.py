@@ -70,6 +70,11 @@ async def main() -> None:
                 """,
                 s["tenant_id"], s["phone_number"], pw, role,
             )
+            await conn.execute("DELETE FROM user_roles WHERE tenant_id = $1 AND user_id = $2", s["tenant_id"], uid)
+            await conn.execute(
+                "INSERT INTO user_roles (tenant_id, user_id, role) VALUES ($1, $2, $3)",
+                s["tenant_id"], uid, role,
+            )
             await conn.execute("UPDATE staff SET user_id = $1 WHERE id = $2", uid, s["id"])
             created += 1
             print(f"  {s['slug']:24} {s['phone_number']}  {s['designation']:20} -> {role}")

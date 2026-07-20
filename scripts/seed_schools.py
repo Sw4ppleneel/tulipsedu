@@ -179,13 +179,19 @@ async def seed_school(conn: asyncpg.Connection, school: dict) -> None:
 
     # 2. Admin user
     h = pw_hash(school["admin_password"])
-    await conn.execute(
+    admin_uid = await conn.fetchval(
         """
         INSERT INTO users (tenant_id, phone_number, password_hash, role)
         VALUES ($1,$2,$3,'principal')
         ON CONFLICT (tenant_id, phone_number) DO UPDATE SET password_hash = EXCLUDED.password_hash
+        RETURNING id
         """,
         tid, school["admin_phone"], h,
+    )
+    await conn.execute("DELETE FROM user_roles WHERE tenant_id = $1 AND user_id = $2", tid, admin_uid)
+    await conn.execute(
+        "INSERT INTO user_roles (tenant_id, user_id, role) VALUES ($1, $2, 'principal')",
+        tid, admin_uid,
     )
     print(f"  admin   {school['admin_phone']} / {school['admin_password']}")
 

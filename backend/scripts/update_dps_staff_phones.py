@@ -70,6 +70,10 @@ async def main():
                     "UPDATE staff SET user_id = $1 WHERE id = $2 AND tenant_id = $3",
                     user_row["id"], staff["id"], tenant_id,
                 )
+                await conn.execute(
+                    "INSERT INTO user_roles (tenant_id, user_id, role) VALUES ($1, $2, $3)",
+                    tenant_id, user_row["id"], role,
+                )
                 login_str = f"login created (pw={pw})"
 
             print(f"  {emp_no}  {first} {last}: phone={phone}  {login_str}")

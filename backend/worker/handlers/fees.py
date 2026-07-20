@@ -49,8 +49,9 @@ async def receipt_push(conn: asyncpg.Connection, event: "Event") -> None:
                    || ' (' || st.admission_no || ').',
                $5
         FROM users u
+        JOIN user_roles ur ON ur.user_id = u.id AND ur.tenant_id = u.tenant_id
         JOIN students st ON st.id = $2 AND st.tenant_id = $1
-        WHERE u.tenant_id = $1 AND u.role = 'accountant'
+        WHERE u.tenant_id = $1 AND ur.role = 'accountant'
         ON CONFLICT DO NOTHING
         """,
         event.tenant_id, student_id, amount, receipt_no, payment_id,
@@ -69,7 +70,8 @@ async def payment_claimed(conn: asyncpg.Connection, event: "Event") -> None:
                'A parent reported a UPI payment of ₹' || $2 || '. Check the bank and approve or reject.',
                $3
         FROM users u
-        WHERE u.tenant_id = $1 AND u.role = 'accountant'
+        JOIN user_roles ur ON ur.user_id = u.id AND ur.tenant_id = u.tenant_id
+        WHERE u.tenant_id = $1 AND ur.role = 'accountant'
         ON CONFLICT DO NOTHING
         """,
         event.tenant_id, amount, event.payload["payment_id"],
@@ -118,7 +120,8 @@ async def claim_escalated(conn: asyncpg.Connection, event: "Event") -> None:
                    || $3 || ' day(s) without action. Please approve or reject it now.',
                $4
         FROM users u
-        WHERE u.tenant_id = $1 AND u.role = 'accountant'
+        JOIN user_roles ur ON ur.user_id = u.id AND ur.tenant_id = u.tenant_id
+        WHERE u.tenant_id = $1 AND ur.role = 'accountant'
         ON CONFLICT DO NOTHING
         """,
         event.tenant_id, amount, age_days, ref,
@@ -129,13 +132,14 @@ async def claim_escalated(conn: asyncpg.Connection, event: "Event") -> None:
             """
             INSERT INTO notifications
                 (tenant_id, recipient_type, recipient_id, type, title, body, ref)
-            SELECT $1, 'user', u.id, 'FEE_VERIFY',
+            SELECT DISTINCT $1, 'user', u.id, 'FEE_VERIFY',
                    'ESCALATED: Unverified payment (' || $3 || ' days)',
                    'A parent UPI payment claim of ₹' || $2 || ' has been pending for '
                        || $3 || ' days with no accountant action. Please follow up.',
                    $4
             FROM users u
-            WHERE u.tenant_id = $1 AND u.role IN ('principal', 'vice_principal')
+            JOIN user_roles ur ON ur.user_id = u.id AND ur.tenant_id = u.tenant_id
+            WHERE u.tenant_id = $1 AND ur.role IN ('principal', 'vice_principal')
             ON CONFLICT DO NOTHING
             """,
             event.tenant_id, amount, age_days, f"principal:{ref}",

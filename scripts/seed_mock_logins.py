@@ -105,6 +105,11 @@ async def seed_logins(conn: asyncpg.Connection, school: dict) -> dict | None:
         """,
         tid, TEACHER_PHONE, pw_hash(TEACHER_PASSWORD),
     )
+    await conn.execute("DELETE FROM user_roles WHERE tenant_id = $1 AND user_id = $2", tid, t_user_id)
+    await conn.execute(
+        "INSERT INTO user_roles (tenant_id, user_id, role) VALUES ($1, $2, 'class_teacher')",
+        tid, t_user_id,
+    )
 
     t_staff_id = await conn.fetchval(
         """
@@ -152,6 +157,11 @@ async def seed_logins(conn: asyncpg.Connection, school: dict) -> dict | None:
         RETURNING id
         """,
         tid, ACCOUNTANT_PHONE, pw_hash(ACCOUNTANT_PASSWORD),
+    )
+    await conn.execute("DELETE FROM user_roles WHERE tenant_id = $1 AND user_id = $2", tid, a_user_id)
+    await conn.execute(
+        "INSERT INTO user_roles (tenant_id, user_id, role) VALUES ($1, $2, 'accountant')",
+        tid, a_user_id,
     )
 
     await conn.execute(

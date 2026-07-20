@@ -11,8 +11,8 @@ EXPORT_ROLES = frozenset({"principal", "vice_principal", "accountant", "superadm
 
 
 def require_export_role(request: Request) -> None:
-    role = getattr(request.state, "user_role", None)
-    if role not in EXPORT_ROLES:
+    roles = getattr(request.state, "user_roles", frozenset())
+    if not (roles & EXPORT_ROLES):
         raise HTTPException(
             status_code=403,
             detail="CSV export not permitted for this role",

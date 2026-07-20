@@ -96,7 +96,15 @@ class TenantMiddleware(BaseHTTPMiddleware):
                 return JSONResponse(status_code=403, content={"detail": "Tenant mismatch"})
 
             request.state.user_id = claims["sub"]
-            request.state.user_role = claims["role"]
+            # "roles" (plural) is the current claim shape. Fall back to the
+            # singular "role" so access tokens minted before the multi-role
+            # rollout keep working until they expire naturally — no forced
+            # logout on deploy.
+            raw_roles = claims.get("roles")
+            if raw_roles is None:
+                legacy_role = claims.get("role")
+                raw_roles = [legacy_role] if legacy_role else []
+            request.state.user_roles = frozenset(raw_roles)
 
         return await call_next(request)
 

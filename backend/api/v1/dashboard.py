@@ -13,7 +13,7 @@ router = APIRouter(
 async def stats(request: Request):
     pool = request.app.state.pool
     tid = request.state.tenant_id
-    role = getattr(request.state, "user_role", "")
+    roles = getattr(request.state, "user_roles", frozenset())
     async with pool.acquire() as conn:
         students = await conn.fetchval(
             "SELECT COUNT(*) FROM students WHERE tenant_id=$1 AND is_active=TRUE", tid
@@ -149,7 +149,7 @@ async def stats(request: Request):
         payment_claims_pending = int(claims_row["pending"] or 0)
         oldest_claim_age_days = int(claims_row["oldest_days"] or 0)
 
-    is_principal = role in ("principal", "vice_principal")
+    is_principal = bool(roles & {"principal", "vice_principal"})
 
     return {
         "school_name":      tenantrow["name"] if tenantrow else "",

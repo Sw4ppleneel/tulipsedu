@@ -55,11 +55,19 @@ class StaffResponse(BaseModel):
     date_of_birth: Optional[date]
     is_active: bool
     created_at: datetime
-    role: Optional[str] = None
+    roles: list[str] = []
 
 
-class StaffRoleAssign(BaseModel):
-    role: str
+class StaffRolesAssign(BaseModel):
+    roles: list[str]
+
+    @field_validator("roles")
+    @classmethod
+    def non_empty_and_deduped(cls, v: list[str]) -> list[str]:
+        if not v:
+            raise ValueError("At least one role is required")
+        deduped = sorted(set(v))
+        return deduped
 
 
 class StaffPasswordReset(BaseModel):

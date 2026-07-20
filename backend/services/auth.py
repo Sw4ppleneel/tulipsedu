@@ -16,10 +16,13 @@ async def login(
 ) -> TokenResponse:
     row = await conn.fetchrow(
         """
-        SELECT u.id, u.password_hash, u.role, u.is_active, s.first_name
+        SELECT u.id, u.password_hash, u.is_active, s.first_name,
+               COALESCE(array_agg(ur.role) FILTER (WHERE ur.role IS NOT NULL), '{}') AS roles
         FROM users u
         LEFT JOIN staff s ON s.user_id = u.id AND s.tenant_id = u.tenant_id
+        LEFT JOIN user_roles ur ON ur.user_id = u.id AND ur.tenant_id = u.tenant_id
         WHERE u.tenant_id = $1 AND u.phone_number = $2
+        GROUP BY u.id, u.password_hash, u.is_active, s.first_name
         """,
         tenant_id,
         req.phone_number,
@@ -31,11 +34,14 @@ async def login(
     if not row["is_active"]:
         raise AuthError("Account is inactive")
 
+    if not row["roles"]:
+        raise AuthError("Account has no assigned role")
+
     token_data = {
         "sub": str(row["id"]),
         "tenant_id": str(tenant_id),
         "tenant_slug": tenant_slug,
-        "role": row["role"],
+        "roles": list(row["roles"]),
         "first_name": row["first_name"] or "",
     }
 

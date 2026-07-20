@@ -71,6 +71,14 @@ async def main():
             "UPDATE staff SET user_id = $1, phone_number = $2 WHERE id = $3",
             user_row["id"], phone, staff["id"],
         )
+        await conn.execute(
+            "DELETE FROM user_roles WHERE tenant_id = $1 AND user_id = $2",
+            tenant_id, user_row["id"],
+        )
+        await conn.execute(
+            "INSERT INTO user_roles (tenant_id, user_id, role) VALUES ($1, $2, $3)",
+            tenant_id, user_row["id"], role,
+        )
 
     await conn.close()
     print(f"  OK  {staff['first_name']} {staff['last_name']} ({employee_no})  login={phone}  tenant={tenant_slug}  password set to standard convention (phone[:4]@FirstName)")
