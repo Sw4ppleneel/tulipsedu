@@ -1,22 +1,14 @@
 import { useEffect, useState } from 'preact/hooks'
 import { VirtualList } from '../components/VirtualList'
 import { useIsMobile } from '../hooks/useIsMobile'
-import { listStaff, assignStaffRole, resetStaffPassword } from '../api/staff'
+import { listStaff, assignStaffRoles, resetStaffPassword } from '../api/staff'
 import { StaffForm } from './StaffForm'
 import { ExcelImport } from '../ui'
 import type { Staff, StaffRole } from '../types/staff'
-import { STAFF_ROLES } from '../types/staff'
-
-const ROLE_LABELS: Record<StaffRole, string> = {
-  principal: 'Principal',
-  vice_principal: 'Vice Principal',
-  class_teacher: 'Class Teacher',
-  teacher: 'Teacher',
-  accountant: 'Accountant',
-}
+import { ROLE_LABELS, STAFF_ROLES } from '../types/staff'
 
 function AccessModal({ member, onClose, onDone }: { member: Staff; onClose: () => void; onDone: () => void }) {
-  const [role, setRole] = useState<StaffRole>((member.role as StaffRole) ?? 'teacher')
+  const [roles, setRoles] = useState<StaffRole[]>((member.roles as StaffRole[]) ?? [])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState<{ password: string } | null>(null)
@@ -26,17 +18,22 @@ function AccessModal({ member, onClose, onDone }: { member: Staff; onClose: () =
   const [pwError, setPwError] = useState('')
   const [pwDone, setPwDone] = useState(false)
 
+  function toggleRole(r: StaffRole) {
+    setRoles(prev => prev.includes(r) ? prev.filter(x => x !== r) : [...prev, r])
+  }
+
   async function save() {
+    if (roles.length === 0) { setError('Select at least one role'); return }
     setSaving(true); setError('')
     try {
-      const res = await assignStaffRole(member.id, role)
+      const res = await assignStaffRoles(member.id, roles)
       if (res.login_created && res.generated_password) {
         setResult({ password: res.generated_password })
       } else {
         onDone()
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to assign role')
+      setError(e instanceof Error ? e.message : 'Failed to assign roles')
     } finally {
       setSaving(false)
     }
@@ -82,14 +79,21 @@ function AccessModal({ member, onClose, onDone }: { member: Staff; onClose: () =
         ) : (
           <>
             {error && <p style={{ color: '#c00', fontSize: '0.8rem', marginBottom: '0.75rem' }}>{error}</p>}
-            <label style={{ display: 'block', fontSize: '0.8rem', color: '#555', marginBottom: '0.25rem' }}>Role</label>
-            <select
-              value={role}
-              onChange={(e) => setRole((e.target as HTMLSelectElement).value as StaffRole)}
-              style={{ width: '100%', padding: '0.5rem', border: '1px solid #ccc', borderRadius: 4, fontSize: '0.875rem', marginBottom: '1rem' }}
-            >
-              {STAFF_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
-            </select>
+            <label style={{ display: 'block', fontSize: '0.8rem', color: '#555', marginBottom: '0.4rem' }}>
+              Roles <span style={{ color: '#9ca3af', fontWeight: 400 }}>(a staff member may hold more than one)</span>
+            </label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginBottom: '1rem' }}>
+              {STAFF_ROLES.map((r) => (
+                <label key={r} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={roles.includes(r)}
+                    onChange={() => toggleRole(r)}
+                  />
+                  {ROLE_LABELS[r]}
+                </label>
+              ))}
+            </div>
             {!member.user_id && (
               <p style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '1rem' }}>
                 No login yet — one will be created (username = phone number, password auto-generated).
@@ -98,7 +102,7 @@ function AccessModal({ member, onClose, onDone }: { member: Staff; onClose: () =
             <div style={{ display: 'flex', gap: '0.75rem' }}>
               <button
                 onClick={save}
-                disabled={saving}
+                disabled={saving || roles.length === 0}
                 style={{ padding: '0.5rem 1rem', background: '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem' }}
               >
                 {saving ? 'Saving…' : 'Save'}
@@ -159,7 +163,15 @@ function LoginPill() {
 function RolePill({ role }: { role: string }) {
   return (
     <span style={{ padding: '2px 7px', background: '#EDF3EE', color: '#14463A', borderRadius: 9999, fontSize: '0.7rem', fontWeight: 600, whiteSpace: 'nowrap' }}>
-      {ROLE_LABELS[role as StaffRole] ?? role}
+      {ROLE_LABELS[role] ?? role}
+    </span>
+  )
+}
+
+function RolePills({ roles }: { roles: string[] }) {
+  return (
+    <span style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
+      {roles.map(r => <RolePill key={r} role={r} />)}
     </span>
   )
 }
@@ -198,8 +210,8 @@ function StaffRow({ member, mobile, canManageAccess, onManageAccess }: {
             {member.first_name} {member.last_name}
           </span>
           {member.user_id && (
-            <span style={{ marginLeft: 'auto', flexShrink: 0, display: 'flex', gap: '0.3rem' }}>
-              {member.role && <RolePill role={member.role} />}
+            <span style={{ marginLeft: 'auto', flexShrink: 0, display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
+              <RolePills roles={member.roles} />
               <LoginPill />
             </span>
           )}
@@ -229,8 +241,8 @@ function StaffRow({ member, mobile, canManageAccess, onManageAccess }: {
       <span style={{ width: 150, color: '#374151', flexShrink: 0 }}>{member.designation}</span>
       <span style={{ width: 130, color: '#6b7280', flexShrink: 0 }}>{member.department ?? '—'}</span>
       <span style={{ width: 110, color: '#6b7280', flexShrink: 0 }}>{member.phone_number}</span>
-      <span style={{ width: 130, flexShrink: 0, display: 'flex', gap: '0.3rem' }}>
-        {member.role && <RolePill role={member.role} />}
+      <span style={{ width: 130, flexShrink: 0, display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
+        <RolePills roles={member.roles} />
         {member.user_id && <LoginPill />}
       </span>
       <span style={{ width: 116, textAlign: 'right', flexShrink: 0 }}>

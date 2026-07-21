@@ -19,10 +19,13 @@ function getSubdomain(): string {
 // Resolves the role to its dedicated portal (section set + big-button home) on
 // the shared PortalShell. Module gating (GET /me/features) is applied while
 // building the principal config; the backend remains the real authorization gate.
-function StaffPortal({ role, schoolName, firstName, onLogout }: { role: string; schoolName: string; firstName: string; onLogout: () => void }) {
+function StaffPortal({ role, allRoles, onSwitchRole, schoolName, firstName, onLogout }: {
+  role: string; allRoles: string[]; onSwitchRole: (role: string) => void
+  schoolName: string; firstName: string; onLogout: () => void
+}) {
   const [features, setFeatures] = useState<FeatureFlags | null>(null)
   useEffect(() => { featuresApi.get().then(f => { setFeatures(f); setSectionLabel(f.section_label ?? 'Section') }).catch(() => {}) }, [])
-  const config = buildPortalConfig({ role, schoolName, firstName, features, onLogout })
+  const config = buildPortalConfig({ role, allRoles, onSwitchRole, schoolName, firstName, features, onLogout })
   return <PortalShell config={config} />
 }
 
@@ -142,10 +145,11 @@ export function App() {
   const [loading, setLoading] = useState(false)
   const [mode, setMode] = useState<AppMode>(() => {
     const saved = restoreAuthState()
-    if (saved) return saved.role === 'parent' ? 'parent-app' : 'staff-app'
+    if (saved) return saved.roles.includes('parent') ? 'parent-app' : 'staff-app'
     return initialMode()
   })
-  const [userRole, setUserRole] = useState(() => restoreAuthState()?.role ?? '')
+  const [activeRole, setActiveRole] = useState(() => restoreAuthState()?.activeRole ?? '')
+  const [allRoles, setAllRoles] = useState<string[]>(() => restoreAuthState()?.roles ?? [])
   const [firstName, setFirstName] = useState(() => restoreAuthState()?.firstName ?? '')
 
   function goStaffLogin() {
@@ -189,16 +193,18 @@ export function App() {
         m.login({ phone_number: phone, password }, tenantSlug)
       )
       const claims = decodeJWT(tokens.access_token)
-      const role = claims.role as string
+      const roles = claims.roles as string[]
       const fn = (claims.first_name as string) || ''
       setAuthState({
         accessToken: tokens.access_token,
         tenantSlug: (claims.tenant_slug as string) || tenantSlug,
         userId: claims.sub as string,
-        role,
+        roles,
+        activeRole: roles[0],
         firstName: fn,
       })
-      setUserRole(role)
+      setAllRoles(roles)
+      setActiveRole(roles[0])
       setFirstName(fn)
       setMode('staff-app')
     } catch (err) {
@@ -212,24 +218,32 @@ export function App() {
       accessToken: tokens.access_token,
       tenantSlug: (claims.tenant_slug as string) || slug,
       userId: claims.sub as string,
-      role: 'parent',
+      roles: ['parent'],
+      activeRole: 'parent',
     })
-    setUserRole('parent')
+    setActiveRole('parent')
+    setAllRoles(['parent'])
     setMode('parent-app')
   }
 
   function handleLogout() {
-    clearAuthState(); setPassword(''); setUserRole('')
+    clearAuthState(); setPassword(''); setActiveRole(''); setAllRoles([])
     history.pushState(null, '', '/app'); setMode('login')
   }
   function handleParentLogout() {
-    clearAuthState(); setUserRole('')
+    clearAuthState(); setActiveRole(''); setAllRoles([])
     history.pushState(null, '', '/'); setMode('public')
+  }
+
+  function handleSwitchRole(role: string) {
+    setActiveRole(role)
+    const saved = restoreAuthState()
+    if (saved) setAuthState({ ...saved, activeRole: role })
   }
 
   if (mode === 'public') return <PublicSite onStaffLogin={goStaffLogin} onParentLogin={goParentLogin} />
   if (mode === 'staff-app')
-    return <StaffPortal role={userRole} schoolName={schoolName} firstName={firstName} onLogout={handleLogout} />
+    return <StaffPortal role={activeRole} allRoles={allRoles} onSwitchRole={handleSwitchRole} schoolName={schoolName} firstName={firstName} onLogout={handleLogout} />
 
   if (mode === 'parent-app') return <ParentPortalView onLogout={handleParentLogout} />
   if (mode === 'parent-login') return <ParentLogin onSuccess={handleParentSuccess} onBack={goPublic} />

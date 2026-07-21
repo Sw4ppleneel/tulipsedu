@@ -39,13 +39,17 @@ interface BuildArgs {
   features: FeatureFlags | null
   onLogout: () => void
   logoUrl?: string | null
+  /** All roles this login holds (for the role-switcher); role above is
+   * whichever one is currently active/displayed. */
+  allRoles?: string[]
+  onSwitchRole?: (role: string) => void
 }
 
 export function buildPortalConfig(args: BuildArgs): PortalConfig {
-  const { role, schoolName, firstName, features, onLogout, logoUrl } = args
+  const { role, schoolName, firstName, features, onLogout, logoUrl, allRoles, onSwitchRole } = args
 
   const base = (name: string, sections: PortalSection[], showBell = true): PortalConfig =>
-    ({ name, schoolName, staffName: firstName, sections, showBell, logoUrl, onLogout })
+    ({ name, schoolName, staffName: firstName, sections, showBell, logoUrl, onLogout, allRoles, activeRole: role, onSwitchRole })
 
   const ic = (n: Parameters<typeof Icon>[0]['name']) => <Icon name={n} size={24} />
 

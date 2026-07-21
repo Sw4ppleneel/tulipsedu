@@ -12,7 +12,9 @@ export interface Staff {
   date_of_birth: string | null
   is_active: boolean
   created_at: string
-  role: string | null
+  // A staff member can hold more than one role at once (e.g. accountant +
+  // teacher). Empty until a login is granted.
+  roles: string[]
 }
 
 export interface StaffListResponse {
@@ -35,6 +37,15 @@ export interface StaffCreate {
 export type StaffRole = 'principal' | 'vice_principal' | 'class_teacher' | 'teacher' | 'accountant'
 
 export const STAFF_ROLES: StaffRole[] = ['principal', 'vice_principal', 'class_teacher', 'teacher', 'accountant']
+
+export const ROLE_LABELS: Record<string, string> = {
+  superadmin: 'Superadmin',
+  principal: 'Principal',
+  vice_principal: 'Vice Principal',
+  class_teacher: 'Class Teacher',
+  teacher: 'Teacher',
+  accountant: 'Accountant',
+}
 
 export interface StaffAccessResult {
   staff: Staff

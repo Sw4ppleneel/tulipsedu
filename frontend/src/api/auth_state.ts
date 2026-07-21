@@ -2,7 +2,11 @@ export interface AuthState {
   accessToken: string
   tenantSlug: string
   userId: string
-  role: string
+  // All roles this login holds (usually one; can be more, e.g. accountant +
+  // teacher). activeRole is which one's portal is currently displayed — a
+  // pure UI concern, never sent to the backend as a scoping parameter.
+  roles: string[]
+  activeRole: string
   firstName?: string
 }
 
@@ -26,8 +30,11 @@ function isTokenExpired(token: string): boolean {
 }
 
 export function setAuthState(s: AuthState) {
-  _state = s
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)) } catch {}
+  // activeRole must always be a held role; fall back to the first if the
+  // caller didn't pick one (e.g. first login) or picked one no longer held.
+  const activeRole = s.roles.includes(s.activeRole) ? s.activeRole : s.roles[0]
+  _state = { ...s, activeRole }
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(_state)) } catch {}
 }
 
 export function getAuthState(): AuthState | null { return _state }

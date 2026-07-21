@@ -4,6 +4,7 @@ import { Brand, PasswordInput, SectionTile } from '../ui'
 import { changePassword } from '../api/client'
 import { usePwaInstall } from '../hooks/usePwaInstall'
 import { NotificationsBell } from '../views/NotificationsBell'
+import { ROLE_LABELS } from '../types/staff'
 
 // Self-service password change, available to every staff role from the
 // shared header — not a per-portal section, so it lives here once.
@@ -81,6 +82,12 @@ export interface PortalConfig {
   /** Optional tenant logo asset path (no placeholder/generated logo otherwise). */
   logoUrl?: string | null
   onLogout: () => void
+  /** All roles this login holds, and a way to switch which one's portal is
+   * displayed. Purely client-side UI state — never sent to the backend as
+   * a scoping parameter. Only rendered when there's more than one role. */
+  allRoles?: string[]
+  activeRole?: string
+  onSwitchRole?: (role: string) => void
 }
 
 /**
@@ -106,6 +113,18 @@ export function PortalShell({ config }: { config: PortalConfig }) {
           <Brand sub={config.name} logoUrl={config.logoUrl} color="#fff" onClick={() => setActive(null)} />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', flexShrink: 0 }}>
+          {config.allRoles && config.allRoles.length > 1 && config.onSwitchRole && (
+            <select
+              value={config.activeRole}
+              onChange={e => config.onSwitchRole!((e.target as HTMLSelectElement).value)}
+              title="Switch role"
+              style={{ background: 'rgba(255,255,255,.14)', color: '#fff', border: '1px solid rgba(255,255,255,.25)', borderRadius: 'var(--r)', padding: '.35rem .6rem', cursor: 'pointer', fontSize: '.75rem', fontFamily: 'inherit', fontWeight: 600 }}
+            >
+              {config.allRoles.map(r => (
+                <option key={r} value={r} style={{ color: '#000' }}>{ROLE_LABELS[r] ?? r}</option>
+              ))}
+            </select>
+          )}
           {config.showBell && <NotificationsBell />}
           {isInstallable && (
             <button

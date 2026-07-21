@@ -26,8 +26,8 @@ export async function deactivateStaff(id: string): Promise<void> {
   await request(`/staff/${id}`, { method: 'DELETE' })
 }
 
-export function assignStaffRole(id: string, role: StaffRole): Promise<StaffAccessResult> {
-  return request<StaffAccessResult>(`/staff/${id}/role`, { method: 'PUT', body: JSON.stringify({ role }) })
+export function assignStaffRoles(id: string, roles: StaffRole[]): Promise<StaffAccessResult> {
+  return request<StaffAccessResult>(`/staff/${id}/roles`, { method: 'PUT', body: JSON.stringify({ roles }) })
 }
 
 export function resetStaffPassword(id: string, newPassword: string): Promise<{ detail: string }> {
