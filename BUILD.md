@@ -55,8 +55,15 @@ legacy singular `role` claim if `roles` is absent, so tokens issued before
 this deploy keep working until they expire naturally (60 min access-token
 window), same as any other deploy.
 
-**Not yet run**: `scripts/predeploy_gate.sh` / frontend typecheck / actual
-deploy — next step before this can ship.
+**Verified 2026-07-22**: frontend `npm run typecheck` clean. Full
+`scripts/predeploy_gate.sh` run against a disposable stack built from
+current source — migration 042 applied cleanly, all 11 non-live tests green
+(4 pre-existing regression tests + all 7 new `test_multi_role.py` tests:
+multi-role assignment reflected, full-replace not additive, JWT carries the
+whole role set, combo accountant+teacher gets unrestricted scope, refresh
+reflects a role change), 1 expected xfail, 13 live-only checks correctly
+deselected (including the new `staff_user_missing_roles` invariant). Gate
+passed — safe to deploy whenever ready.
 
 ## ✅ DEPLOYED 2026-07-18 — Multiple class teachers per section + staff role visibility + parent-password rollout LIVE (migration 041)
 
