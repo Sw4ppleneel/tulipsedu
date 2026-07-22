@@ -1,5 +1,63 @@
 # BUILD.md
 
+## 🔧 BUILT 2026-07-21 — Multi-role staff support (migration 042, not yet deployed)
+
+Owner requirement: one staff member holding more than one role at once (e.g.
+accountant + teacher) — previously `users.role` was a single column, so
+assigning a second role silently overwrote the first.
+
+**Schema**: new `user_roles` join table (tenant_id, user_id, role), unique on
+(tenant_id, user_id, role), backfilled from every existing `users.role` in the
+same migration. `users.role` stays (NOT NULL satisfied) but is now a frozen
+legacy snapshot — no new code reads it — kept rather than dropped so the
+migration stays cheaply reversible (`down: DROP TABLE user_roles`).
+
+**Backend**: JWT claim changed from singular `role` to `roles: list[str]`;
+`request.state.user_role` → `request.state.user_roles` (frozenset) throughout
+middleware/rbac/auth/csv-export/superadmin/parent/dashboard/students. `core/
+rbac.py`'s `require_roles`/`load_class_scope` now do set-intersection instead
+of equality — a user holding **any** unrestricted role (accountant, principal,
+etc.) gets full class scope even if they also hold a scoped role like teacher
+with zero actual assignments. `PUT /staff/:id/role` → `PUT /staff/:id/roles`
+(`{roles: string[]}`, full-replace semantics, same as the old single-role
+overwrite). `/auth/refresh` now re-queries current roles instead of trusting
+the (possibly stale) refresh token's own claims — a pre-existing staleness bug
+fixed as a side effect of touching this code (frontend doesn't actually call
+refresh today, so this wasn't user-visible either way). Worker notification
+fanout (`fees.py`, `admissions.py`) now joins `user_roles` with `DISTINCT` so
+a user matching two roles in an `IN (...)` list doesn't get double-inserted
+(already backstopped by the existing dedup index, but avoids the redundant
+attempt). All 11 ops/seed scripts that write `users.role` directly (import
+scripts, seed scripts, smoke tests) updated to also write the matching
+`user_roles` row — the test fixture (`backend/tests/conftest.py`) included,
+since without it every `require_roles`-gated test in the L1 predeploy-gate
+suite would have silently 403'd.
+
+**Frontend**: role switcher, not a merged portal — a multi-role user picks
+one "active role" at a time (new dropdown in the portal header, only shown
+when `roles.length > 1`); switching is a pure client-side state change (no
+backend call, full role set already came down in the JWT) and re-renders the
+selected role's existing, unchanged portal. This kept the diff small —
+`Attendance.tsx`/`Dashboard.tsx`/`Exam.tsx`/`configs.tsx`'s per-role branching
+logic didn't need to change at all, only `auth_state.ts`/`app.tsx` (roles
+array + activeRole) and the new switcher itself. Staff role-assignment UI
+(`Staff.tsx`) changed from a single `<select>` to a checkbox group.
+
+**Tests**: new `backend/tests/test_multi_role.py` — assignment reflects
+multiple roles, full-replace (not additive), JWT carries the whole set, the
+combo-unrestricted-scope behavior, and the refresh staleness fix. New daily
+integrity check `staff_user_missing_roles` in `audit_live_tenants.py` (and
+therefore `test_invariants_live.py`) catches any future login created without
+a matching `user_roles` row.
+
+**Deploy-risk note**: no forced logout — the middleware falls back to the
+legacy singular `role` claim if `roles` is absent, so tokens issued before
+this deploy keep working until they expire naturally (60 min access-token
+window), same as any other deploy.
+
+**Not yet run**: `scripts/predeploy_gate.sh` / frontend typecheck / actual
+deploy — next step before this can ship.
+
 ## ✅ DEPLOYED 2026-07-18 — Multiple class teachers per section + staff role visibility + parent-password rollout LIVE (migration 041)
 
 Owner requests, three bundled:

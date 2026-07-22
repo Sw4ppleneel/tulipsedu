@@ -154,20 +154,39 @@ Fully exempt paths (no DB lookup):
 
 # Role-Based Access Control (RBAC)
 
-Roles are signed into the JWT at login (`services/auth.py`) and exposed by the
-tenant middleware as `request.state.user_role`. The middleware enforces tenant
-isolation; per-route role enforcement lives in `backend/core/rbac.py`.
+A staff member can hold **more than one role at once** (e.g. accountant +
+teacher — migration `042_user_roles.sql`). Roles are signed into the JWT at
+login (`services/auth.py`) as `roles: list[str]`, and exposed by the tenant
+middleware as `request.state.user_roles` (a `frozenset`). The middleware
+enforces tenant isolation; per-route role enforcement lives in
+`backend/core/rbac.py`. Guards check set membership/intersection against the
+caller's **full** held role set — authorization is always evaluated over
+every role a user holds, never just whichever one happens to be "active" in
+the frontend UI (that's a display-only concept — see Frontend below — the
+backend never receives it as a scoping parameter).
 
 Two guard primitives:
-- `require_roles(*allowed)` — coarse gate dependency. 403s unless the caller's
-  role is permitted. `superadmin` is implicitly allowed everywhere. Applied at
-  router level (`APIRouter(..., dependencies=[...])`) or per-route for finer
-  read/write splits.
+- `require_roles(*allowed)` — coarse gate dependency. 403s unless any of the
+  caller's held roles is permitted. `superadmin` is implicitly allowed
+  everywhere. Applied at router level (`APIRouter(..., dependencies=[...])`)
+  or per-route for finer read/write splits.
 - `load_class_scope` + `assert_in_scope(request, class_id, section_id)` — fine
   gate. For teaching roles, resolves user → staff → `staff_class_assignments`
   and records the allowed `(class_id, section_id)` set on `request.state`.
-  Admin-tier roles (superadmin/principal/vice_principal) are unrestricted.
-  Handlers call `assert_in_scope` to reject writes outside a teacher's classes.
+  If the caller holds **any** unrestricted role (superadmin/principal/
+  vice_principal/accountant), scope is unrestricted — even if they also hold
+  a scoped role like teacher with no actual class assignments. Handlers call
+  `assert_in_scope` to reject writes outside a teacher's classes.
+
+A multi-role user's effective access is the **union** of all held roles'
+permissions — holding an additional scoped role never narrows what an
+unrestricted role already grants.
+
+**Frontend (display only)**: the portal UI shows one role's app at a time
+("active role"), with a switcher in the header when a login holds more than
+one. Switching is a pure client-side state change (no backend call) — see
+`frontend/src/portals/configs.tsx` (`buildPortalConfig`) and
+`frontend/src/portals/PortalShell.tsx`.
 
 Role → module access (the boundary; the frontend mirrors this for display only):
 
@@ -231,10 +250,12 @@ Fields:
 * tenant_id (FK → tenants.id CASCADE)
 * phone_number (VARCHAR 15)
 * password_hash (VARCHAR 255)
-* role (VARCHAR 50) — constrained by `users_role_check` (migration 018) to one of:
-  'superadmin', 'principal', 'vice_principal', 'class_teacher', 'teacher', 'accountant'.
-  Legacy 'admin' rows were migrated to 'principal' in 018. Parents are NOT users
-  rows (separate adm_no auth path), so 'parent' is intentionally excluded here.
+* role (VARCHAR 50) — **DEPRECATED/frozen since migration 042.** Was the sole
+  role column (constrained by `users_role_check`, migration 018); now just a
+  legacy snapshot (set to the first of a user's roles on any write) that no
+  code reads. `user_roles` (below) is the source of truth for what a user can
+  actually do. Kept NOT NULL rather than dropped for a cheap, reversible
+  migration — may be dropped in a future cleanup once this has baked in.
 * is_active (BOOLEAN)
 * created_at
 
@@ -244,7 +265,38 @@ Indexes:
 * (tenant_id, role)
 
 CHECK:
-* users_role_check (migration 018) — locks the role vocabulary above.
+* users_role_check (migration 018) — locks the (legacy) role vocabulary:
+  'superadmin', 'principal', 'vice_principal', 'class_teacher', 'teacher',
+  'accountant'. Legacy 'admin' rows were migrated to 'principal' in 018.
+  Parents are NOT users rows (separate adm_no auth path), so 'parent' is
+  intentionally excluded here.
+
+---
+
+## user_roles
+
+Purpose: The actual role set a user holds — a user can hold more than one
+role at once (e.g. accountant + teacher). Source of truth for authorization;
+`users.role` above is a frozen legacy snapshot only.
+
+Fields:
+* id (UUID PK)
+* tenant_id (FK → tenants.id CASCADE) — denormalized from `users.tenant_id`
+  so every query stays tenant-scoped without an extra join, matching the
+  `staff_class_assignments` convention.
+* user_id (FK → users.id CASCADE)
+* role (VARCHAR 50) — constrained by `user_roles_role_check` to the same
+  6-value vocabulary as the legacy `users_role_check`.
+* created_at
+
+Indexes:
+* UNIQUE (tenant_id, user_id, role)
+* (tenant_id, role) — serves worker notification-fanout queries (e.g. "every
+  accountant in this tenant")
+* (user_id)
+
+Role assignment is always a **full replace** (`PUT /api/v1/staff/:id/roles`
+deletes and re-inserts the caller's whole role set), never additive.
 
 ---
 
@@ -528,13 +580,14 @@ Producer: services/auth.py
 Payload: tenant_id, user_id
 
 ## STAFF_ROLE_ASSIGNED
-Producer: services/staff.py (set_staff_role)
-Payload: tenant_id, staff_id, role, login_created
-Principal-only. Assigns/changes a staff member's role (principal,
-vice_principal, class_teacher, teacher, accountant). If the staff member has
-no login yet, one is created (username = phone number, password = first 4
-digits of phone + "@" + first name, same convention as the bulk staff
-importer) and login_created=true.
+Producer: services/staff.py (set_staff_roles)
+Payload: tenant_id, staff_id, roles (list), login_created
+Principal-only. Assigns/replaces a staff member's role SET — a staff member
+may hold more than one role at once (principal, vice_principal, class_teacher,
+teacher, accountant). Always a full replace, never additive. If the staff
+member has no login yet, one is created (username = phone number, password =
+first 4 digits of phone + "@" + first name, same convention as the bulk staff
+importer) and login_created=true. No registered consumer (audit-log only).
 
 ## PASSWORD_CHANGED
 Producer: services/auth.py (change_own_password), services/staff.py (reset_staff_password)
@@ -643,10 +696,10 @@ ledger rows recomputed from schedule base amounts. Audit-only.
 ## Staff
 
 ### POST /api/v1/staff — Implemented
-### GET /api/v1/staff — Implemented (response includes `role`, LEFT JOINed from `users`; null if no login yet)
+### GET /api/v1/staff — Implemented (response includes `roles` (array), aggregated from `user_roles`; empty if no login yet)
 ### GET /api/v1/staff/:id — Implemented (same)
 ### PUT /api/v1/staff/:id — Implemented
-### PUT /api/v1/staff/:id/role — Implemented (principal-only; assigns role, grants login on first assignment)
+### PUT /api/v1/staff/:id/roles — Implemented (principal-only; full-replaces the role set, grants login on first assignment — a staff member may hold more than one role at once)
 ### PUT /api/v1/staff/:id/password — Implemented (principal-only; overrides a staff member's password directly, no current-password check)
 ### PUT /api/v1/auth/password — Implemented (any authenticated staff role; self-service change, requires current password)
 ### DELETE /api/v1/staff/:id — Implemented (soft-delete)
