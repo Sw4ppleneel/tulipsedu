@@ -56,8 +56,14 @@ async def get_students(
     offset: int = Query(0, ge=0),
 ):
     scope = getattr(request.state, "class_scope", None)
-    if scope is not None:
-        # Teacher/class_teacher: must specify class+section and must be in their scope.
+    roles = getattr(request.state, "user_roles", frozenset())
+    # accountant always sees the full roster (fee collection isn't
+    # class-scoped) — checked directly here, independent of class_scope,
+    # since a combo accountant+teacher's class_scope now correctly reflects
+    # their real (possibly empty) teaching assignments, not a blanket
+    # unrestriction. Teacher/class_teacher without accountant must specify
+    # class+section and be in their assigned scope.
+    if scope is not None and "accountant" not in roles:
         if not class_id or not section_id:
             raise HTTPException(status_code=400, detail="class_id and section_id are required")
         assert_in_scope(request, class_id, section_id)

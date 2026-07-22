@@ -3,8 +3,10 @@
 A staff member can now hold more than one role at once (e.g. accountant +
 teacher). These tests pin the core behaviors: role assignment is a full
 replace, the JWT carries the whole role set, and load_class_scope grants
-unrestricted access if ANY held role is unrestricted — even if the same
-user also holds a scoped role with no actual class assignments.
+fully unrestricted class scope ONLY to true admin tier
+(superadmin/principal/vice_principal) — accountant's tenant-wide reach is
+for its own purpose (fee-collection roster lookup) and must not blanket-
+unrestrict a combo user's teaching-scoped actions.
 """
 import uuid
 from datetime import date
@@ -89,11 +91,14 @@ def test_login_jwt_carries_full_role_set(clients, tenant):
     assert set(claims["roles"]) == {"accountant", "teacher"}
 
 
-def test_combo_accountant_teacher_gets_unrestricted_class_scope(clients, tenant):
-    """accountant is in UNRESTRICTED_ROLES; a combo user must get full scope
-    even though they also hold the scoped `teacher` role with zero actual
-    class assignments — proving "any unrestricted role wins", not "most
-    restrictive role wins"."""
+def test_combo_accountant_teacher_is_class_scoped_not_unrestricted(clients, tenant):
+    """accountant must NOT blanket-unrestrict a combo user's TEACHING-scoped
+    actions. An accountant+teacher with zero actual class assignments must be
+    scoped exactly like a bare teacher would be (i.e. rejected here) — only
+    true admin tier (superadmin/principal/vice_principal) gets unrestricted
+    class scope. (Previously this combo got unrestricted access — the same
+    breadth as a principal — which was a real overshoot, since accountant's
+    tenant-wide reach is meant for fee collection, not teaching actions.)"""
     staff_id = _new_staff(clients, tenant, phone_suffix="00006")
     p = clients["principal"]
     phone = "7000000006"
@@ -112,16 +117,23 @@ def test_combo_accountant_teacher_gets_unrestricted_class_scope(clients, tenant)
         timeout=30,
     )
     try:
-        # This user has NO staff_class_assignments row at all — if scope were
-        # resolved from the (empty) teacher assignment set instead of the
-        # unrestricted accountant role, this would 403.
+        # This user has NO staff_class_assignments row at all, so their real
+        # teaching scope is empty — must be rejected, not blanket-allowed.
         resp = combo.post("/attendance/sessions", json={
             "academic_year_id": tenant["ay"], "class_id": tenant["cls"],
             "section_id": tenant["sec"], "date": str(date.today()),
         })
-        assert resp.status_code == 200, (
-            f"combo accountant+teacher must get unrestricted scope, got "
-            f"{resp.status_code}: {resp.text[:200]}"
+        assert resp.status_code == 403, (
+            f"combo accountant+teacher with no class assignments must be scoped "
+            f"like a bare teacher (403), got {resp.status_code}: {resp.text[:200]}"
+        )
+        # But the roster (fee-collection lookup) must still be fully visible —
+        # accountant's tenant-wide reach is legitimate there, independent of
+        # class_scope.
+        roster = combo.get("/students", params={"limit": 5})
+        assert roster.status_code == 200, (
+            f"accountant (even combined with teacher) must see the full roster "
+            f"for fee collection, got {roster.status_code}: {roster.text[:200]}"
         )
     finally:
         combo.close()

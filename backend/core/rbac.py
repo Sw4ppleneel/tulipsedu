@@ -21,9 +21,16 @@ import uuid
 
 from fastapi import HTTPException, Request
 
-# Roles that operate school-wide with no class restriction.
-# accountant included: fee collection is tenant-wide, not scoped to one class.
-UNRESTRICTED_ROLES = frozenset({"superadmin", "principal", "vice_principal", "accountant"})
+# True admin tier — fully unrestricted class scope, no matter what else they
+# hold. Deliberately does NOT include accountant: accountant needs tenant-
+# wide reach for its own purpose (the fee-collection roster lookup, handled
+# explicitly in api/v1/students.py) but must not blanket-unrestrict a combo
+# user's TEACHING-scoped actions just because they also hold accountant — a
+# real bug this used to cause: an accountant+teacher with zero actual class
+# assignments got tenant-wide attendance/homework access, the same breadth as
+# a principal, instead of being scoped to whatever classes they're actually
+# assigned to like any other teacher.
+ADMIN_TIER_ROLES = frozenset({"superadmin", "principal", "vice_principal"})
 
 
 def require_roles(*allowed: str):
@@ -50,16 +57,19 @@ async def load_class_scope(request: Request) -> None:
     """Populate request.state.class_scope and request.state.staff_id.
 
     class_scope is:
-      - None            if the caller holds any unrestricted role (admin
-                        tier) — no filtering, even if they also hold a
-                        scoped role like teacher.
-      - set of (class_id, section_id) tuples for teaching roles.
-        An empty set means the user has no assignments and may touch nothing.
+      - None            if the caller holds any true admin-tier role
+                        (superadmin/principal/vice_principal) — no
+                        filtering, even if they also hold a scoped role
+                        like teacher.
+      - set of (class_id, section_id) tuples otherwise — resolved from
+        actual staff_class_assignments rows, regardless of whether the
+        caller also holds accountant. An empty set means the user has no
+        assignments and may touch nothing via this scope.
     """
     roles = getattr(request.state, "user_roles", frozenset())
     request.state.staff_id = None
 
-    if roles & UNRESTRICTED_ROLES:
+    if roles & ADMIN_TIER_ROLES:
         request.state.class_scope = None
         return
 
