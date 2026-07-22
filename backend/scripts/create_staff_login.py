@@ -1,15 +1,22 @@
 """
 Create a login for an existing staff row that doesn't have one yet
 (e.g. because their real phone number arrived after the initial
-import, or a collision blocked login creation at import time).
+import, a collision blocked login creation at import time, or their
+designation never mapped to an assignable role at all — e.g. "Office
+Incharge").
 
 Sets staff.phone_number to the corrected number, creates the users
 row with the standard convention password (phone[:4] + "@" +
 FirstName, Title Case), and links staff.user_id. Refuses if the phone
 is already in use by a *different* staff member in the tenant.
 
-Usage: python scripts/create_staff_login.py <tenant_slug> <employee_no> <phone> <role>
-(all four are identifiers, not secrets — fine as CLI args. The
+Roles: comma-separated, supports holding more than one at once (e.g.
+"teacher,accountant" — migration 042). users.role is set to the first
+role given (frozen legacy snapshot, per services/staff.py); the real
+source of truth is user_roles.
+
+Usage: python scripts/create_staff_login.py <tenant_slug> <employee_no> <phone> <role1,role2,...>
+(all args are identifiers, not secrets — fine as CLI args. The
 resulting password follows the documented standard convention and is
 deliberately never printed — only a confirmation is.)
 """
@@ -21,12 +28,20 @@ import sys
 import asyncpg
 import bcrypt
 
+VALID_ROLES = {"principal", "vice_principal", "class_teacher", "teacher", "accountant"}
+
 
 async def main():
     if len(sys.argv) != 5:
-        print("Usage: python scripts/create_staff_login.py <tenant_slug> <employee_no> <phone> <role>")
+        print("Usage: python scripts/create_staff_login.py <tenant_slug> <employee_no> <phone> <role1,role2,...>")
         return
-    tenant_slug, employee_no, phone, role = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+    tenant_slug, employee_no, phone, roles_arg = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+    roles = [r.strip() for r in roles_arg.split(",") if r.strip()]
+    invalid = [r for r in roles if r not in VALID_ROLES]
+    if invalid or not roles:
+        print(f"ERROR: invalid role(s) {invalid or roles}. Valid: {', '.join(sorted(VALID_ROLES))}")
+        return
+    role = roles[0]  # frozen legacy snapshot for users.role
 
     database_url = os.environ["DATABASE_URL"]
     conn = await asyncpg.connect(database_url)
@@ -75,13 +90,13 @@ async def main():
             "DELETE FROM user_roles WHERE tenant_id = $1 AND user_id = $2",
             tenant_id, user_row["id"],
         )
-        await conn.execute(
+        await conn.executemany(
             "INSERT INTO user_roles (tenant_id, user_id, role) VALUES ($1, $2, $3)",
-            tenant_id, user_row["id"], role,
+            [(tenant_id, user_row["id"], r) for r in roles],
         )
 
     await conn.close()
-    print(f"  OK  {staff['first_name']} {staff['last_name']} ({employee_no})  login={phone}  tenant={tenant_slug}  password set to standard convention (phone[:4]@FirstName)")
+    print(f"  OK  {staff['first_name']} {staff['last_name']} ({employee_no})  login={phone}  roles={roles}  tenant={tenant_slug}  password set to standard convention (phone[:4]@FirstName)")
 
 
 if __name__ == "__main__":
