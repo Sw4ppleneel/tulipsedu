@@ -157,6 +157,7 @@ async def mark_attendance(
     req: MarkRequest,
     *,
     can_override: bool = False,
+    marked_by: Optional[uuid.UUID] = None,
 ) -> int:
     session = await conn.fetchrow(
         "SELECT id, submitted, date FROM attendance_sessions WHERE id = $1 AND tenant_id = $2",
@@ -200,6 +201,7 @@ async def mark_attendance(
         await emit(conn, event, tenant_id, {
             "session_id": str(session_id),
             "count": len(req.marks),
+            "marked_by": str(marked_by) if marked_by else None,
         })
     return len(req.marks)
 
@@ -210,6 +212,7 @@ async def submit_session(
     session_id: uuid.UUID,
     *,
     can_override: bool = False,
+    submitted_by: Optional[uuid.UUID] = None,
 ) -> Optional[AttendanceSession]:
     row = await conn.fetchrow(
         f"{_SESSION_JOIN} WHERE sess.id = $1 AND sess.tenant_id = $2",
@@ -231,6 +234,7 @@ async def submit_session(
         )
         await emit(conn, "ATTENDANCE_SESSION_SUBMITTED", tenant_id, {
             "session_id": str(session_id),
+            "submitted_by": str(submitted_by) if submitted_by else None,
         })
     updated = _with_lock(dict(row))
     updated["submitted"] = True

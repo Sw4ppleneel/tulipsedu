@@ -32,7 +32,8 @@ def _to_response(r: asyncpg.Record) -> HomeworkResponse:
 
 
 async def create_post(
-    conn: asyncpg.Connection, tenant_id: uuid.UUID, data: HomeworkCreate
+    conn: asyncpg.Connection, tenant_id: uuid.UUID, data: HomeworkCreate,
+    posted_by: Optional[uuid.UUID] = None,
 ) -> HomeworkResponse:
     row = await conn.fetchrow(
         """
@@ -53,6 +54,7 @@ async def create_post(
         "class_id": str(data.class_id),
         "section_id": str(data.section_id),
         "post_type": data.post_type,
+        "posted_by": str(posted_by) if posted_by else None,
     })
     return _to_response(full)
 
@@ -88,6 +90,7 @@ async def update_post(
     tenant_id: uuid.UUID,
     post_id: uuid.UUID,
     data: HomeworkUpdate,
+    updated_by: Optional[uuid.UUID] = None,
 ) -> Optional[HomeworkResponse]:
     fields = data.model_dump(exclude_none=True)
     if "attachment_urls" in fields:
@@ -103,15 +106,27 @@ async def update_post(
     )
     if not row:
         return None
+    await emit(conn, "HOMEWORK_UPDATED", tenant_id, {
+        "post_id": str(post_id),
+        "fields": list(fields.keys()),
+        "updated_by": str(updated_by) if updated_by else None,
+    })
     full = await conn.fetchrow(f"{_JOIN} WHERE hp.id = $1", post_id)
     return _to_response(full)
 
 
 async def delete_post(
-    conn: asyncpg.Connection, tenant_id: uuid.UUID, post_id: uuid.UUID
+    conn: asyncpg.Connection, tenant_id: uuid.UUID, post_id: uuid.UUID,
+    deleted_by: Optional[uuid.UUID] = None,
 ) -> bool:
     result = await conn.execute(
         "UPDATE homework_posts SET is_active = FALSE WHERE id = $1 AND tenant_id = $2 AND is_active = TRUE",
         post_id, tenant_id,
     )
-    return result == "UPDATE 1"
+    if result != "UPDATE 1":
+        return False
+    await emit(conn, "HOMEWORK_DELETED", tenant_id, {
+        "post_id": str(post_id),
+        "deleted_by": str(deleted_by) if deleted_by else None,
+    })
+    return True

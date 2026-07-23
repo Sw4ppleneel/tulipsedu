@@ -297,7 +297,8 @@ async def _assert_refs(
 
 
 async def create_student(
-    conn: asyncpg.Connection, tenant_id: uuid.UUID, data: StudentCreate
+    conn: asyncpg.Connection, tenant_id: uuid.UUID, data: StudentCreate,
+    created_by: Optional[uuid.UUID] = None,
 ) -> StudentResponse:
     await _assert_refs(conn, tenant_id, data.academic_year_id, data.class_id, data.section_id)
     try:

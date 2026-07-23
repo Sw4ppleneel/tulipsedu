@@ -146,7 +146,8 @@ async def list_terms(
 
 
 async def publish_term(
-    conn: asyncpg.Connection, tenant_id: uuid.UUID, term_id: uuid.UUID, publish: bool
+    conn: asyncpg.Connection, tenant_id: uuid.UUID, term_id: uuid.UUID, publish: bool,
+    changed_by: Optional[uuid.UUID] = None,
 ) -> Optional[ExamTermResponse]:
     async with conn.transaction():
         prev = await conn.fetchval(
@@ -165,6 +166,7 @@ async def publish_term(
             await emit(conn, "EXAM_PUBLISHED", tenant_id, {
                 "term_id": str(term_id),
                 "academic_year_id": str(row["academic_year_id"]),
+                "changed_by": str(changed_by) if changed_by else None,
             })
     return ExamTermResponse(**dict(row)) if row else None
 
@@ -191,6 +193,7 @@ async def transition_term_status(
     tenant_id: uuid.UUID,
     term_id: uuid.UUID,
     new_status: str,
+    changed_by: Optional[uuid.UUID] = None,
 ) -> ExamTermResponse:
     valid_statuses = {"draft", "marks_open", "locked", "published"}
     if new_status not in valid_statuses:
@@ -228,6 +231,7 @@ async def transition_term_status(
                 "academic_year_id": str(row["academic_year_id"]),
                 "from_status": current,
                 "to_status": new_status,
+                "changed_by": str(changed_by) if changed_by else None,
             })
 
     return ExamTermResponse(**dict(updated))
@@ -335,6 +339,7 @@ async def save_marks(
     await emit(conn, "MARKS_ENTERED", tenant_id, {
         "exam_term_id": str(req.exam_term_id),
         "count": len(req.entries),
+        "entered_by": str(user_id),
     })
     return {"saved": len(req.entries)}
 
@@ -367,7 +372,8 @@ async def get_marks_for_term_subject(
 # ── Exam Components ────────────────────────────────────────────────────────────
 
 async def configure_components(
-    conn: asyncpg.Connection, tenant_id: uuid.UUID, req: ConfigureComponentsRequest
+    conn: asyncpg.Connection, tenant_id: uuid.UUID, req: ConfigureComponentsRequest,
+    configured_by: Optional[uuid.UUID] = None,
 ) -> list[ExamComponentResponse]:
     """Define the components for a (term, subject). Each component carries a
     weightage; the subject total is computed as a weighted percentage out of 100:
@@ -412,6 +418,12 @@ async def configure_components(
             """,
             tenant_id, req.exam_term_id, req.exam_subject_id,
         )
+        await emit(conn, "EXAM_COMPONENTS_CONFIGURED", tenant_id, {
+            "exam_term_id": str(req.exam_term_id),
+            "exam_subject_id": str(req.exam_subject_id),
+            "component_count": len(req.components),
+            "configured_by": str(configured_by) if configured_by else None,
+        })
 
     return await list_components(conn, tenant_id, req.exam_term_id, req.exam_subject_id)
 
@@ -513,6 +525,7 @@ async def save_component_marks(
         "exam_term_id": str(req.exam_term_id),
         "exam_subject_id": str(req.exam_subject_id),
         "count": len(req.entries),
+        "entered_by": str(user_id),
     })
     return {"saved": len(req.entries)}
 

@@ -25,7 +25,8 @@ class StaffError(Exception):
 
 
 async def create_staff(
-    conn: asyncpg.Connection, tenant_id: uuid.UUID, data: StaffCreate
+    conn: asyncpg.Connection, tenant_id: uuid.UUID, data: StaffCreate,
+    created_by: Optional[uuid.UUID] = None,
 ) -> StaffResponse:
     try:
         row = await conn.fetchrow(
@@ -47,6 +48,7 @@ async def create_staff(
     await emit(conn, "STAFF_CREATED", tenant_id, {
         "staff_id": str(row["id"]),
         "employee_no": data.employee_no,
+        "created_by": str(created_by) if created_by else None,
     })
     return StaffResponse(**dict(row))
 
@@ -108,6 +110,7 @@ async def update_staff(
     tenant_id: uuid.UUID,
     staff_id: uuid.UUID,
     data: StaffUpdate,
+    updated_by: Optional[uuid.UUID] = None,
 ) -> Optional[StaffResponse]:
     fields = data.model_dump(exclude_none=True)
     if not fields:
@@ -124,18 +127,26 @@ async def update_staff(
     await emit(conn, "STAFF_UPDATED", tenant_id, {
         "staff_id": str(staff_id),
         "fields": list(fields.keys()),
+        "updated_by": str(updated_by) if updated_by else None,
     })
     return StaffResponse(**dict(row))
 
 
 async def deactivate_staff(
-    conn: asyncpg.Connection, tenant_id: uuid.UUID, staff_id: uuid.UUID
+    conn: asyncpg.Connection, tenant_id: uuid.UUID, staff_id: uuid.UUID,
+    deactivated_by: Optional[uuid.UUID] = None,
 ) -> bool:
     result = await conn.execute(
         "UPDATE staff SET is_active = FALSE WHERE id = $1 AND tenant_id = $2 AND is_active = TRUE",
         staff_id, tenant_id,
     )
-    return result == "UPDATE 1"
+    if result != "UPDATE 1":
+        return False
+    await emit(conn, "STAFF_DEACTIVATED", tenant_id, {
+        "staff_id": str(staff_id),
+        "deactivated_by": str(deactivated_by) if deactivated_by else None,
+    })
+    return True
 
 
 async def _replace_user_roles(
@@ -155,7 +166,8 @@ async def _replace_user_roles(
 
 
 async def set_staff_roles(
-    conn: asyncpg.Connection, tenant_id: uuid.UUID, staff_id: uuid.UUID, roles: list[str]
+    conn: asyncpg.Connection, tenant_id: uuid.UUID, staff_id: uuid.UUID, roles: list[str],
+    assigned_by: Optional[uuid.UUID] = None,
 ) -> Optional[StaffAccessResult]:
     """Assign/replace a staff member's held role set (a staff member may hold
     more than one role at once, e.g. accountant + teacher). Grants a login on
@@ -232,6 +244,7 @@ async def set_staff_roles(
 
     await emit(conn, "STAFF_ROLE_ASSIGNED", tenant_id, {
         "staff_id": str(staff_id), "roles": roles, "login_created": login_created,
+        "assigned_by": str(assigned_by) if assigned_by else None,
     })
 
     member = await get_staff_member(conn, tenant_id, staff_id)
@@ -245,7 +258,8 @@ class StaffPasswordResetOutcome:
 
 
 async def reset_staff_password(
-    conn: asyncpg.Connection, tenant_id: uuid.UUID, staff_id: uuid.UUID, new_password: str
+    conn: asyncpg.Connection, tenant_id: uuid.UUID, staff_id: uuid.UUID, new_password: str,
+    reset_by: Optional[uuid.UUID] = None,
 ) -> str:
     """Principal-console override: set a staff member's password directly, no
     current-password check (that's the point of an admin override). Returns
@@ -263,7 +277,10 @@ async def reset_staff_password(
         "UPDATE users SET password_hash = $1 WHERE id = $2 AND tenant_id = $3",
         hash_password(new_password), staff["user_id"], tenant_id,
     )
-    await emit(conn, "PASSWORD_CHANGED", tenant_id, {"staff_id": str(staff_id), "by": "principal"})
+    await emit(conn, "PASSWORD_CHANGED", tenant_id, {
+        "staff_id": str(staff_id), "by": "principal",
+        "reset_by": str(reset_by) if reset_by else None,
+    })
     return StaffPasswordResetOutcome.OK
 
 
@@ -287,6 +304,7 @@ async def create_assignment(
     tenant_id: uuid.UUID,
     staff_id: uuid.UUID,
     data: AssignmentCreate,
+    assigned_by: Optional[uuid.UUID] = None,
 ) -> AssignmentResponse:
     if not await conn.fetchval(
         "SELECT 1 FROM staff WHERE id = $1 AND tenant_id = $2", staff_id, tenant_id
@@ -315,6 +333,7 @@ async def create_assignment(
         "staff_id": str(staff_id),
         "class_id": str(data.class_id),
         "section_id": str(data.section_id),
+        "assigned_by": str(assigned_by) if assigned_by else None,
     })
     return AssignmentResponse(**dict(full))
 
@@ -375,13 +394,21 @@ async def list_all_assignments(
 
 
 async def delete_assignment(
-    conn: asyncpg.Connection, tenant_id: uuid.UUID, staff_id: uuid.UUID, assignment_id: uuid.UUID
+    conn: asyncpg.Connection, tenant_id: uuid.UUID, staff_id: uuid.UUID, assignment_id: uuid.UUID,
+    removed_by: Optional[uuid.UUID] = None,
 ) -> bool:
     result = await conn.execute(
         "DELETE FROM staff_class_assignments WHERE id = $1 AND staff_id = $2 AND tenant_id = $3",
         assignment_id, staff_id, tenant_id,
     )
-    return result == "DELETE 1"
+    if result != "DELETE 1":
+        return False
+    await emit(conn, "STAFF_ASSIGNMENT_REMOVED", tenant_id, {
+        "staff_id": str(staff_id),
+        "assignment_id": str(assignment_id),
+        "removed_by": str(removed_by) if removed_by else None,
+    })
+    return True
 
 
 async def export_all_staff(
@@ -400,6 +427,7 @@ async def import_staff(
     conn: asyncpg.Connection,
     tenant_id: uuid.UUID,
     file_bytes: bytes,
+    imported_by: Optional[uuid.UUID] = None,
 ) -> dict:
     try:
         import openpyxl
@@ -516,4 +544,8 @@ async def import_staff(
         except Exception as exc:
             errors.append(f"Row {row_num}: {exc}")
 
+    await emit(conn, "STAFF_IMPORTED", tenant_id, {
+        "created": created, "updated": updated, "users_created": users_created,
+        "error_count": len(errors), "imported_by": str(imported_by) if imported_by else None,
+    })
     return {"created": created, "updated": updated, "users_created": users_created, "errors": errors}

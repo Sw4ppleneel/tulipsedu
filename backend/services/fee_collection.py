@@ -140,6 +140,7 @@ async def record_offline_payment(
             "student_id": str(student_id),
             "amount": str(total),
             "receipt_number": receipt_number,
+            "collected_by": str(user_id),
         })
 
     return {"payment_id": str(payment_id), "receipt_number": receipt_number}

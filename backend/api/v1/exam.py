@@ -112,7 +112,7 @@ async def publish_term(
 ):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
-        result = await svc.publish_term(conn, request.state.tenant_id, term_id, publish)
+        result = await svc.publish_term(conn, request.state.tenant_id, term_id, publish, changed_by=UUID(request.state.user_id))
     if not result:
         raise HTTPException(404, "Exam term not found")
     return result
@@ -126,7 +126,8 @@ async def transition_term_status(term_id: UUID, body: TermStatusRequest, request
     async with pool.acquire() as conn:
         try:
             return await svc.transition_term_status(
-                conn, request.state.tenant_id, term_id, body.status
+                conn, request.state.tenant_id, term_id, body.status,
+                changed_by=UUID(request.state.user_id),
             )
         except svc.ExamError as e:
             raise HTTPException(409, str(e))
@@ -158,7 +159,7 @@ async def configure_components(body: ConfigureComponentsRequest, request: Reques
     pool = request.app.state.pool
     async with pool.acquire() as conn:
         try:
-            return await svc.configure_components(conn, request.state.tenant_id, body)
+            return await svc.configure_components(conn, request.state.tenant_id, body, configured_by=UUID(request.state.user_id))
         except ExamError as e:
             raise HTTPException(422, str(e))
 

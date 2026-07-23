@@ -238,6 +238,7 @@ async def approve(
             "student_id": str(row["student_id"]),
             "amount": str(row["amount"]),
             "receipt_number": receipt_number,
+            "collected_by": str(user_id),
         })
     return FeePaymentResponse(**{k: updated[k] for k in FeePaymentResponse.model_fields})
 
@@ -269,4 +270,5 @@ async def reject(
             "payment_id": str(payment_id),
             "student_id": str(row["student_id"]),
             "reason": (reason or "")[:200],
+            "rejected_by": str(user_id),
         })

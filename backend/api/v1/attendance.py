@@ -105,6 +105,7 @@ async def mark(session_id: UUID, req: MarkRequest, request: Request):
             count = await mark_attendance(
                 conn, request.state.tenant_id, session_id, req,
                 can_override=_can_override(request),
+                marked_by=UUID(request.state.user_id),
             )
         except AttendanceLocked as e:
             raise HTTPException(status_code=423, detail=str(e))
@@ -122,6 +123,7 @@ async def submit(session_id: UUID, request: Request):
             session = await submit_session(
                 conn, request.state.tenant_id, session_id,
                 can_override=_can_override(request),
+                submitted_by=UUID(request.state.user_id),
             )
         except AttendanceLocked as e:
             raise HTTPException(status_code=423, detail=str(e))

@@ -22,7 +22,7 @@ async def create_post(body: HomeworkCreate, request: Request):
     assert_in_scope(request, body.class_id, body.section_id)
     pool = request.app.state.pool
     async with pool.acquire() as conn:
-        return await svc.create_post(conn, request.state.tenant_id, body)
+        return await svc.create_post(conn, request.state.tenant_id, body, posted_by=UUID(request.state.user_id))
 
 
 @router.get("", response_model=list[HomeworkResponse])
@@ -47,7 +47,7 @@ async def list_posts(
 async def update_post(post_id: UUID, body: HomeworkUpdate, request: Request):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
-        result = await svc.update_post(conn, request.state.tenant_id, post_id, body)
+        result = await svc.update_post(conn, request.state.tenant_id, post_id, body, updated_by=UUID(request.state.user_id))
     if not result:
         raise HTTPException(404, "Post not found")
     return result
@@ -57,6 +57,6 @@ async def update_post(post_id: UUID, body: HomeworkUpdate, request: Request):
 async def delete_post(post_id: UUID, request: Request):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
-        ok = await svc.delete_post(conn, request.state.tenant_id, post_id)
+        ok = await svc.delete_post(conn, request.state.tenant_id, post_id, deleted_by=UUID(request.state.user_id))
     if not ok:
         raise HTTPException(404, "Post not found")

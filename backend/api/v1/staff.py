@@ -50,7 +50,7 @@ async def add_staff(data: StaffCreate, request: Request):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
         try:
-            return await create_staff(conn, request.state.tenant_id, data)
+            return await create_staff(conn, request.state.tenant_id, data, created_by=UUID(request.state.user_id))
         except StaffError as e:
             raise HTTPException(status_code=409, detail=str(e))
 
@@ -123,7 +123,7 @@ async def get_one(staff_id: UUID, request: Request):
 async def edit_staff(staff_id: UUID, data: StaffUpdate, request: Request):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
-        member = await update_staff(conn, request.state.tenant_id, staff_id, data)
+        member = await update_staff(conn, request.state.tenant_id, staff_id, data, updated_by=UUID(request.state.user_id))
     if not member:
         raise HTTPException(status_code=404, detail="Staff member not found")
     return member
@@ -134,7 +134,7 @@ async def assign_roles(staff_id: UUID, data: StaffRolesAssign, request: Request)
     pool = request.app.state.pool
     async with pool.acquire() as conn:
         try:
-            result = await set_staff_roles(conn, request.state.tenant_id, staff_id, data.roles)
+            result = await set_staff_roles(conn, request.state.tenant_id, staff_id, data.roles, assigned_by=UUID(request.state.user_id))
         except StaffError as e:
             raise HTTPException(status_code=409, detail=str(e))
     if not result:
@@ -146,7 +146,7 @@ async def assign_roles(staff_id: UUID, data: StaffRolesAssign, request: Request)
 async def reset_password(staff_id: UUID, data: StaffPasswordReset, request: Request):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
-        outcome = await reset_staff_password(conn, request.state.tenant_id, staff_id, data.new_password)
+        outcome = await reset_staff_password(conn, request.state.tenant_id, staff_id, data.new_password, reset_by=UUID(request.state.user_id))
     if outcome == StaffPasswordResetOutcome.NOT_FOUND:
         raise HTTPException(status_code=404, detail="Staff member not found")
     if outcome == StaffPasswordResetOutcome.NO_LOGIN:
@@ -158,7 +158,7 @@ async def reset_password(staff_id: UUID, data: StaffPasswordReset, request: Requ
 async def remove_staff(staff_id: UUID, request: Request):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
-        deleted = await deactivate_staff(conn, request.state.tenant_id, staff_id)
+        deleted = await deactivate_staff(conn, request.state.tenant_id, staff_id, deactivated_by=UUID(request.state.user_id))
     if not deleted:
         raise HTTPException(status_code=404, detail="Staff member not found or already inactive")
 
@@ -173,7 +173,7 @@ async def assign_class(staff_id: UUID, data: AssignmentCreate, request: Request)
     pool = request.app.state.pool
     async with pool.acquire() as conn:
         try:
-            return await create_assignment(conn, request.state.tenant_id, staff_id, data)
+            return await create_assignment(conn, request.state.tenant_id, staff_id, data, assigned_by=UUID(request.state.user_id))
         except StaffError as e:
             raise HTTPException(status_code=409, detail=str(e))
 
@@ -193,7 +193,7 @@ async def get_assignments(staff_id: UUID, request: Request):
 async def remove_assignment(staff_id: UUID, assignment_id: UUID, request: Request):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
-        ok = await delete_assignment(conn, request.state.tenant_id, staff_id, assignment_id)
+        ok = await delete_assignment(conn, request.state.tenant_id, staff_id, assignment_id, removed_by=UUID(request.state.user_id))
     if not ok:
         raise HTTPException(404, "Assignment not found")
 
@@ -206,6 +206,6 @@ async def import_staff_xlsx(request: Request, file: UploadFile = File(...)):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
         try:
-            return await import_staff(conn, request.state.tenant_id, contents)
+            return await import_staff(conn, request.state.tenant_id, contents, imported_by=UUID(request.state.user_id))
         except StaffError as e:
             raise HTTPException(status_code=422, detail=str(e))
