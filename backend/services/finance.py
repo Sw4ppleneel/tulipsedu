@@ -30,7 +30,8 @@ class FinanceError(Exception):
 # ── Fee Heads ────────────────────────────────────────────────────────────────
 
 async def create_fee_head(
-    conn: asyncpg.Connection, tenant_id: uuid.UUID, data: FeeHeadCreate
+    conn: asyncpg.Connection, tenant_id: uuid.UUID, data: FeeHeadCreate,
+    created_by: Optional[uuid.UUID] = None,
 ) -> FeeHeadResponse:
     try:
         row = await conn.fetchrow(
@@ -42,6 +43,10 @@ async def create_fee_head(
         )
     except asyncpg.UniqueViolationError:
         raise FinanceError("A fee head with this name already exists")
+    await emit(conn, "FEE_HEAD_CREATED", tenant_id, {
+        "fee_head_id": str(row["id"]), "name": data.name, "fee_type": data.fee_type,
+        "created_by": str(created_by) if created_by else None,
+    })
     return FeeHeadResponse(**dict(row))
 
 
@@ -56,19 +61,27 @@ async def list_fee_heads(
 
 
 async def toggle_fee_head(
-    conn: asyncpg.Connection, tenant_id: uuid.UUID, head_id: uuid.UUID
+    conn: asyncpg.Connection, tenant_id: uuid.UUID, head_id: uuid.UUID,
+    toggled_by: Optional[uuid.UUID] = None,
 ) -> Optional[FeeHeadResponse]:
     row = await conn.fetchrow(
         "UPDATE fee_heads SET is_active = NOT is_active WHERE id = $1 AND tenant_id = $2 RETURNING *",
         head_id, tenant_id,
     )
-    return FeeHeadResponse(**dict(row)) if row else None
+    if not row:
+        return None
+    await emit(conn, "FEE_HEAD_TOGGLED", tenant_id, {
+        "fee_head_id": str(head_id), "is_active": row["is_active"],
+        "toggled_by": str(toggled_by) if toggled_by else None,
+    })
+    return FeeHeadResponse(**dict(row))
 
 
 # ── Fee Schedules ─────────────────────────────────────────────────────────────
 
 async def upsert_fee_schedule(
-    conn: asyncpg.Connection, tenant_id: uuid.UUID, data: FeeScheduleCreate
+    conn: asyncpg.Connection, tenant_id: uuid.UUID, data: FeeScheduleCreate,
+    set_by: Optional[uuid.UUID] = None,
 ) -> FeeScheduleResponse:
     if data.class_id is None:
         row = await conn.fetchrow(
@@ -110,6 +123,11 @@ async def upsert_fee_schedule(
         """,
         row["id"],
     )
+    await emit(conn, "FEE_SCHEDULE_SET", tenant_id, {
+        "schedule_id": str(row["id"]), "fee_head_id": str(data.fee_head_id),
+        "amount": str(data.amount), "class_id": str(data.class_id) if data.class_id else None,
+        "set_by": str(set_by) if set_by else None,
+    })
     return FeeScheduleResponse(**dict(full))
 
 
@@ -138,6 +156,7 @@ async def import_fee_structure_excel(
     tenant_id: uuid.UUID,
     academic_year_id: uuid.UUID,
     file_bytes: bytes,
+    imported_by: Optional[uuid.UUID] = None,
 ) -> dict:
     """
     Expected columns (case-insensitive): Fee Head | Fee Type | Class | Amount
@@ -245,6 +264,12 @@ async def import_fee_structure_excel(
         else:
             skipped_schedules += 1
 
+    await emit(conn, "FEE_STRUCTURE_IMPORTED", tenant_id, {
+        "academic_year_id": str(academic_year_id),
+        "fee_heads_created": created_heads, "fee_heads_updated": skipped_heads,
+        "schedules_created": created_schedules, "schedules_updated": skipped_schedules,
+        "imported_by": str(imported_by) if imported_by else None,
+    })
     return {
         "fee_heads_created": created_heads,
         "fee_heads_updated": skipped_heads,
@@ -568,13 +593,14 @@ async def import_and_generate(
     tenant_id: uuid.UUID,
     academic_year_id: uuid.UUID,
     file_bytes: bytes,
+    imported_by: Optional[uuid.UUID] = None,
 ) -> dict:
     """Single accountant action: import the structure Excel AND apply it to every
     student for the whole academic year, atomically. This is the only supported
     way to set up fees — no manual head/schedule entry."""
     async with conn.transaction():
         structure = await import_fee_structure_excel(
-            conn, tenant_id, academic_year_id, file_bytes
+            conn, tenant_id, academic_year_id, file_bytes, imported_by=imported_by
         )
         pairs = await _derive_month_year_pairs(conn, tenant_id, academic_year_id)
         ledger = await generate_ledger(

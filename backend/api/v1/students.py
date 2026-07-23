@@ -44,7 +44,7 @@ async def add_student(data: StudentCreate, request: Request):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
         try:
-            return await create_student(conn, request.state.tenant_id, data)
+            return await create_student(conn, request.state.tenant_id, data, created_by=UUID(request.state.user_id))
         except StudentError as e:
             raise HTTPException(status_code=409, detail=str(e))
 
@@ -129,6 +129,7 @@ async def reset_student_portal_password(
                 conn, request.state.tenant_id, student_id,
                 data.new_password,
                 ", ".join(sorted(getattr(request.state, "user_roles", frozenset()))),
+                reset_by=UUID(request.state.user_id),
             )
         except StudentError as e:
             raise HTTPException(status_code=422, detail=str(e))
@@ -203,7 +204,7 @@ async def edit_student(student_id: UUID, data: StudentUpdate, request: Request):
 async def remove_student(student_id: UUID, request: Request):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
-        deleted = await deactivate_student(conn, request.state.tenant_id, student_id)
+        deleted = await deactivate_student(conn, request.state.tenant_id, student_id, deactivated_by=UUID(request.state.user_id))
     if not deleted:
         raise HTTPException(status_code=404, detail="Student not found or already inactive")
 
@@ -220,6 +221,6 @@ async def import_students_xlsx(
     pool = request.app.state.pool
     async with pool.acquire() as conn:
         try:
-            return await import_students(conn, request.state.tenant_id, academic_year_id, contents)
+            return await import_students(conn, request.state.tenant_id, academic_year_id, contents, imported_by=UUID(request.state.user_id))
         except StudentError as e:
             raise HTTPException(status_code=422, detail=str(e))

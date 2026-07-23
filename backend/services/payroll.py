@@ -80,6 +80,7 @@ async def get_salary_structure(
 async def upsert_salary_structure(
     conn: asyncpg.Connection, tenant_id: uuid.UUID, staff_id: uuid.UUID,
     gross_salary: Decimal, components: list[dict], effective_from: Optional[date],
+    set_by: Optional[uuid.UUID] = None,
 ) -> SalaryStructureResponse:
     staff = await conn.fetchrow(
         "SELECT id FROM staff WHERE id = $1 AND tenant_id = $2 AND is_active = TRUE",
@@ -109,6 +110,7 @@ async def upsert_salary_structure(
     )
     await emit(conn, "SALARY_STRUCTURE_SET", tenant_id, {
         "staff_id": str(staff_id), "gross_salary": str(_money(gross_salary)),
+        "set_by": str(set_by) if set_by else None,
     })
     return SalaryStructureResponse(
         id=row["id"], staff_id=row["staff_id"], gross_salary=row["gross_salary"],
@@ -188,7 +190,7 @@ async def create_run(
         )
         await emit(conn, "PAYROLL_RUN_CREATED", tenant_id, {
             "run_id": str(run_id), "period": f"{period_year}-{period_month:02d}",
-            "payslips": len(payslips),
+            "payslips": len(payslips), "created_by": str(user_id),
         })
 
     runs = await list_runs(conn, tenant_id)
@@ -226,6 +228,7 @@ async def get_run_payslips(
 async def update_payslip(
     conn: asyncpg.Connection, tenant_id: uuid.UUID, payslip_id: uuid.UUID,
     allowances: list[dict], deductions: list[dict], note: Optional[str],
+    updated_by: Optional[uuid.UUID] = None,
 ) -> PayslipResponse:
     """Adjust a single payslip (LOP, bonus, advance, …). Only while run is draft."""
     async with conn.transaction():
@@ -255,6 +258,10 @@ async def update_payslip(
             """,
             json.dumps(a), json.dumps(d), net, note, payslip_id, tenant_id,
         )
+        await emit(conn, "PAYSLIP_UPDATED", tenant_id, {
+            "payslip_id": str(payslip_id), "net_salary": str(net),
+            "updated_by": str(updated_by) if updated_by else None,
+        })
     slips = await _payslips_by_id(conn, tenant_id, [payslip_id])
     return slips[0]
 
@@ -275,7 +282,7 @@ async def finalize_run(
             "UPDATE staff_payroll_runs SET status = 'finalized', finalized_at = $1 WHERE id = $2 AND tenant_id = $3",
             datetime.now(timezone.utc), run_id, tenant_id,
         )
-        await emit(conn, "PAYROLL_FINALIZED", tenant_id, {"run_id": str(run_id)})
+        await emit(conn, "PAYROLL_FINALIZED", tenant_id, {"run_id": str(run_id), "finalized_by": str(user_id)})
     runs = await list_runs(conn, tenant_id)
     return next(r for r in runs if str(r.id) == str(run_id))
 

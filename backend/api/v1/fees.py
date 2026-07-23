@@ -146,7 +146,7 @@ async def add_head(data: FeeHeadCreate, request: Request):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
         try:
-            return await create_fee_head(conn, request.state.tenant_id, data)
+            return await create_fee_head(conn, request.state.tenant_id, data, created_by=UUID(request.state.user_id))
         except FinanceError as e:
             raise HTTPException(status_code=409, detail=str(e))
 
@@ -164,7 +164,7 @@ async def get_heads(request: Request):
 async def toggle_head(head_id: UUID, request: Request):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
-        result = await toggle_fee_head(conn, request.state.tenant_id, head_id)
+        result = await toggle_fee_head(conn, request.state.tenant_id, head_id, toggled_by=UUID(request.state.user_id))
     if not result:
         raise HTTPException(status_code=404, detail="Fee head not found")
     return result
@@ -179,7 +179,7 @@ async def toggle_head(head_id: UUID, request: Request):
 async def set_schedule(data: FeeScheduleCreate, request: Request):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
-        return await upsert_fee_schedule(conn, request.state.tenant_id, data)
+        return await upsert_fee_schedule(conn, request.state.tenant_id, data, set_by=UUID(request.state.user_id))
 
 
 @router.get("/schedules", response_model=list[FeeScheduleResponse])
@@ -205,7 +205,8 @@ async def import_excel(
     async with pool.acquire() as conn:
         try:
             return await import_and_generate(
-                conn, request.state.tenant_id, academic_year_id, contents
+                conn, request.state.tenant_id, academic_year_id, contents,
+                imported_by=UUID(request.state.user_id),
             )
         except FinanceError as e:
             raise HTTPException(status_code=422, detail=str(e))
@@ -257,7 +258,9 @@ async def send_reminders(student_ids: list[UUID], request: Request):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
         for sid in student_ids:
-            await emit(conn, "REMINDER_SENT", request.state.tenant_id, {"student_id": str(sid)})
+            await emit(conn, "REMINDER_SENT", request.state.tenant_id, {
+                "student_id": str(sid), "sent_by": request.state.user_id,
+            })
     return {"queued": len(student_ids)}
 
 

@@ -42,6 +42,7 @@ async def set_salary(staff_id: UUID, data: SalaryStructureUpsert, request: Reque
                 data.gross_salary,
                 [c.model_dump() for c in data.components],
                 data.effective_from,
+                set_by=UUID(request.state.user_id),
             )
         except payroll.PayrollError as e:
             raise HTTPException(status_code=404, detail=str(e))
@@ -106,6 +107,7 @@ async def update_payslip(payslip_id: UUID, data: PayslipUpdate, request: Request
                 [a.model_dump() for a in data.allowances],
                 [d.model_dump() for d in data.deductions],
                 data.note,
+                updated_by=UUID(request.state.user_id),
             )
         except payroll.PayrollError as e:
             raise HTTPException(status_code=409, detail=str(e))

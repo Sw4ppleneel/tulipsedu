@@ -304,6 +304,7 @@ async def advance_status(admission_id: UUID, body: StatusAdvance, request: Reque
             "admission_id": str(admission_id),
             "from_status": current["status"],
             "to_status": body.status,
+            "changed_by": request.state.user_id,
         })
     return dict(row)
 

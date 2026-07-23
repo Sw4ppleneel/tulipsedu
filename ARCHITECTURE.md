@@ -562,6 +562,22 @@ Grade scale (CBSE): A1≥91, A2≥81, B1≥71, B2≥61, C1≥51, C2≥41, D≥33
 
 # Event Catalog
 
+> **Accountability sweep (2026-07-23, owner request: "log every action anyone
+> takes").** Audited every `emit()` call site: ~20 event types were missing
+> the acting user's id in their payload (added, e.g. `updated_by`/
+> `waived_by`/`collected_by`/`assigned_by` — the exact field name varies per
+> event, see `services/activity_log.py`'s `_EVENTS` dict, the authoritative
+> source of truth for which payload key holds the actor per event type).
+> ~10 state-changing writes had **no event at all** — new event types added:
+> `HOMEWORK_UPDATED/DELETED`, `STUDENT_DEACTIVATED`, `STUDENTS_IMPORTED`,
+> `STAFF_DEACTIVATED`, `STAFF_ASSIGNMENT_REMOVED`, `STAFF_IMPORTED`,
+> `FEE_HEAD_CREATED/TOGGLED`, `FEE_SCHEDULE_SET`, `FEE_STRUCTURE_IMPORTED`,
+> `EXAM_COMPONENTS_CONFIGURED`, `PAYSLIP_UPDATED`. A few producers genuinely
+> have no actor available (webhook payment confirmation, the public
+> admissions enquiry/upload-token flow) — left as-is, documented per-event
+> below. `GET /activity-log` (see API Catalog) is the human-readable
+> principal/VP-facing view over all of this.
+
 > **State (2026-06-13): producers + a real consumer.** `core/events.py::emit()` writes each
 > event to `audit_events` (immutable, append-only) inside the state-changing transaction; the
 > worker (`backend/worker/`) cursor-polls the stream and dispatches to handlers. The wiring
@@ -747,7 +763,8 @@ ledger rows recomputed from schedule base amounts. Audit-only.
 
 ## Activity Log
 
-### GET /api/v1/activity-log — Implemented (principal/VP only; paginated, most-recent-first projection over `audit_events` for STUDENT_UPDATED / FEE_WAIVED / STUDENT_DISCOUNT_SET — resolves the actor and student UUIDs embedded in each payload into names. Read-only; `audit_events` itself stays the generic immutable log)
+### GET /api/v1/activity-log — Implemented (principal/VP only; paginated, most-recent-first projection over `audit_events` covering ~35 state-changing event types across students, fees, homework, attendance, exams, staff, payroll, and admissions — "accountability for everything" per owner request 2026-07-23. Resolves the actor and subject (student or staff) UUIDs embedded in each payload into names; `?category=` filters to one group. Read-only; `audit_events` itself stays the generic immutable log)
+### GET /api/v1/activity-log/categories — Implemented (principal/VP only; the category names `?category=` accepts)
 
 ## Homework & Feed
 

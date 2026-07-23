@@ -329,6 +329,7 @@ async def create_student(
     await emit(conn, "STUDENT_CREATED", tenant_id, {
         "student_id": str(row["id"]),
         "admission_no": data.admission_no,
+        "created_by": str(created_by) if created_by else None,
     })
     await generate_ledger_for_new_student(
         conn, tenant_id, row["id"], data.academic_year_id,
@@ -439,6 +440,7 @@ async def reset_portal_password(
     student_id: uuid.UUID,
     new_password: str,
     by_role: str,
+    reset_by: Optional[uuid.UUID] = None,
 ) -> bool:
     """Staff override of a student's parent-portal password (no current-password
     check — that's the point of a staff reset). Class-teacher scope is enforced
@@ -463,18 +465,26 @@ async def reset_portal_password(
         "student_id": str(student_id),
         "by": "staff",
         "role": by_role,
+        "reset_by": str(reset_by) if reset_by else None,
     })
     return True
 
 
 async def deactivate_student(
-    conn: asyncpg.Connection, tenant_id: uuid.UUID, student_id: uuid.UUID
+    conn: asyncpg.Connection, tenant_id: uuid.UUID, student_id: uuid.UUID,
+    deactivated_by: Optional[uuid.UUID] = None,
 ) -> bool:
     result = await conn.execute(
         "UPDATE students SET is_active = FALSE WHERE id = $1 AND tenant_id = $2 AND is_active = TRUE",
         student_id, tenant_id,
     )
-    return result == "UPDATE 1"
+    if result != "UPDATE 1":
+        return False
+    await emit(conn, "STUDENT_DEACTIVATED", tenant_id, {
+        "student_id": str(student_id),
+        "deactivated_by": str(deactivated_by) if deactivated_by else None,
+    })
+    return True
 
 
 # ── Bulk Import ───────────────────────────────────────────────────────────────
@@ -484,6 +494,7 @@ async def import_students(
     tenant_id: uuid.UUID,
     academic_year_id: uuid.UUID,
     file_bytes: bytes,
+    imported_by: Optional[uuid.UUID] = None,
 ) -> dict:
     try:
         import openpyxl
@@ -608,4 +619,9 @@ async def import_students(
 
     if created + updated > 0:
         await generate_year_ledger(conn, tenant_id, academic_year_id)
+    await emit(conn, "STUDENTS_IMPORTED", tenant_id, {
+        "academic_year_id": str(academic_year_id),
+        "created": created, "updated": updated, "error_count": len(errors),
+        "imported_by": str(imported_by) if imported_by else None,
+    })
     return {"created": created, "updated": updated, "errors": errors}
