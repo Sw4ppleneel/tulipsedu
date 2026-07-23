@@ -8,7 +8,7 @@ import type { JSX } from 'preact'
 export type IconName =
   | 'dashboard' | 'students' | 'staff' | 'attendance' | 'fees' | 'homework'
   | 'announcement' | 'material' | 'timetable' | 'exams' | 'results' | 'website'
-  | 'settings' | 'platform' | 'bell' | 'back' | 'home' | 'eye' | 'eye-off'
+  | 'settings' | 'platform' | 'bell' | 'back' | 'home' | 'eye' | 'eye-off' | 'activity'
 
 const P: Record<IconName, JSX.Element> = {
   dashboard: <><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /></>,
@@ -26,6 +26,7 @@ const P: Record<IconName, JSX.Element> = {
   settings: <><circle cx="12" cy="12" r="3" /><path d="M12 2.5l1.6 2.4 2.8-.6.5 2.8 2.4 1.6-1.2 2.6 1.2 2.6-2.4 1.6-.5 2.8-2.8-.6L12 21.5l-1.6-2.4-2.8.6-.5-2.8L4.7 15.3 5.9 12.7 4.7 10.1l2.4-1.6.5-2.8 2.8.6L12 2.5Z" /></>,
   platform: <><path d="M4 21V6l8-3 8 3v15" /><path d="M2 21h20" /><path d="M9 21v-5h6v5M8 8h2M14 8h2M8 11.5h2M14 11.5h2" /></>,
   bell: <><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6Z" /><path d="M10 19a2 2 0 0 0 4 0" /></>,
+  activity: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3.5 2" /></>,
   back: <path d="M15 5l-7 7 7 7" />,
   home: <><path d="M3 11l9-7 9 7" /><path d="M5 10v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9" /></>,
   eye: <><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z" /><circle cx="12" cy="12" r="3" /></>,

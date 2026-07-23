@@ -102,6 +102,11 @@ class FeeScheduleCreate(BaseModel):
     class_id: Optional[UUID] = None
     amount: Decimal = Field(gt=0)
     due_day_of_month: int = Field(default=10, ge=1, le=28)
+    # Optional seasonal reduction: in this one calendar month, charge this
+    # percentage of `amount` instead of the full amount (e.g. DPS's May
+    # transport fee = 50%). Either both set or both omitted.
+    reduced_month: Optional[int] = Field(default=None, ge=1, le=12)
+    reduced_percentage: Optional[Decimal] = Field(default=None, gt=0, le=100)
 
 
 class FeeScheduleResponse(BaseModel):
@@ -115,6 +120,8 @@ class FeeScheduleResponse(BaseModel):
     class_name: Optional[str] = None
     amount: Decimal
     due_day_of_month: int
+    reduced_month: Optional[int] = None
+    reduced_percentage: Optional[Decimal] = None
     created_at: datetime
 
 

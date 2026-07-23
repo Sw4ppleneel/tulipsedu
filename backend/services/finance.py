@@ -74,27 +74,31 @@ async def upsert_fee_schedule(
         row = await conn.fetchrow(
             """
             INSERT INTO fee_schedules
-                (tenant_id, fee_head_id, academic_year_id, class_id, amount, due_day_of_month)
-            VALUES ($1, $2, $3, NULL, $4, $5)
+                (tenant_id, fee_head_id, academic_year_id, class_id, amount, due_day_of_month,
+                 reduced_month, reduced_percentage)
+            VALUES ($1, $2, $3, NULL, $4, $5, $6, $7)
             ON CONFLICT (tenant_id, fee_head_id, academic_year_id) WHERE class_id IS NULL
-            DO UPDATE SET amount = EXCLUDED.amount, due_day_of_month = EXCLUDED.due_day_of_month
+            DO UPDATE SET amount = EXCLUDED.amount, due_day_of_month = EXCLUDED.due_day_of_month,
+                          reduced_month = EXCLUDED.reduced_month, reduced_percentage = EXCLUDED.reduced_percentage
             RETURNING *
             """,
             tenant_id, data.fee_head_id, data.academic_year_id,
-            data.amount, data.due_day_of_month,
+            data.amount, data.due_day_of_month, data.reduced_month, data.reduced_percentage,
         )
     else:
         row = await conn.fetchrow(
             """
             INSERT INTO fee_schedules
-                (tenant_id, fee_head_id, academic_year_id, class_id, amount, due_day_of_month)
-            VALUES ($1, $2, $3, $4, $5, $6)
+                (tenant_id, fee_head_id, academic_year_id, class_id, amount, due_day_of_month,
+                 reduced_month, reduced_percentage)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             ON CONFLICT (tenant_id, fee_head_id, academic_year_id, class_id) WHERE class_id IS NOT NULL
-            DO UPDATE SET amount = EXCLUDED.amount, due_day_of_month = EXCLUDED.due_day_of_month
+            DO UPDATE SET amount = EXCLUDED.amount, due_day_of_month = EXCLUDED.due_day_of_month,
+                          reduced_month = EXCLUDED.reduced_month, reduced_percentage = EXCLUDED.reduced_percentage
             RETURNING *
             """,
             tenant_id, data.fee_head_id, data.academic_year_id,
-            data.class_id, data.amount, data.due_day_of_month,
+            data.class_id, data.amount, data.due_day_of_month, data.reduced_month, data.reduced_percentage,
         )
     full = await conn.fetchrow(
         """
@@ -260,6 +264,17 @@ def _discounted(amount: Decimal, pct: Optional[Decimal]) -> Decimal:
     return (amount * (Decimal(100) - pct) / Decimal(100)).quantize(_CENT)
 
 
+def _monthly_amount(sched, month: int, discount_pct: Optional[Decimal]) -> Decimal:
+    """A schedule's amount for one specific calendar month, applying its
+    optional seasonal reduction (e.g. DPS's May transport fee = 50%) before
+    the student's own sibling/concession discount — the two stack, so a
+    discounted transport student still gets the May reduction on top."""
+    base = sched["amount"]
+    if sched["reduced_month"] and sched["reduced_month"] == month:
+        base = (base * sched["reduced_percentage"] / Decimal(100)).quantize(_CENT)
+    return _discounted(base, discount_pct)
+
+
 async def _load_discount_map(
     conn: asyncpg.Connection, tenant_id: uuid.UUID, student_id: Optional[uuid.UUID] = None
 ) -> dict[tuple[uuid.UUID, uuid.UUID], Decimal]:
@@ -340,10 +355,15 @@ async def set_student_discounts(
         result = await conn.execute(
             """
             UPDATE fee_ledger fl
-            SET amount_due = ROUND(s.amount * (100 - COALESCE(d.percentage, 0)) / 100, 2)
+            SET amount_due = ROUND(
+                (CASE
+                    WHEN s.reduced_month IS NOT NULL AND s.reduced_month = fl.period_month
+                    THEN ROUND(s.amount * s.reduced_percentage / 100, 2)
+                    ELSE s.amount
+                 END) * (100 - COALESCE(d.percentage, 0)) / 100, 2)
             FROM (
                 SELECT DISTINCT ON (fee_head_id, academic_year_id)
-                       fee_head_id, academic_year_id, amount
+                       fee_head_id, academic_year_id, amount, reduced_month, reduced_percentage
                 FROM fee_schedules
                 WHERE tenant_id = $1 AND (class_id IS NULL OR class_id = $3)
                 ORDER BY fee_head_id, academic_year_id, class_id NULLS LAST
@@ -413,20 +433,19 @@ async def generate_ledger(
             if sf == "hosteler" and not student["is_hosteler"]:
                 continue
 
-            amount = _discounted(
-                sched["amount"], discounts.get((student["id"], sched["fee_head_id"]))
-            )
+            discount_pct = discounts.get((student["id"], sched["fee_head_id"]))
             if sched["fee_type"] == "monthly":
                 for my in data.month_year_pairs:
                     entries.append((
                         tenant_id, student["id"], sched["fee_head_id"],
-                        data.academic_year_id, my.month, my.year, amount,
+                        data.academic_year_id, my.month, my.year,
+                        _monthly_amount(sched, my.month, discount_pct),
                     ))
             elif data.include_annual:
                 base_year = data.month_year_pairs[0].year if data.month_year_pairs else 2025
                 entries.append((
                     tenant_id, student["id"], sched["fee_head_id"],
-                    data.academic_year_id, None, base_year, amount,
+                    data.academic_year_id, None, base_year, _discounted(sched["amount"], discount_pct),
                 ))
 
     if not entries:
@@ -484,17 +503,16 @@ async def generate_ledger_for_new_student(
             continue
         if sf == "hosteler" and not is_hosteler:
             continue
-        amount = _discounted(
-            sched["amount"], discounts.get((student_id, sched["fee_head_id"]))
-        )
+        discount_pct = discounts.get((student_id, sched["fee_head_id"]))
         if sched["fee_type"] == "monthly":
             for my in pairs:
                 entries.append((tenant_id, student_id, sched["fee_head_id"],
-                                 academic_year_id, my.month, my.year, amount))
+                                 academic_year_id, my.month, my.year,
+                                 _monthly_amount(sched, my.month, discount_pct)))
         else:
             base_year = pairs[0].year if pairs else 2025
             entries.append((tenant_id, student_id, sched["fee_head_id"],
-                             academic_year_id, None, base_year, amount))
+                             academic_year_id, None, base_year, _discounted(sched["amount"], discount_pct)))
     if not entries:
         return 0
     await conn.executemany(
