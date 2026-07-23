@@ -1,5 +1,11 @@
 export interface AuthState {
   accessToken: string
+  // Staff sessions only (parents don't get a refresh token) — lets the app
+  // silently re-validate roles on load instead of trusting a cached access
+  // token blindly for its full lifetime. Without this, a role correction
+  // made server-side wouldn't reach an already-open tab until its access
+  // token happened to expire and force a fresh login.
+  refreshToken?: string
   tenantSlug: string
   userId: string
   // All roles this login holds (usually one; can be more, e.g. accountant +

@@ -382,6 +382,7 @@ async def update_student(
     tenant_id: uuid.UUID,
     student_id: uuid.UUID,
     data: StudentUpdate,
+    updated_by: Optional[uuid.UUID] = None,
 ) -> Optional[StudentResponse]:
     fields = data.model_dump(exclude_none=True)
     if not fields:
@@ -405,12 +406,14 @@ async def update_student(
     await emit(conn, "STUDENT_UPDATED", tenant_id, {
         "student_id": str(student_id),
         "fields": list(fields.keys()),
+        "updated_by": str(updated_by) if updated_by else None,
     })
     return await get_student(conn, tenant_id, student_id)
 
 
 async def set_parent_phone(
-    conn: asyncpg.Connection, tenant_id: uuid.UUID, student_id: uuid.UUID, parent_phone: str
+    conn: asyncpg.Connection, tenant_id: uuid.UUID, student_id: uuid.UUID, parent_phone: str,
+    updated_by: Optional[uuid.UUID] = None,
 ) -> bool:
     """Update just the registered parent phone. Exposed to class teachers
     (scope-checked at the API layer) so they can collect real numbers for the
@@ -424,6 +427,7 @@ async def set_parent_phone(
     await emit(conn, "STUDENT_UPDATED", tenant_id, {
         "student_id": str(student_id),
         "fields": ["parent_phone"],
+        "updated_by": str(updated_by) if updated_by else None,
     })
     return True
 

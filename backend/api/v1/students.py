@@ -26,6 +26,9 @@ from services.student import (
 )
 
 _admin_only = Depends(require_roles("principal", "vice_principal"))
+# Accountants may edit existing student records (owner request) — not
+# create/delete/import, which stay principal/VP-only.
+_edit_only = Depends(require_roles("principal", "vice_principal", "accountant"))
 _roster_read = [
     # accountant: needs the roster to pick a student when collecting fees at
     # the office (FeesAdmin's Collect tab) — was 403ing before this.
@@ -106,7 +109,8 @@ async def update_student_contact(student_id: UUID, data: StudentContactUpdate, r
     pool = request.app.state.pool
     async with pool.acquire() as conn:
         updated = await set_parent_phone(
-            conn, request.state.tenant_id, student_id, data.parent_phone
+            conn, request.state.tenant_id, student_id, data.parent_phone,
+            updated_by=UUID(request.state.user_id),
         )
     if not updated:
         raise HTTPException(status_code=404, detail="Student not found")
@@ -179,12 +183,15 @@ async def get_one(student_id: UUID, request: Request):
     return student
 
 
-@router.put("/{student_id}", response_model=StudentResponse, dependencies=[_admin_only])
+@router.put("/{student_id}", response_model=StudentResponse, dependencies=[_edit_only])
 async def edit_student(student_id: UUID, data: StudentUpdate, request: Request):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
         try:
-            student = await update_student(conn, request.state.tenant_id, student_id, data)
+            student = await update_student(
+                conn, request.state.tenant_id, student_id, data,
+                updated_by=UUID(request.state.user_id),
+            )
         except StudentError as e:
             raise HTTPException(status_code=409, detail=str(e))
     if not student:

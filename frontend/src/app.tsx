@@ -165,6 +165,37 @@ export function App() {
     setMode('public')
   }
 
+  // Silently re-validate roles against the server on every load of a
+  // restored staff session, instead of trusting the cached access token
+  // blindly for its full lifetime. Closes the staleness window from "up to
+  // an hour, until the token expires and forces a fresh login" down to
+  // "next page load" — e.g. a principal correcting someone's role takes
+  // effect the moment that person's browser is reloaded, not up to an hour
+  // later. Parent sessions have no refresh token and are skipped.
+  useEffect(() => {
+    const saved = restoreAuthState()
+    if (!saved?.refreshToken || saved.roles.includes('parent')) return
+    import('./api/client').then(m => m.refresh(saved.refreshToken!)).then(tokens => {
+      const claims = decodeJWT(tokens.access_token)
+      const roles = (claims.roles as string[]) || []
+      if (roles.length === 0) return
+      const activeRole = roles.includes(saved.activeRole) ? saved.activeRole : roles[0]
+      setAuthState({
+        ...saved,
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token,
+        roles,
+        activeRole,
+      })
+      setAllRoles(roles)
+      setActiveRole(activeRole)
+    }).catch(() => {
+      // Refresh token itself invalid/expired — fall back to the cached
+      // state as-is (still usable until its own access token expires);
+      // don't force a disruptive logout over a transient network error.
+    })
+  }, [])
+
   // Browser back/forward → re-derive route, but don't disrupt an active session
   useEffect(() => {
     const onPop = () => {
@@ -197,6 +228,7 @@ export function App() {
       const fn = (claims.first_name as string) || ''
       setAuthState({
         accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token,
         tenantSlug: (claims.tenant_slug as string) || tenantSlug,
         userId: claims.sub as string,
         roles,

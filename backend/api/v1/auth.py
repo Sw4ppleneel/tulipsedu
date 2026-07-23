@@ -48,7 +48,18 @@ async def auth_refresh(req: RefreshRequest, request: Request):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
         roles_rows = await conn.fetch(
-            "SELECT role FROM user_roles WHERE tenant_id = $1 AND user_id = $2",
+            """
+            SELECT role FROM user_roles WHERE tenant_id = $1 AND user_id = $2
+            ORDER BY CASE role
+                WHEN 'superadmin' THEN 0
+                WHEN 'principal' THEN 1
+                WHEN 'vice_principal' THEN 2
+                WHEN 'class_teacher' THEN 3
+                WHEN 'teacher' THEN 4
+                WHEN 'accountant' THEN 5
+                ELSE 6
+            END
+            """,
             tenant_id, UUID(claims["sub"]),
         )
     roles = [r["role"] for r in roles_rows]

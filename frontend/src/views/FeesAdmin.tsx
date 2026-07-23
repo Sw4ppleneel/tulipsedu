@@ -372,6 +372,22 @@ function CollectTab() {
     setReceiptPaymentId(''); setStatus(''); setQuery('')
   }
 
+  // The ledger is only fetched once when a student is selected — if a
+  // discount, waiver, or anything else changes their dues while this screen
+  // is already open (e.g. a principal applies a concession in another tab),
+  // nothing here updates on its own. Explicit refresh rather than silent
+  // background polling, since re-amounts changing mid-selection in a money
+  // workflow should be a deliberate action, not a surprise.
+  async function refreshLedger() {
+    if (!ledger) return
+    setLoading(true)
+    try {
+      setLedger(await getStudentLedger(ledger.student_id))
+      setSelected(new Set())
+    } catch (e) { alert(e instanceof Error ? e.message : 'Error') }
+    finally { setLoading(false) }
+  }
+
   // Reset after a completed collection so the next payment can start cleanly:
   // clear the selection (paid rows can't be re-submitted) and reload the ledger
   // so the paid months leave the pending list.
@@ -471,7 +487,11 @@ function CollectTab() {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
             <p style={{ fontSize: '0.875rem', fontWeight: 600, margin: 0 }}>{ledger.student_name} · {ledger.admission_no} · {ledger.class_section}</p>
-            <button onClick={backToSearch} style={{ padding: '0.3rem 0.7rem', background: '#f3f4f6', color: '#374151', border: '1px solid #d1d5db', borderRadius: 4, cursor: 'pointer', fontSize: '0.78rem', flexShrink: 0 }}>← Search again</button>
+            <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
+              <button onClick={refreshLedger} disabled={loading} title="Reload dues — use this if a discount or waiver was just applied"
+                style={{ padding: '0.3rem 0.7rem', background: '#f3f4f6', color: '#374151', border: '1px solid #d1d5db', borderRadius: 4, cursor: 'pointer', fontSize: '0.78rem' }}>↻ Refresh</button>
+              <button onClick={backToSearch} style={{ padding: '0.3rem 0.7rem', background: '#f3f4f6', color: '#374151', border: '1px solid #d1d5db', borderRadius: 4, cursor: 'pointer', fontSize: '0.78rem' }}>← Search again</button>
+            </div>
           </div>
           <p style={{ fontSize: '0.8rem', color: '#6b7280', marginBottom: '0.5rem' }}>Select dues to pay:</p>
           {ledger.pending.length === 0 && <p style={{ fontSize: '0.8rem', color: '#1F8A5D' }}>✓ No pending dues</p>}

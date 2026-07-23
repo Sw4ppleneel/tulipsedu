@@ -17,7 +17,19 @@ async def login(
     row = await conn.fetchrow(
         """
         SELECT u.id, u.password_hash, u.is_active, s.first_name,
-               COALESCE(array_agg(ur.role) FILTER (WHERE ur.role IS NOT NULL), '{}') AS roles
+               COALESCE(
+                   array_agg(ur.role ORDER BY
+                       CASE ur.role
+                           WHEN 'superadmin' THEN 0
+                           WHEN 'principal' THEN 1
+                           WHEN 'vice_principal' THEN 2
+                           WHEN 'class_teacher' THEN 3
+                           WHEN 'teacher' THEN 4
+                           WHEN 'accountant' THEN 5
+                           ELSE 6
+                       END
+                   ) FILTER (WHERE ur.role IS NOT NULL), '{}'
+               ) AS roles
         FROM users u
         LEFT JOIN staff s ON s.user_id = u.id AND s.tenant_id = u.tenant_id
         LEFT JOIN user_roles ur ON ur.user_id = u.id AND ur.tenant_id = u.tenant_id

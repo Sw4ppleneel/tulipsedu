@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from api.v1 import (
     academic_years,
+    activity_log,
     admissions,
     attendance,
     auth,
@@ -48,6 +49,7 @@ router.include_router(cms_admin.router)
 router.include_router(cms_public.router)
 router.include_router(uploads.router)
 router.include_router(settings.router)
+router.include_router(activity_log.router)
 router.include_router(notifications.router)
 router.include_router(me.router)
 router.include_router(admissions.router)
