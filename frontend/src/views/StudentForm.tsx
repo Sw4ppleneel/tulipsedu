@@ -10,6 +10,7 @@ interface Props {
   academicYears: AcademicYear[]
   classes: Class[]
   student?: Student
+  role?: string
   onSaved: () => void
   onCancel: () => void
 }
@@ -146,7 +147,7 @@ function PortalPasswordSection({ studentId }: { studentId: string }) {
   )
 }
 
-export function StudentForm({ academicYears, classes, student, onSaved, onCancel }: Props) {
+export function StudentForm({ academicYears, classes, student, role, onSaved, onCancel }: Props) {
   const isEdit = !!student
   const [form, setForm] = useState<StudentCreate>(student ? {
     academic_year_id: student.academic_year_id,
@@ -366,7 +367,11 @@ export function StudentForm({ academicYears, classes, student, onSaved, onCancel
         </div>
       </form>
 
-      {isEdit && student && (
+      {/* Discount-setting (PUT /fees/discounts) and portal-password reset
+          (PUT /students/:id/portal-password) are both principal/VP-only on
+          the backend — accountants get the core record-edit form above
+          (owner request: "edit permission"), not these two. */}
+      {isEdit && student && role !== 'accountant' && (
         <>
           <DiscountSection studentId={student.id} />
           <PortalPasswordSection studentId={student.id} />

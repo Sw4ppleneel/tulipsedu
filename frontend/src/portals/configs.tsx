@@ -83,6 +83,7 @@ export function buildPortalConfig(args: BuildArgs): PortalConfig {
       { key: 'dashboard', label: 'Dashboard',         icon: ic('dashboard'), desc: 'Fee collection summary and defaulter count',     render: () => <DashboardView schoolName={schoolName} role={role} /> },
       { key: 'fees',      label: 'Fees & Collections',icon: ic('fees'),    desc: 'Fee ledger, receipts, collections, outstanding', render: () => <FeesAdminView /> },
       { key: 'verify',    label: 'Verify Payments',   icon: ic('results'), desc: 'Approve parent-reported UPI payments',           render: () => <PaymentVerificationView /> },
+      { key: 'students',  label: 'Students',          icon: ic('students'), desc: 'Edit student records (add/import stays principal/VP-only)', render: () => <StudentsView role={role} /> },
     ])
   }
 

@@ -129,7 +129,12 @@ function TableHeader() {
   )
 }
 
-export function StudentsView() {
+export function StudentsView({ role }: { role?: string } = {}) {
+  // Accountants can edit an existing student (owner request) but not
+  // create/import new ones — the backend already enforces this
+  // (PUT /students/:id allows accountant, POST/import stay principal/VP-only);
+  // hiding the buttons here avoids a click that always 403s.
+  const canCreate = role !== 'accountant'
   const [students, setStudents] = useState<Student[]>([])
   const [total, setTotal] = useState(0)
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([])
@@ -209,21 +214,23 @@ export function StudentsView() {
             </p>
           )}
         </div>
-        <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
-          <ExcelImport
-            endpoint="/students/import"
-            query={{ academic_year_id: filters.academic_year_id }}
-            columns="Admission No, First Name, Last Name, Class, Section, Roll No, Date of Birth, Gender, Parent Phone (optional: Hosteler, Transport)"
-            disabledReason={filters.academic_year_id ? undefined : 'Select an academic year first.'}
-            onImported={() => setFilters((f) => ({ ...f }))}
-          />
-          <button
-            onClick={() => { setEditingStudent(null); setShowForm(true) }}
-            style={{ padding: '0.5rem 1rem', background: '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem', fontWeight: 500 }}
-          >
-            + Add Student
-          </button>
-        </div>
+        {canCreate && (
+          <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
+            <ExcelImport
+              endpoint="/students/import"
+              query={{ academic_year_id: filters.academic_year_id }}
+              columns="Admission No, First Name, Last Name, Class, Section, Roll No, Date of Birth, Gender, Parent Phone (optional: Hosteler, Transport)"
+              disabledReason={filters.academic_year_id ? undefined : 'Select an academic year first.'}
+              onImported={() => setFilters((f) => ({ ...f }))}
+            />
+            <button
+              onClick={() => { setEditingStudent(null); setShowForm(true) }}
+              style={{ padding: '0.5rem 1rem', background: '#14463A', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.875rem', fontWeight: 500 }}
+            >
+              + Add Student
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Add / Edit form */}
@@ -232,6 +239,7 @@ export function StudentsView() {
           academicYears={academicYears}
           classes={classes}
           student={editingStudent ?? undefined}
+          role={role}
           onSaved={() => { setShowForm(false); setEditingStudent(null); setFilters((f) => ({ ...f })) }}
           onCancel={() => { setShowForm(false); setEditingStudent(null) }}
         />
@@ -263,7 +271,7 @@ export function StudentsView() {
         <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>Loading…</p>
       ) : students.length === 0 ? (
         <div style={{ padding: '3rem', textAlign: 'center', color: '#9ca3af', fontSize: '0.875rem', background: '#f9fafb', borderRadius: 8 }}>
-          No students found. Click <strong>+ Add Student</strong> to begin.
+          {canCreate ? <>No students found. Click <strong>+ Add Student</strong> to begin.</> : 'No students found.'}
         </div>
       ) : (
         <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
