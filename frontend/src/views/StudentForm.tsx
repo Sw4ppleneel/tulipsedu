@@ -367,16 +367,12 @@ export function StudentForm({ academicYears, classes, student, role, onSaved, on
         </div>
       </form>
 
-      {/* Discount-setting (PUT /fees/discounts) and portal-password reset
-          (PUT /students/:id/portal-password) are both principal/VP-only on
-          the backend — accountants get the core record-edit form above
-          (owner request: "edit permission"), not these two. */}
-      {isEdit && student && role !== 'accountant' && (
-        <>
-          <DiscountSection studentId={student.id} />
-          <PortalPasswordSection studentId={student.id} />
-        </>
-      )}
+      {/* Discounts/concessions: accountant included (owner request) — PUT
+          /fees/discounts now allows principal/VP/accountant. Portal-password
+          reset stays principal/VP-only (PUT /students/:id/portal-password
+          — not something accountant was asked for). */}
+      {isEdit && student && <DiscountSection studentId={student.id} />}
+      {isEdit && student && role !== 'accountant' && <PortalPasswordSection studentId={student.id} />}
     </div>
   )
 }

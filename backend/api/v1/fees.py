@@ -113,7 +113,7 @@ async def waive_fees(body: WaiveRequest, request: Request):
 
 # ── Student fee discounts (sibling concessions etc.) ─────────────────────────
 
-_discount_admin = Depends(require_roles("principal", "vice_principal"))
+_discount_admin = Depends(require_roles("principal", "vice_principal", "accountant"))
 
 
 @router.get("/discounts", response_model=list[StudentDiscountResponse])

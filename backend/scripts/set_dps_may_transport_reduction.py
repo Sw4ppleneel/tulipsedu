@@ -1,9 +1,15 @@
 """One-off: DPS always charges 50% of the normal transport fee in May
 (owner request, 2026-07-23). Sets the seasonal-reduction fields (migration
-043) on the current year's Bus Fee schedule so this applies automatically
-every year going forward, then retroactively fixes any May Bus Fee ledger
-rows already generated for the current year (pending/due/overdue only —
-paid/waived rows are never touched, same rule as everywhere else).
+043) on the current year's Transport Fee schedule so this applies
+automatically every year going forward, then retroactively fixes any May
+ledger rows already generated for the current year (pending/due/overdue
+only — paid/waived rows are never touched, same rule as everywhere else).
+
+NOTE: originally ran against a head named "Bus Fee" — merge_dps_transport_
+bus_fee.py (also 2026-07-23) renamed it to "Transport Fee" (the same
+underlying row/id, all history intact) to consolidate with the old,
+unused "Transport Fee" head from the archived 2025-26 year. Updated here
+to match so a re-run still finds the right row.
 
 Usage: python scripts/set_dps_may_transport_reduction.py
 """
@@ -31,13 +37,13 @@ async def main():
             SET reduced_month = $3, reduced_percentage = $4
             FROM fee_heads fh
             WHERE fs.fee_head_id = fh.id AND fs.tenant_id = $1 AND fs.academic_year_id = $2
-              AND fh.name = 'Bus Fee'
+              AND fh.name = 'Transport Fee'
             RETURNING fs.id, fs.amount
             """,
             tid, ay["id"], REDUCED_MONTH, REDUCED_PCT,
         )
         if not sched:
-            print("ERROR: no 'Bus Fee' schedule found for the current year"); return
+            print("ERROR: no 'Transport Fee' schedule found for the current year"); return
         print(f"Schedule updated: Bus Fee (Rs.{sched['amount']}) -> May = {REDUCED_PCT}% (Rs.{sched['amount'] * REDUCED_PCT / 100})")
 
         # Retroactively fix already-generated May rows this year (pending/due/overdue
@@ -58,7 +64,7 @@ async def main():
             JOIN fee_heads fh ON fh.id = fs.fee_head_id
             WHERE fl.tenant_id = $1 AND fl.academic_year_id = $2 AND fl.period_month = $3
               AND fl.status IN ('pending', 'due', 'overdue')
-              AND fh.name = 'Bus Fee' AND fl.fee_head_id = fh.id
+              AND fh.name = 'Transport Fee' AND fl.fee_head_id = fh.id
               AND fs.class_id IS NULL
             """,
             tid, ay["id"], REDUCED_MONTH, REDUCED_PCT,
