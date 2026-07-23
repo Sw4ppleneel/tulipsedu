@@ -1,6 +1,101 @@
 # BUILD.md
 
+## ✅ DEPLOYED 2026-07-23 — Owner bug reports + feature batch (migrations 043; multi-role's known gaps closed)
+
+Seven items from one owner message, in order:
+
+**1. Stale-role frontend bug (Dr Prabha shown as "Vice Principal", also seen
+on Mamta) — root cause, NOT what it looked like.** Dr Prabha holds only
+`teacher` in the DB — no ordering ambiguity possible for a single role, so
+this wasn't the "any unrestricted role wins" scope issue (#7 below). Real
+cause: `services/auth.py`'s login query and `/auth/refresh`'s query both used
+`array_agg(role)` **with no `ORDER BY`** — Postgres doesn't guarantee array
+order without one, so `roles[0]` (the frontend's client-side "active role"
+default) could come back different across logins for anyone holding 2+
+roles. Fixed: explicit priority `ORDER BY` (superadmin > principal >
+vice_principal > class_teacher > teacher > accountant) in both queries.
+Separately — and this is what actually explains Dr Prabha specifically,
+since she has only one role — the multi-role entry below noted "frontend
+doesn't call refresh today" as a non-issue; it wasn't a non-issue. A role
+correction made server-side had **no way** to reach an already-open browser
+tab (refresh_token was received at login but never stored client-side), so
+a stale cached JWT could show outdated role-derived UI for up to the
+60-minute access-token lifetime. Fixed: `AuthState` now stores
+`refreshToken`; app mount silently calls `/auth/refresh` and updates
+roles/activeRole before render. Closes the staleness window to "next page
+load."
+
+**2. Concession machinery verified end-to-end** — live-tested (rolled back)
+against real DPS data: 50% transport discount correctly computed
+`700→350` at both the raw ledger and `get_student_ledger` (what Collect
+reads) immediately. So the reported "didn't update in Collect" was frontend
+staleness, same class of bug as #1: `CollectTab` fetches a student's ledger
+once on selection with no refetch trigger. Added an explicit **↻ Refresh**
+button (not silent background polling — a money workflow shouldn't swap
+amounts under a half-made selection without the accountant asking for it).
+
+**3. Accountants can now edit student records** (`PUT /students/:id`,
+`_edit_only` = principal/VP/accountant; add/delete/import stay principal/
+VP-only). `STUDENT_UPDATED` and `FEE_WAIVED` events now carry the acting
+user's id (`updated_by`/`waived_by` — waived_by already existed). New
+**Activity Log** (`GET /activity-log`, principal/VP) — paginated, resolves
+actor + student names from the event payloads, covers STUDENT_UPDATED /
+FEE_WAIVED / STUDENT_DISCOUNT_SET. Also found and fixed: giving accountant
+backend edit access alone would have been silently useless — `StudentsView`
+wasn't in the accountant portal's section list at all (no button to reach
+it), and even after adding it, `StudentForm`'s discount-editor and
+portal-password-reset sections call endpoints that are principal/VP-only —
+both now hidden for accountant so there's no button that 403s on click.
+
+**4. DPS one-time fee heads**: Exam Fee Term 1/2/3, ID Card Fee, Diary Fee —
+Rs.50 each, all classes, current year. `backend/scripts/
+add_dps_one_time_fees.py`. Verified: 2005 ledger rows created (401 students
+× 5 heads) via the existing `generate_year_ledger`, 10010 pre-existing rows
+correctly left untouched.
+
+**5. Seasonal fee-schedule reduction (migration 043)** — `fee_schedules.
+reduced_month`/`reduced_percentage`: a schedule can charge X% of normal in
+one calendar month, forever, automatically (no manual per-year work).
+Owner rule: DPS's Bus Fee = 50% in May. Stacks with a student's own
+discount (seasonal reduction on the base first, personal discount on top)
+in both `generate_ledger` and `set_student_discounts`'s recompute.
+`backend/scripts/set_dps_may_transport_reduction.py` set the rule on DPS's
+Bus Fee schedule and retroactively fixed already-generated May rows —
+verified live: 68 pending rows correctly reduced to Rs.350, 29 already-paid
++ 2 waived rows correctly left untouched at Rs.700 (never retroactively
+alter a settled payment).
+
+**6. Receipt number overlapping adjacent text — real bug, not cosmetic.**
+Real receipt numbers are 33+ chars, one unbroken token (e.g.
+`DAFFODILSPUBLICSCHOOL-2026-000122`, hyphens only, no spaces). Neither the
+HTML receipt's flex header nor the PDF's reportlab `Paragraph` had any wrap
+protection for text with no whitespace to break on — both genuinely
+overflowed their container into whatever was next to them. HTML: flex-wrap
++ overflow-wrap/word-break, narrower `th` columns (25%→18%) for breathing
+room, `table-layout:fixed`. PDF: zero-width space (`chr(0x200B)`, inserted
+in Python — not a literal invisible character in source) after each hyphen
+so reportlab has break opportunities without changing what's displayed.
+
+**7. QA sweep** confirmed the button-wiring gap under #3 (see above) — the
+main finding. Everything else built this batch verified directly against
+its actual backend route (`assignStaffRoles`→`PUT /staff/:id/roles`,
+`waiveFees`→`POST /fees/waive`, `setStudentDiscounts`→`PUT /fees/discounts`,
+`getActivityLog`→`GET /activity-log`, etc.) rather than assumed correct.
+
+All deployed and verified live: 3 full deploy cycles (gate → migration →
+build → health-check → smoke tests, all green each time), DB backed up
+before every DPS data mutation per the DO-NOT-TOUCH rule (with the owner's
+explicit per-operation authorization for each — role grants, fee heads,
+May-transport-rule).
+
 ## 🔧 BUILT 2026-07-21 — Multi-role staff support (migration 042, not yet deployed)
+
+> **Note (2026-07-23): the "any unrestricted role wins" scope behavior
+> described below was corrected** — see the entry above. accountant no
+> longer blanket-unrestricts a combo user's teaching-scoped actions
+> (attendance/homework/roster); only true admin tier
+> (superadmin/principal/vice_principal) does. The "frontend doesn't call
+> refresh today" note below was also closed — see the entry above.
 
 Owner requirement: one staff member holding more than one role at once (e.g.
 accountant + teacher) — previously `users.role` was a single column, so

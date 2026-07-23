@@ -467,6 +467,25 @@ generation applies the percentage at insert time.
 
 ---
 
+## fee_schedules — seasonal reduction (migration 043)
+
+`fee_schedules` itself predates careful schema documentation here (see
+migration 009); this covers only what migration 043 added:
+
+Fields added: `reduced_month` (SMALLINT 1-12, nullable), `reduced_percentage`
+(NUMERIC(5,2) >0 and ≤100, nullable). Either both set or both NULL (CHECK
+constraint) — a schedule can charge `reduced_percentage`% of its normal
+`amount` in one specific calendar month, every year, automatically. Owner
+example: DPS's Bus Fee schedule = 50% in May. Applied by `generate_ledger`/
+`generate_ledger_for_new_student` at insert time, and by
+`set_student_discounts`'s recompute (seasonal reduction applied to the base
+first, then the student's own discount percentage on top — the two stack).
+No UI to set this (fee schedules are otherwise Excel-import-only); set via a
+one-off script per tenant, same pattern as everything else that needs a
+one-time real-data change.
+
+---
+
 ## parents
 
 Fields: id, tenant_id, phone_number, name, otp_hash, otp_expires_at, last_login_at, is_active, created_at
@@ -685,13 +704,13 @@ ledger rows recomputed from schedule base amounts. Audit-only.
 
 ## Students
 
-### POST /api/v1/students — Implemented
+### POST /api/v1/students — Implemented (principal/VP only)
 ### GET /api/v1/students — Implemented
 ### GET /api/v1/students/:id — Implemented
-### PUT /api/v1/students/:id — Implemented
-### PATCH /api/v1/students/:id/contact — Implemented (parent_phone only; teaching roles scope-checked to own class, admin tier unrestricted)
-### PUT /api/v1/students/:id/portal-password — Implemented (staff reset of the parent-portal password; same scoping as /contact)
-### DELETE /api/v1/students/:id — Implemented (soft-delete)
+### PUT /api/v1/students/:id — Implemented (principal/VP/**accountant**; edit only — create/delete/import stay principal/VP-only. `updated_by` on the emitted STUDENT_UPDATED event)
+### PATCH /api/v1/students/:id/contact — Implemented (parent_phone only; teaching roles scope-checked to own class, admin tier unrestricted — NOT accountant)
+### PUT /api/v1/students/:id/portal-password — Implemented (staff reset of the parent-portal password; same scoping as /contact — NOT accountant)
+### DELETE /api/v1/students/:id — Implemented (soft-delete, principal/VP only)
 
 ## Staff
 
@@ -722,8 +741,13 @@ ledger rows recomputed from schedule base amounts. Audit-only.
 ### GET /api/v1/payments/receipts/:id — Implemented
 ### POST /api/v1/fees/waive — Implemented (principal/accountant; waive selected unpaid fees with mandatory reason — not counted as revenue)
 ### GET /api/v1/fees/discounts?student_id= — Implemented (principal/VP/accountant)
-### PUT /api/v1/fees/discounts — Implemented (principal/VP; replaces student's discount set + recomputes unpaid ledger rows)
+### PUT /api/v1/fees/discounts — Implemented (principal/VP only, not accountant; replaces student's discount set + recomputes unpaid ledger rows, including any active seasonal reduction for the row's month)
+### PUT /api/v1/fees/schedules — Implemented (principal/VP/accountant; upsert. `reduced_month`/`reduced_percentage` optional — schedule charges that % of `amount` in that one calendar month every year, e.g. DPS's Bus Fee = 50% in May. Applied automatically by ledger generation; stacks with a student's own discount, seasonal reduction first then the personal discount on top)
 ### GET /api/v1/superadmin/dashboard — Implemented
+
+## Activity Log
+
+### GET /api/v1/activity-log — Implemented (principal/VP only; paginated, most-recent-first projection over `audit_events` for STUDENT_UPDATED / FEE_WAIVED / STUDENT_DISCOUNT_SET — resolves the actor and student UUIDs embedded in each payload into names. Read-only; `audit_events` itself stays the generic immutable log)
 
 ## Homework & Feed
 
