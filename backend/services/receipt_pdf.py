@@ -60,11 +60,19 @@ def render_receipt_pdf(ctx: dict) -> bytes:
     elements = []
 
     # ── Header: school name (left) + receipt no / date (right) ──
+    # Receipt numbers are one long unbroken token (e.g.
+    # "DAFFODILSPUBLICSCHOOL-2026-000122", no spaces) — reportlab's Paragraph
+    # only wraps at whitespace, so without a break opportunity it overflows
+    # its column and visually overlaps whatever's next to it. A zero-width
+    # space after each hyphen gives it somewhere to break without changing
+    # what's actually displayed.
+    zero_width_space = chr(0x200B)
+    receipt_no_wrappable = ctx["receipt_number"].replace("-", "-" + zero_width_space)
     header = Table(
         [[
             [Paragraph(ctx["school_name"], school_style),
              Paragraph("Fee Payment Receipt", sub_style)],
-            [Paragraph(ctx["receipt_number"], rcpt_style),
+            [Paragraph(receipt_no_wrappable, rcpt_style),
              Paragraph(date_display, rcpt_sub)],
         ]],
         colWidths=[doc.width * 0.6, doc.width * 0.4],

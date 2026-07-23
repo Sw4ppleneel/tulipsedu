@@ -115,13 +115,14 @@ def generate_receipt_html(
 <style>
   *{{box-sizing:border-box;margin:0;padding:0}}
   body{{font-family:Arial,sans-serif;max-width:640px;margin:0 auto;padding:28px;color:#222;font-size:14px}}
-  .header{{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1a56db;padding-bottom:14px;margin-bottom:18px}}
-  .school-name{{font-size:1.3em;font-weight:700;color:#1a56db}}
-  .receipt-no{{font-size:1.1em;font-weight:700;color:#1a56db;text-align:right}}
+  .header{{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:10px 16px;border-bottom:2px solid #1a56db;padding-bottom:14px;margin-bottom:18px}}
+  .header>div{{min-width:0}}
+  .school-name{{font-size:1.3em;font-weight:700;color:#1a56db;overflow-wrap:anywhere}}
+  .receipt-no{{font-size:1.1em;font-weight:700;color:#1a56db;text-align:right;overflow-wrap:anywhere;word-break:break-all}}
   .meta{{color:#555;font-size:0.82em;margin-top:3px}}
-  .info-table{{width:100%;border-collapse:collapse;margin-bottom:18px}}
-  .info-table th{{text-align:left;padding:6px 10px;background:#f5f7ff;font-size:0.82em;color:#444;width:25%}}
-  .info-table td{{padding:6px 10px;font-size:0.9em}}
+  .info-table{{width:100%;border-collapse:collapse;margin-bottom:18px;table-layout:fixed}}
+  .info-table th{{text-align:left;padding:6px 10px;background:#f5f7ff;font-size:0.82em;color:#444;width:18%}}
+  .info-table td{{padding:6px 10px;font-size:0.9em;overflow-wrap:anywhere}}
   .items-table{{width:100%;border-collapse:collapse;margin-bottom:4px}}
   .items-table thead th{{background:#f5f7ff;padding:8px 10px;text-align:left;font-size:0.82em;color:#444;border-bottom:1px solid #ddd}}
   .items-table tbody td{{padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:0.9em}}
