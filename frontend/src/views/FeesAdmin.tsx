@@ -579,10 +579,10 @@ function LogsTab() {
   return (
     <div>
       {loading ? <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>Loading…</p> : (
-        <ScrollX minWidth={620}>
+        <ScrollX minWidth={680}>
         <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
-          <div style={{ display: 'flex', padding: '0 1rem', height: 36, background: '#f9fafb', borderBottom: '1px solid #e5e7eb', fontSize: '0.75rem', fontWeight: 600, color: '#6b7280', alignItems: 'center', gap: '0.75rem' }}>
-            <span style={{ width: 120 }}>RECEIPT NO</span>
+          <div style={{ display: 'flex', padding: '0 1rem', height: 36, background: '#f9fafb', borderBottom: '1px solid #e5e7eb', fontSize: '0.75rem', fontWeight: 600, color: '#6b7280', alignItems: 'center', gap: '1rem' }}>
+            <span style={{ width: 165 }}>RECEIPT NO</span>
             <span style={{ flex: 1 }}>STUDENT</span>
             <span style={{ width: 80, textAlign: 'right' }}>AMOUNT</span>
             <span style={{ width: 70 }}>GATEWAY</span>
@@ -591,8 +591,8 @@ function LogsTab() {
           </div>
           {logs.length === 0 && <p style={{ padding: '2rem', textAlign: 'center', color: '#9ca3af', fontSize: '0.875rem' }}>No payment records yet.</p>}
           {logs.map((p: any) => (
-            <div key={p.id} style={{ display: 'flex', padding: '0.5rem 1rem', borderBottom: '1px solid #f3f4f6', gap: '0.75rem', fontSize: '0.8rem', alignItems: 'center' }}>
-              <span style={{ width: 120, fontWeight: p.receipt_number ? 600 : 400, color: p.receipt_number ? '#14463A' : '#9ca3af' }}>
+            <div key={p.id} style={{ display: 'flex', padding: '0.85rem 1rem', borderBottom: '1px solid #f3f4f6', gap: '1rem', fontSize: '0.8rem', alignItems: 'center' }}>
+              <span style={{ width: 165, lineHeight: 1.5, wordBreak: 'break-word', fontWeight: p.receipt_number ? 600 : 400, color: p.receipt_number ? '#14463A' : '#9ca3af' }}>
                 {p.receipt_number ? (
                   <a
                     href="#" title="Download receipt PDF"

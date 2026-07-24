@@ -1,5 +1,71 @@
 # BUILD.md
 
+## ✅ DEPLOYED 2026-07-24 — PMIC: missing subjects from routines + weekly timetable + Class 11 (2026-28) roster update
+
+Owner supplied 6 files: three official weekly routines (Arts/Science/
+Commerce PDFs+image) and three updated student-roster xlsx files
+("session 2026-28"). Owner: "set the subjects to classes now since
+routine is a better place to do it... also add the timetables... update
+the latest student infos and copy all of this to docs folders."
+
+**1. Subjects reconciled against the routines.** Cross-checking the
+routines against the exam_subjects set up earlier from the teacher-list
+PDF surfaced two gaps — both subjects with no teacher named against them
+in that PDF, so they were missed the first time: Commerce was missing
+**Business Studies** (routine code BST), Science was missing
+**Economics** (routine code ECO, alongside Physics/Chemistry/Math/
+Biology/Computer Science). `backend/scripts/add_pmic_missing_subjects.py`
+appended both to Class 11 and Class 12 in both streams (4 rows), same
+idempotent create_subject pattern as before. The Arts routine's "HNA/ENA"
+/ "HIN/URD" / "HIN/URD/ENG" notation turned out not to need any new
+subjects — Hindi, Urdu, and English were already all present from the
+first batch; those labels just mean the period splits into simultaneous
+language sub-groups, not a distinct subject.
+
+**2. Weekly timetable populated** (`timetable_slots`, previously empty
+for PMIC). `backend/scripts/setup_pmic_timetable.py` transcribes all
+three routines directly — 154 slots (Commerce 48, Science 48, Arts 58)
+across Class 11 & 12. Arts periods where the routine itself writes a
+combined cell (e.g. "HNA/ENA") are stored as one combined subject label
+("Hindi / English") since `timetable_slots` is one subject per
+(class, section, day, period) — splitting those into separate
+per-language-group rows would need a schema change (multiple slots per
+period), not done here. **`staff_id` left NULL on every slot** — the
+teacher-subject PDF used for exam-subjects doesn't cleanly resolve to one
+teacher per period (Umesh Yadav and Xavier Bara both cover ACT/ETP/ECO
+with no split given; Sagar Lohra, named for CMS/CHE, isn't even in the
+`staff` table yet) — guessing would put wrong names on a real timetable.
+Needs the owner to confirm who teaches which period before filling this
+in.
+
+**3. Class 11 (2026-28 intake) roster updated**, all three streams.
+Owner confirmed these are updates to students that already exist, not a
+new cohort ("we are just updating new students that exist in the files i
+sent you, we already have students running") — matches: existing
+admission-number scheme (`A-/S-/C-2026-{roll:03d}`) confirmed live before
+writing anything, source-file row counts grew since the original import
+(Arts 90→107, Science 15→25, Commerce 6→7), and DB row 8 (ROHIT ORAON)
+had a stale phone number that the new file corrects. Ran
+`backend/scripts/update_pmic_2026_28_intake.py`, same admission-number-
+keyed upsert (`services.student.import_students`) as the original PMIC
+Science/Commerce import. Result: created=36, updated=103, errors=0.
+Verified live: class counts now Arts 107 / Science 25 / Commerce 7
+(Class 11), Rohit Oraon's phone corrected to the new value.
+
+**Not captured**: the source roster sheets also carry Caste, Aadhar No.,
+Guardian's Aadhar No., Passing Board, and Passing % — none of these have
+columns on `students` today, so they weren't imported (same scope
+boundary as every prior PMIC/DPS import — only fields the app already
+models get pulled in). Flagging in case the owner wants these tracked
+later (would need a schema-change approval gate, not a quick add).
+
+**Docs**: source files copied into `School_docs/Premchand Mahto Inter
+College/` — routines under a new `Routines/` subfolder, rosters replacing
+the existing files in the established `Arts/`/`Science/`/`Commerce/`
+subfolders (same filenames, newer content).
+
+DB backed up before all three scripts (`tulipsedu-2026-07-24-0755.sql.gz`).
+
 ## ✅ DEPLOYED 2026-07-24 — PMIC: stream-scoped exam subjects (Class 11-12) + secondary subdomain + full-form school name (migration 044)
 
 Three bundled owner requests.
