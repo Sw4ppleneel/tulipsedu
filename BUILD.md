@@ -1,5 +1,37 @@
 # BUILD.md
 
+## ✅ DEPLOYED 2026-07-24 — DPS: exam subjects set up for Pre-Nursery/Nursery/K.G. I/K.G. II
+
+Follow-up to the Class 1-8 batch below — owner: "go ahead and set up P.Nur,
+Nur, K.G I, K.G II too". Unlike Class 1-8, each of these 4 classes has its
+own distinct dictated list (not one shared list):
+
+- Pre-Nursery (7): Hindi Written, Hindi Oral, Eng Written, Eng Oral, Math
+  Written, Math Oral, Games
+- Nursery (8): Eng Oral, Hindi Written, Math Written, Homework, Eng
+  Written, Hindi Oral, Math Oral, Rhymes
+- K.G. I (8): Math Written, Hindi Written, Eng Written, Homework
+  (subject_code "H.W"), Eng Oral, Hindi Oral, Math Oral, Rhymes
+- K.G. II (8): Hindi, Eng, Math, Science, Storytelling, Writing Book,
+  Homework, Rhymes
+
+**Design call made without stopping to ask:** modeled as plain
+`exam_subjects` rows (e.g. "Hindi Written" and "Hindi Oral" as two
+independent subjects), not `exam_components` (which would roll a
+Written+Oral pair into one weighted "Hindi" total per term) — components
+require per-term max_marks/weightage which the owner hadn't specified, and
+plain rows exactly mirror the dictated line items with no invented data.
+DPS does have 4 exam_terms already configured, so a components-based
+roll-up is possible later if the owner wants "Hindi" to show as one graded
+line with Written/Oral as its breakdown — flagging, not assuming either
+way.
+
+Script: `backend/scripts/setup_dps_subjects_prenur_kg.py`, same
+idempotent pattern as the Class 1-8 script. Prod backup taken first
+(`tulipsedu-2026-07-24-0717.sql.gz`), committed+pushed before running.
+Result: created=31, already_existed=0, errors=0. Verified live via direct
+query — all 4 classes match the dictated order exactly (sort_order 1-N).
+
 ## ✅ DEPLOYED 2026-07-24 — DPS: exam subjects set up for Class 1-8
 
 Owner supplied the subject list in chat (same 9 subjects for every class,
@@ -23,13 +55,8 @@ committed+pushed before running, `docker cp` into `tulips-backend-1` +
 already_existed=0, errors=0. Verified live via direct query — all 8
 classes (Class 1-8) each carry the same 9 subjects, sort_order 1-9.
 
-**Not yet done:** Pre-Nursery/Nursery/K.G. I/K.G. II have their own
-(different, written/oral-split) subject lists the owner dictated earlier
-this session but has not yet asked to have set up — flagging so it isn't
-assumed done. `exam_subjects` has no written/oral split field; those would
-need to go in as plain subject rows same as this batch, or via
-`exam_components` if the written/oral distinction needs to carry into
-marks entry (worth clarifying with the owner when that batch comes up).
+**Follow-up done same day:** Pre-Nursery/Nursery/K.G. I/K.G. II set up
+next — see the entry above (newer, listed first).
 
 ## ✅ DEPLOYED 2026-07-23 — Owner bug reports + feature batch (migrations 043; multi-role's known gaps closed)
 
