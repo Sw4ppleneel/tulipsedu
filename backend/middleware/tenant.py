@@ -53,7 +53,7 @@ class TenantMiddleware(BaseHTTPMiddleware):
         pool = request.app.state.pool
         async with pool.acquire() as conn:
             tenant = await conn.fetchrow(
-                "SELECT id, slug, feature_flags FROM tenants WHERE slug = $1", slug
+                "SELECT id, slug, feature_flags FROM tenants WHERE slug = $1 OR alt_slug = $1", slug
             )
 
         if not tenant:
