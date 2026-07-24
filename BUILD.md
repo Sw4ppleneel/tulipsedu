@@ -1,5 +1,64 @@
 # BUILD.md
 
+## ✅ DEPLOYED 2026-07-24 — PMIC: stream-scoped exam subjects (Class 11-12) + secondary subdomain + full-form school name (migration 044)
+
+Three bundled owner requests.
+
+**1. PMIC exam subjects.** Source was a teacher "Name & Subject List" PDF
+(`School_docs/Premchand Mahto Inter College/`) — a teacher→subject mapping,
+not a per-class curriculum list like DPS's, so subjects had to be derived
+per stream (PMIC has only Class 11/12, each with Science/Commerce/Arts
+sections, no other classes). Resolved via `AskUserQuestion`: "CMS" =
+Computer Science (not Commerce); English added to all three streams as
+compulsory even though no teacher was listed for it in the source PDF;
+Economics kept Commerce-only for now — owner: don't guess cross-stream
+subjects, more section-wise additions to follow separately. Full names
+used throughout (owner: "use full forms of subjects"), not the PDF's
+abbreviations (ACT/ETP/ECO/etc).
+
+Final set — Science (6): English, Physics, Chemistry, Mathematics,
+Biology, Computer Science. Commerce (4): English, Accountancy,
+Entrepreneurship, Economics. Arts (8): English, Political Science,
+History, Hindi, Psychology, Urdu, Geography, Anthropology. Same set for
+both Class 11 and Class 12 (JAC Intermediate, two-year programme).
+`backend/scripts/setup_pmic_subjects.py`, same idempotent pattern as the
+DPS scripts, `exam_subjects.section_id` scopes each subject to its stream
+(unlike DPS's Class 1-8 which has no section split). Result: created=36,
+already_existed=0, errors=0. Verified live via direct query.
+
+**2. Secondary subdomain (migration 044, `tenants.alt_slug`).** Owner:
+change the URL to `pcmintercollege.tulipsedu.in`, or if not changed,
+add it as a new URL while keeping `premchandmahtoic.tulipsedu.in` active
+too — real staff/parent logins already point at the old one. Went with
+the alias approach (satisfies both branches at once, and is reversible):
+`tenants.alt_slug VARCHAR(63) UNIQUE`, nullable; `TenantMiddleware`'s one
+lookup query changed to match `slug OR alt_slug`
+(`backend/middleware/tenant.py`). No nginx/DNS change needed —
+`*.tulipsedu.in` already has wildcard DNS (Cloudflare) + a wildcard TLS
+cert covering any subdomain, confirmed via `dig`/`openssl s_client` before
+writing the migration. Webhook tenant lookups (`services/payment.py`,
+Razorpay/PhonePe) intentionally untouched — those take `tenant_slug` from
+the gateway-configured callback URL path, not a browser hostname, so the
+alias is irrelevant there. Set `alt_slug='pcmintercollege'` for
+`premchandmahtoic`. Verified live: both
+`https://pcmintercollege.tulipsedu.in` and
+`https://premchandmahtoic.tulipsedu.in` return 200 and resolve to the same
+tenant via `/api/v1/public/school-info`.
+
+**3. Full-form school name.** `tenants.name` was "Premchand Mahto IC" —
+feeds receipts, payslips, and portal headers directly
+(`t.name AS school_name` in `services/payment.py`/`parent_payment.py`/
+`fee_collection.py`/`parent.py`). Changed to "Premchand Mahto Inter
+College" (plain data correction, no code change needed — the public
+website already hardcoded the full form independently). Verified live via
+`/api/v1/public/school-info`.
+
+Full deploy: gate passed (11 tests, "not live" suite), DB backed up
+before migration (`tulipsedu-2026-07-24-0732.sql.gz`), backend+worker
+rebuilt, health check + smoke tests all green. The `alt_slug`/`name`
+`UPDATE`s and the subjects script ran immediately after, against that
+same freshly-backed-up state.
+
 ## ✅ DEPLOYED 2026-07-24 — DPS: exam subjects set up for Pre-Nursery/Nursery/K.G. I/K.G. II
 
 Follow-up to the Class 1-8 batch below — owner: "go ahead and set up P.Nur,

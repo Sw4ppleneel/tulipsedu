@@ -233,6 +233,16 @@ Purpose: Institution registry
 Fields:
 * id (UUID PK)
 * slug (VARCHAR 63, UNIQUE)
+* alt_slug (VARCHAR 63, UNIQUE, nullable) — secondary subdomain a tenant also
+  resolves on, without renaming its primary `slug` (migration 044).
+  `TenantMiddleware` matches `slug OR alt_slug` against the request hostname's
+  first label; both subdomains carry full, independent access to the same
+  tenant (JWT tenant-mismatch check compares `tenant_id`, not slug, so it's
+  unaffected by which one was used to log in). No nginx/DNS change needed —
+  `*.tulipsedu.in` already has wildcard DNS + a wildcard TLS cert covering any
+  subdomain. NOT consulted by the payment-webhook tenant lookups
+  (`services/payment.py`) — those take the slug from the gateway-configured
+  callback URL path, not a browser hostname.
 * name (VARCHAR 255)
 * institution_type (VARCHAR 50, default 'school')
 * feature_flags (JSONB)
