@@ -1,5 +1,36 @@
 # BUILD.md
 
+## ✅ DEPLOYED 2026-07-24 — DPS: exam subjects set up for Class 1-8
+
+Owner supplied the subject list in chat (same 9 subjects for every class,
+1 through 8): Hindi, Eng, Math, Science, S.S.T, Comp, Snk (subject_code
+"Sanskrit"), G.K, M.Sc (subject_code "Moral Science"). Confirmed via
+`AskUserQuestion` that "G.K / M.SC" as originally written was two separate
+subjects, not one combined line.
+
+New one-off script `backend/scripts/setup_dps_subjects_1_8.py` — calls
+`services.exam.create_subject` per class×subject (72 inserts total, no
+`Terms` sheet needed so the existing `import_exam_setup` xlsx importer
+wasn't a fit). Idempotent: a `UniqueViolationError` on `(tenant_id,
+academic_year_id, class_id, name)` is caught and counted as
+`already_existed` rather than failing, safe to re-run. No pre-existing
+exam_subjects rows for DPS at all before this (confirmed via read-only
+query), so purely additive — no risk to existing data.
+
+Prod backup taken first (`tulipsedu-2026-07-24-0713.sql.gz`), script
+committed+pushed before running, `docker cp` into `tulips-backend-1` +
+`docker exec` per the standard pattern. Result: created=72,
+already_existed=0, errors=0. Verified live via direct query — all 8
+classes (Class 1-8) each carry the same 9 subjects, sort_order 1-9.
+
+**Not yet done:** Pre-Nursery/Nursery/K.G. I/K.G. II have their own
+(different, written/oral-split) subject lists the owner dictated earlier
+this session but has not yet asked to have set up — flagging so it isn't
+assumed done. `exam_subjects` has no written/oral split field; those would
+need to go in as plain subject rows same as this batch, or via
+`exam_components` if the written/oral distinction needs to carry into
+marks entry (worth clarifying with the owner when that batch comes up).
+
 ## ✅ DEPLOYED 2026-07-23 — Owner bug reports + feature batch (migrations 043; multi-role's known gaps closed)
 
 Seven items from one owner message, in order:
