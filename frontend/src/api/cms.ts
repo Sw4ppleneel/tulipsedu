@@ -46,13 +46,23 @@ export interface SchoolInfo {
   slug: string
 }
 
+// Secondary subdomains → canonical slug. Mirrors backend tenants.alt_slug
+// (migration 044) — the backend resolves either one via SQL, but the public
+// site's per-school component (PublicSite.tsx's SCHOOL_SITES) and asset
+// folder (school-assets/<slug>/) are static frontend lookups keyed on the
+// canonical slug only, so aliases need resolving here too.
+const SLUG_ALIASES: Record<string, string> = {
+  pcmintercollege: 'premchandmahtoic',
+}
+
 // Resolve tenant slug from subdomain (prod) or ?school= override (local dev).
 export function publicSlug(): string {
   const params = new URLSearchParams(window.location.search)
   const override = params.get('school')
   if (override) return override
   const parts = window.location.hostname.split('.')
-  return parts.length > 2 ? parts[0] : ''
+  const raw = parts.length > 2 ? parts[0] : ''
+  return SLUG_ALIASES[raw] ?? raw
 }
 
 async function publicGet<T>(path: string): Promise<T> {
