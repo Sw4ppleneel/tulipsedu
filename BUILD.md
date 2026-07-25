@@ -1,5 +1,25 @@
 # BUILD.md
 
+## ✅ DEPLOYED 2026-07-25 — PMIC: Sagar Lohra onboarded (staff + login + assignments)
+
+Closes the gap flagged in the entry below — named in the original
+teacher-subject PDF (CMS/CHE = Computer Science + Chemistry, Science
+stream) but never actually in `staff`. Owner supplied his real phone
+(9905706281) directly. `backend/scripts/add_pmic_sagar_lohra.py`:
+staff row (EMP013, designation "Lecturer"), login (standard convention
+password, role=teacher), and the same assignment pattern as the other 11
+— Computer Science + Chemistry on Class 11/12 Science (his real
+subjects), blanket `subject=NULL` rows on Arts/Commerce for the same
+all-classes attendance/homework access everyone else has. Verified live:
+8 assignment rows, matches the intended shape exactly.
+
+Noted, not acted on: 9905706281 happens to already belong to a different
+"Sagar" at `daffodilspublicschool` — different tenant, no actual
+collision (phone uniqueness is tenant-scoped), but flagging in case it's
+the same person at two schools rather than coincidence.
+
+DB backed up first (`tulipsedu-2026-07-25-0735.sql.gz`).
+
 ## ✅ DEPLOYED 2026-07-25 — PMIC: all teachers assigned to all classes (attendance/homework access)
 
 Follow-up to the PMIC batch below. Owner asked whether to make every
