@@ -1,5 +1,28 @@
 # BUILD.md
 
+## ✅ DEPLOYED 2026-07-25 — PMIC: Umesh Yadav's phone number + password corrected
+
+Owner-supplied correction: 9334679531 → 9334721436, phone and password
+requested together this time (unlike Seema Mamta Minz below, where the
+password reset was a separate follow-up ask).
+`backend/scripts/fix_pmic_umesh_phone_password.py` updates
+`staff.phone_number`, `users.phone_number`, and `users.password_hash`
+(standard convention, computed from the new number/name, not hardcoded)
+in one transaction. Verified live: both tables show the new number in
+sync.
+
+**Side note on this session's SSH-to-prod outage:** hit the same failure
+signature as the 2026-07-17 incident (HTTPS/Cloudflare traffic fine,
+port 22 timing out) — gave the owner a self-contained `docker exec`
+command to run from the Hostinger console as a fallback while SSH was
+down. SSH recovered on its own before the owner ran it (root cause not
+independently re-diagnosed this time, unlike the original incident which
+traced it to the VPS Firewall having zero rules) — this script ran
+through the normal SSH path once access returned, not the console
+fallback. Worth a firewall check if it recurs.
+
+DB backed up first (`tulipsedu-2026-07-25-0847.sql.gz`).
+
 ## ✅ DEPLOYED 2026-07-25 — PMIC: Seema Mamta Minz's phone number corrected
 
 Owner-supplied correction: 9751568265 → 9771568265. She already has an
