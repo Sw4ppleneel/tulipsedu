@@ -1,5 +1,22 @@
 # BUILD.md
 
+## ✅ DEPLOYED 2026-07-25 — Collect Fee tab: show paid fees alongside pending dues (all tenants)
+
+Owner: "we do get the unpaid fees, put another section where paid fees
+can be seen as well. Make it same across all schools." Turned out to be
+purely a frontend gap — `get_student_ledger` (`services/finance.py`)
+already returns `paid`/`total_paid` in the response, `CollectTab`
+(`FeesAdmin.tsx`) just never rendered them. Fixed once, in the shared
+component, so it applies to every tenant automatically — no per-school
+code exists here to duplicate.
+
+Added a collapsed-by-default "Paid (N) · total" toggle below the pending
+list; expands to the same period/fee-head/amount rows as pending, styled
+as read-only history (no checkboxes — not actionable from here).
+Collapsed by default so it doesn't compete with the primary collect-fee
+workflow; resets when switching students or returning to search.
+Frontend-only deploy, smoke tests passed.
+
 ## ✅ DEPLOYED 2026-07-25 — PMIC: Umesh Yadav's phone number + password corrected
 
 Owner-supplied correction: 9334679531 → 9334721436, phone and password
