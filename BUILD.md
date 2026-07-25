@@ -1,5 +1,43 @@
 # BUILD.md
 
+## ✅ DEPLOYED 2026-07-25 — PMIC: all teachers assigned to all classes (attendance/homework access)
+
+Follow-up to the PMIC batch below. Owner asked whether to make every
+teacher a "class teacher" so they could all mark attendance, given PMIC
+has no homeroom system and multiple teachers already cross streams/
+classes. Checked first: `is_class_teacher` is a display-only flag —
+`core.rbac.load_class_scope` grants class scope from any
+`staff_class_assignments` row at all, regardless of the flag — and PMIC
+had **zero** such rows for any of its 12 teachers, so nobody but the
+principal could mark attendance for any class. Owner's actual call once
+that was surfaced: give every teacher access to every class (not scoped
+to their own stream), accepting the wider surface because the activity
+log already tracks the real actor on every action — and also record each
+teacher's real subject where known.
+
+`backend/scripts/assign_pmic_teachers.py`: for each teacher, one
+`staff_class_assignments` row per known subject on their own stream's two
+classes (e.g. Ashok Kumar → Physics + Mathematics × Class 11/12 Science =
+4 rows), plus one `subject=NULL` blanket row per class on every other
+stream (grants scope with no invented subject claim).
+`is_class_teacher=FALSE` throughout — correct here since nobody actually
+holds that role at PMIC; the assignment row's mere existence is what
+grants access, not the flag. Idempotent (subject-specific rows lean on
+the DB's own unique constraint; blanket rows checked for an existing
+NULL-subject match first). Result: created=82, already_existed=0,
+errors=0. Verified live.
+
+**Known gaps, flagged not fixed:** Sagar Lohra (Computer Science +
+Chemistry per the original teacher-subject PDF) was never imported into
+`staff` at all, so he has no assignments — still needs onboarding if he's
+actually teaching. Ajay Kumar Mahtha (in `staff`, but wasn't on that PDF)
+got only blanket rows, no known subject. Nobody is recorded as teaching
+English (all 3 streams) or Business Studies (Commerce) specifically —
+both subjects exist in `exam_subjects`/the timetable but have no named
+teacher.
+
+DB backed up first (`tulipsedu-2026-07-25-0723.sql.gz`).
+
 ## ✅ DEPLOYED 2026-07-24 — PMIC: missing subjects from routines + weekly timetable + Class 11 (2026-28) roster update
 
 Owner supplied 6 files: three official weekly routines (Arts/Science/
