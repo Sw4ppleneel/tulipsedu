@@ -340,6 +340,7 @@ function CollectTab() {
   const [receiptPaymentId, setReceiptPaymentId] = useState('')
   const [waiving, setWaiving] = useState(false)
   const [waiveReason, setWaiveReason] = useState('')
+  const [showPaid, setShowPaid] = useState(false)
 
   useEffect(() => {
     listStudents({ limit: 5000 })
@@ -359,7 +360,7 @@ function CollectTab() {
   }, [roster, query])
 
   async function loadStudent(student: Student) {
-    setLoading(true); setLedger(null); setSelected(new Set()); setReceiptPaymentId(''); setStatus('')
+    setLoading(true); setLedger(null); setSelected(new Set()); setReceiptPaymentId(''); setStatus(''); setShowPaid(false)
     try {
       const l = await getStudentLedger(student.id)
       setLedger(l)
@@ -369,7 +370,7 @@ function CollectTab() {
 
   function backToSearch() {
     setLedger(null); setSelected(new Set())
-    setReceiptPaymentId(''); setStatus(''); setQuery('')
+    setReceiptPaymentId(''); setStatus(''); setQuery(''); setShowPaid(false)
   }
 
   // The ledger is only fetched once when a student is selected — if a
@@ -558,6 +559,28 @@ function CollectTab() {
               <a href="#" onClick={(e) => { e.preventDefault(); openReceiptHtml(receiptPaymentId).catch((err) => alert(err instanceof Error ? err.message : 'Error')) }} style={{ color: '#14463A' }}>View Receipt ↗</a>
             </div>
           )}
+
+          <div style={{ marginTop: '1.5rem', borderTop: '1px solid #f3f4f6', paddingTop: '0.75rem' }}>
+            <button onClick={() => setShowPaid((v) => !v)}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: '0.8rem', fontWeight: 600, color: '#6b7280' }}>
+              <span>{showPaid ? '▾' : '▸'}</span>
+              Paid ({ledger.paid.length}) · {fmt(ledger.total_paid)}
+            </button>
+            {showPaid && (
+              ledger.paid.length === 0 ? (
+                <p style={{ fontSize: '0.8rem', color: '#9ca3af', marginTop: '0.5rem' }}>No payments on record yet.</p>
+              ) : (
+                <div style={{ marginTop: '0.5rem' }}>
+                  {ledger.paid.map((e) => (
+                    <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0', borderBottom: '1px solid #f3f4f6', fontSize: '0.8rem', color: '#374151' }}>
+                      <span style={{ flex: 1 }}>{periodLabel(e.period_month, e.period_year)} — {e.fee_head_name}</span>
+                      <span style={{ fontWeight: 700, color: '#1F8A5D' }}>{fmt(e.amount_due)}</span>
+                    </div>
+                  ))}
+                </div>
+              )
+            )}
+          </div>
         </div>
       )}
     </div>
