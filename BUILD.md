@@ -1,5 +1,18 @@
 # BUILD.md
 
+## ✅ DEPLOYED 2026-07-25 — PMIC: Seema Mamta Minz's phone number corrected
+
+Owner-supplied correction: 9751568265 → 9771568265. She already has an
+active login, so `backend/scripts/fix_pmic_seema_minz_phone.py` updated
+both `staff.phone_number` (contact) and `users.phone_number` (login
+identifier) together in one transaction — `update_staff` alone only
+touches the `staff` row, which would have desynced her login from the
+corrected number. `password_hash` deliberately left untouched: a contact
+correction, not a credential reset, so she keeps her existing password
+and just logs in with the corrected number now. Verified live.
+
+DB backed up first (`tulipsedu-2026-07-25-0744.sql.gz`).
+
 ## ✅ DEPLOYED 2026-07-25 — PMIC: Sagar Lohra onboarded (staff + login + assignments)
 
 Closes the gap flagged in the entry below — named in the original
