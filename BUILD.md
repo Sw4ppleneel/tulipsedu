@@ -1,6 +1,6 @@
 # BUILD.md
 
-## 🚧 PENDING DEPLOY 2026-08-01 — Fee payment logs: paginated so every slip is reachable (all tenants)
+## ✅ DEPLOYED 2026-08-01 — Fee payment logs: paginated so every slip is reachable (all tenants)
 
 Owner: "its getting cropped to a certain number, we need all slips to be
 accessible. Add pagination." The Payment Logs tab fetched a flat
@@ -32,7 +32,17 @@ page at `limit=2` and asserts the union equals `total` with no duplicate
 or skipped row — pins both the envelope and the stable ordering. Gate:
 12 passed, 1 xfailed.
 
-## 🚧 PENDING DEPLOY 2026-08-01 — PMIC public website: Principal's phone still showed the old number
+**Measured impact** (read-only count on prod, owner-authorised, after
+deploy): DPS 338 payments — **138 receipts were unreachable** before this
+fix; PMIC 147; PHS and VMHS 12 each. Only DPS had crossed the old 200
+ceiling, but it had crossed it substantially.
+
+Deploy verified against the served artifacts, not the build log: the prod
+backend has `count_payment_logs` and `ORDER BY fp.created_at DESC, fp.id
+DESC` (`services/finance.py:759`), and the live JS bundle requests
+`fees/logs?limit=${t}&offset=${n}`. Smoke tests 10/10.
+
+## ✅ DEPLOYED 2026-08-01 — PMIC public website: Principal's phone still showed the old number
 
 Owner: "its correct in the login but wrong on the frontend website."
 Follow-up to the 2026-07-25 correction below (9334679531 → 9334721436) —
@@ -52,7 +62,19 @@ occurrence of `9334679531` remains anywhere under `frontend/src/`, and
 contact details as literals in five places each, so any future phone or
 address correction has to be repeated by hand and will silently drift
 again. Candidate cleanup: source the public page's contact block from
-the tenant/CMS record instead of hardcoding it.
+the tenant/CMS record instead of hardcoding it. → tracked under Known
+Issues below.
+
+Deployed via `--frontend-only`. Verified on the live bundle at
+`premchandmahtoic.tulipsedu.in`: 5 occurrences of the new number, 0 of
+the old.
+
+**Smoke-test gap found while verifying:** `scripts/smoke_test.sh` checks
+the public school sites as *paths* against `localhost`
+(`/premchandmahtoic`), but tenant sites are actually served on
+*subdomains* (`nginx.prod.conf:82`). The apex path returns the Tulips
+marketing landing page with a 200, so that check passes without ever
+exercising a tenant site. → tracked under Known Issues below.
 
 ## ✅ DEPLOYED 2026-07-25 — Collect Fee tab: show paid fees alongside pending dues (all tenants)
 
@@ -2088,6 +2110,18 @@ Migration 031. Full write-up in ARCHITECTURE.md.
 - Feature flags (`tenants.features` JSONB) mandated by CLAUDE.md but NOT built — see W4.
   (ROADMAP previously mislabelled migration 023 as this; 023 is the transport fee filter.)
 - Domain events are recorded but not consumed (no worker) — the central Phase-2 gap (W1–W2).
+- ⚠️ **Public school pages hardcode contact details in ~5 places each.** Every
+  `frontend/src/views/public/*.tsx` repeats the school's phone/address as literals in the
+  header, principal card, closing CTA, contact card, and footer. A correction has to be
+  applied by hand to all of them, and missing one is silent — exactly how PMIC's principal
+  card kept showing the old number for a week after the DB was corrected (2026-08-01).
+  Fix: source the contact block from the tenant/CMS record instead of hardcoding.
+- ⚠️ **`scripts/smoke_test.sh` does not actually exercise the public school sites.** It
+  requests them as paths against localhost (`/premchandmahtoic`), but tenant sites are served
+  on subdomains (`nginx.prod.conf:82`). The apex path returns the Tulips *marketing* landing
+  page with a 200, so all four checks pass green even if every tenant site were broken. Fix:
+  request the subdomain, or pass a `Host:` header. Found 2026-08-01 while verifying the PMIC
+  phone fix — the verification had to be done manually against the real subdomain instead.
 
 ---
 
