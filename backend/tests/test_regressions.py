@@ -211,3 +211,32 @@ def test_payment_logs_paginate_over_every_slip(clients, tenant):
 
     assert len(seen) == total, f"paging returned {len(seen)} rows for a total of {total}"
     assert len(set(seen)) == total, "a payment appeared on more than one page (unstable ORDER BY)"
+
+
+# ── Placeholder phones handed out guessable parent-portal passwords ───────────
+@pytest.mark.parametrize("phone", ["0000000000", "9000000000", "9999999999"])
+def test_placeholder_phone_never_backs_a_portal_password(phone):
+    """No placeholder phone may yield a derived parent-portal password.
+
+    The guard was an equality check against "0000000000" only, so PMIC's
+    "9000000000" (119 students) and "9999999999" passed it and every one of
+    those students had portal password "0000"/"9999" — trivially guessable
+    alongside sequential admission numbers, which is the hole the 2026-07-18
+    password rollout was supposed to close.
+    """
+    from services.parent import _default_password_for
+    assert _default_password_for(phone) is None, \
+        f"{phone} must not back a derived portal password"
+
+
+@pytest.mark.parametrize("phone", ["9334721436", "6202692620", "8051034177"])
+def test_real_phone_still_backs_a_portal_password(phone):
+    """The placeholder guard must not lock out real families.
+
+    Every real parent phone across the live tenants has >= 4 distinct digits;
+    the structural bound rejects <= 2. These are real-shaped numbers and must
+    keep deriving their last-4 default.
+    """
+    from services.parent import _default_password_for
+    assert _default_password_for(phone) == phone[-4:], \
+        f"{phone} is a real number and must still derive its last-4 default"

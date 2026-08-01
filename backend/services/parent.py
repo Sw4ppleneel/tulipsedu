@@ -27,9 +27,23 @@ class ParentAuthError(Exception):
     pass
 
 
-# Bulk-import rows with no phone on record get this placeholder — it must never
-# become a usable password source (last 4 would be "0000" for all of them).
+# Bulk-import rows with no phone on record get a placeholder — none of them may
+# ever become a usable password source (last 4 would be a repeated digit).
 PLACEHOLDER_PHONE = "0000000000"
+
+# Detect placeholders STRUCTURALLY, not by value. This started as an equality
+# check against PLACEHOLDER_PHONE alone, which silently let two other
+# placeholders through: PMIC's imports used "9000000000" (119 students, portal
+# password "0000") and "9999999999". Both are 10 digits and all-numeric, so the
+# single-value check passed them and handed out a guessable default — the exact
+# hole the 2026-07-18 password rollout was meant to close.
+#
+# Bound is data-derived (all live tenants, 2026-08-02): every real parent phone
+# on record has >= 4 distinct digits, while every placeholder has <= 2
+# (0000000000 -> 1, 9999999999 -> 1, 9000000000 -> 2). Nothing observed sits at
+# 3, so this rejects placeholders with a full digit of margin and cannot lock
+# out a real family.
+MAX_PLACEHOLDER_DISTINCT_DIGITS = 2
 
 MIN_PORTAL_PASSWORD_LEN = 4  # the derived default (last 4 of phone) is 4 chars
 
@@ -38,7 +52,9 @@ def _default_password_for(parent_phone: str | None) -> str | None:
     """The derived default password: last 4 digits of the registered phone.
     None when the phone can't back a password (missing/placeholder/malformed)."""
     phone = (parent_phone or "").strip()
-    if len(phone) != 10 or not phone.isdigit() or phone == PLACEHOLDER_PHONE:
+    if len(phone) != 10 or not phone.isdigit():
+        return None
+    if len(set(phone)) <= MAX_PLACEHOLDER_DISTINCT_DIGITS:
         return None
     return phone[-4:]
 
