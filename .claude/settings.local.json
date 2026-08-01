@@ -95,7 +95,9 @@
       "Bash(graphify export *)",
       "Bash(python -m py_compile api/v1/admissions.py)",
       "Bash(bash scripts/deploy.sh)",
-      "Bash(graphify query *)"
+      "Bash(graphify query *)",
+      "Bash(npx tsc *)",
+      "Bash(echo \"EXIT: $?\")"
     ]
   }
 }

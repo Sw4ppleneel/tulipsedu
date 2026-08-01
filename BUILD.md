@@ -1,5 +1,27 @@
 # BUILD.md
 
+## 🚧 PENDING DEPLOY 2026-08-01 — PMIC public website: Principal's phone still showed the old number
+
+Owner: "its correct in the login but wrong on the frontend website."
+Follow-up to the 2026-07-25 correction below (9334679531 → 9334721436) —
+that fix was DB-only (`staff` + `users`), but the public marketing page
+`frontend/src/views/public/PremchandMahtoInterCollege.tsx` hardcodes its
+contact numbers rather than reading them from the tenant record, so the
+Principal's Message card was left stranded on the old number while login
+worked fine.
+
+Four of the five phone instances on that page (header, closing CTA,
+contact card, footer) already had the new number; only the Principal's
+Message card (line 389) was stale. Changed that one line. Verified no
+occurrence of `9334679531` remains anywhere under `frontend/src/`, and
+`tsc --noEmit` passes. Frontend-only, no DB write, no migration.
+
+**Root cause worth noting:** these per-school public pages duplicate
+contact details as literals in five places each, so any future phone or
+address correction has to be repeated by hand and will silently drift
+again. Candidate cleanup: source the public page's contact block from
+the tenant/CMS record instead of hardcoding it.
+
 ## ✅ DEPLOYED 2026-07-25 — Collect Fee tab: show paid fees alongside pending dues (all tenants)
 
 Owner: "we do get the unpaid fees, put another section where paid fees
