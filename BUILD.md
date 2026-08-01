@@ -1,5 +1,50 @@
 # BUILD.md
 
+## 🔒 ✅ DEPLOYED 2026-08-02 — SECURITY: placeholder phones were handing out guessable parent-portal passwords (PMIC, 119 students)
+
+Found while discussing a parent-facing data-collection form; owner spotted
+it: *"some pmic phones that are placeholder go by 900... as well"*.
+
+`_default_password_for` (`services/parent.py`) guarded against placeholder
+phones with a **single equality check** against `"0000000000"`. PMIC's
+imports had also used `9000000000` and `9999999999`. Both are ten digits
+and all-numeric, so both passed the check and derived a last-4 default:
+
+| Placeholder | Tenant | Students | Derived password | Could log in |
+|---|---|---|---|---|
+| `9000000000` | PMIC | 118 | `0000` | **yes** |
+| `9999999999` | PMIC | 1 | `9999` | **yes** |
+| `0000000000` | DPS 43 / PMIC 4 | 47 | — | no (correctly blocked) |
+
+All 119 exposed students were still on the derived default (zero had a
+stored `portal_password_hash`). PMIC has `parent_password: true` and
+sequential admission numbers (`A-2025-001`, `S-2026-025`), so the roster
+was walkable: guess the number, try `0000`, read that student's fees and
+attendance. **37% of PMIC's roster.** This is precisely the hole the
+2026-07-18 password rollout was built to close — it closed for one
+placeholder and stayed open for two others.
+
+Fix: detect placeholders **structurally**, not by value — reject any phone
+with ≤ 2 distinct digits. Bound is data-derived across all live tenants:
+every real parent phone has ≥ 4 distinct digits, every placeholder has ≤ 2,
+and nothing sits at 3, so it cannot lock out a real family. Fails closed —
+`_verify_portal_password` raises when no default can be derived, with a
+message telling the parent to ask the school to update their number.
+
+Deliberately **code-only, no tenant data touched**: writing password hashes
+for the 119 would have broken the owner's remediation path, since a stored
+hash suppresses the derived default. As it stands, a teacher entering the
+real phone via `PATCH /students/{id}/contact` immediately restores that
+family's login with no further action.
+
+Verified on the live backend post-deploy: all three placeholders → `None`,
+real numbers still derive (`9334721436` → `1436`). Gate 18 passed, 1
+xfailed. Six parametrized regression tests pin both directions.
+
+**Owner is collecting the 119 real phone numbers.** Until then those
+families cannot log in — the intended trade, chosen deliberately over
+leaving the roster exposed.
+
 ## ✅ DEPLOYED 2026-08-01 — Fee payment logs: paginated so every slip is reachable (all tenants)
 
 Owner: "its getting cropped to a certain number, we need all slips to be
@@ -2110,6 +2155,14 @@ Migration 031. Full write-up in ARCHITECTURE.md.
 - Feature flags (`tenants.features` JSONB) mandated by CLAUDE.md but NOT built — see W4.
   (ROADMAP previously mislabelled migration 023 as this; 023 is the transport fee filter.)
 - Domain events are recorded but not consumed (no worker) — the central Phase-2 gap (W1–W2).
+- ⚠️ **119 PMIC students have no working parent-portal login** until their real phone numbers
+  are entered (placeholder `9000000000`/`9999999999`). Blocked deliberately by the 2026-08-02
+  security fix above; owner is collecting the numbers. Teachers can fix their own section via
+  `PATCH /students/{id}/contact` — entering a real phone restores the login immediately, no
+  redeploy. Same applies to the 47 on `0000000000` (43 DPS, 4 PMIC), blocked since 2026-07-18.
+- ⚠️ **The `platform` tenant's superadmin login uses phone `9000000000`.** Not the same
+  vulnerability — staff passwords are stored bcrypt hashes, never derived from the phone — but
+  a placeholder on the highest-privilege account is worth replacing with a real number.
 - ⚠️ **Public school pages hardcode contact details in ~5 places each.** Every
   `frontend/src/views/public/*.tsx` repeats the school's phone/address as literals in the
   header, principal card, closing CTA, contact card, and footer. A correction has to be
