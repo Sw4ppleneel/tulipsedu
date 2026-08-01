@@ -23,6 +23,7 @@ from models.finance import (
 from services import fee_collection, parent_payment
 from services.finance import (
     FinanceError,
+    count_payment_logs,
     create_fee_head,
     generate_ledger,
     get_outstanding_dues,
@@ -414,12 +415,20 @@ async def export_fees_csv(
 @router.get("/logs")
 async def payment_logs(
     request: Request,
-    limit: int = Query(100, ge=1, le=500),
+    limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ):
+    """One page of payment records plus the unpaginated total.
+
+    Returns an items/total envelope (as OutstandingReport does) rather than a
+    bare list so the UI can show "x-y of N" and know when the last page has
+    been reached without guessing from a short page.
+    """
     pool = request.app.state.pool
     async with pool.acquire() as conn:
-        return await get_payment_logs(conn, request.state.tenant_id, limit=limit, offset=offset)
+        items = await get_payment_logs(conn, request.state.tenant_id, limit=limit, offset=offset)
+        total = await count_payment_logs(conn, request.state.tenant_id)
+    return {"items": items, "total": total, "limit": limit, "offset": offset}
 
 
 @router.get("/logs/export.csv")

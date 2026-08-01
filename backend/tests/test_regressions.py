@@ -149,3 +149,65 @@ def test_admno_autogen_tolerates_nonnumeric(clients, tenant, db):
         "date_of_birth": "2014-01-01",  # adm_no omitted → triggers auto-gen
     })
     assert ren.status_code == 200, f"auto-gen must not 500 on non-numeric existing adm_no: {ren.text[:200]}"
+
+
+# ── Payment logs were capped at one page, hiding older slips ──────────────────
+def test_payment_logs_paginate_over_every_slip(clients, tenant):
+    """/fees/logs must expose EVERY payment via limit/offset, not just page one.
+
+    The logs tab used to fetch a flat 200 with no way to reach anything older,
+    so schools past that many collections simply could not open those receipts.
+    Pages with a deliberately tiny limit so the walk is cheap: the union of all
+    pages must equal the total exactly, with no row repeated or skipped (the
+    failure mode a non-deterministic ORDER BY would produce).
+    """
+    p = clients["principal"]
+
+    # A student with a generated ledger gives us entries to collect against.
+    rh = p.post("/fees/heads", json={"name": f"Pagi {uuid.uuid4().hex[:4]}", "fee_type": "monthly"})
+    assert rh.status_code in (200, 201), rh.text
+    rs = p.post("/fees/schedules", json={
+        "fee_head_id": rh.json()["id"], "academic_year_id": tenant["ay"],
+        "class_id": tenant["cls"], "amount": 500, "due_day_of_month": 5,
+    })
+    assert rs.status_code in (200, 201), rs.text
+
+    adm = f"PAG{uuid.uuid4().hex[:5]}"
+    rc = p.post("/students", json={
+        "academic_year_id": tenant["ay"], "class_id": tenant["cls"], "section_id": tenant["sec"],
+        "admission_no": adm, "roll_number": str(600 + (uuid.uuid4().int % 90)),
+        "first_name": "Pagi", "last_name": "Nation", "date_of_birth": "2015-01-01",
+        "gender": "Male", "parent_phone": "9876543210", "is_hosteler": False,
+    })
+    assert rc.status_code in (200, 201), rc.text
+    sid = rc.json()["id"]
+
+    pending = p.get(f"/fees/ledger?student_id={sid}").json()["pending"]
+    assert len(pending) >= 5, f"need >=5 pending entries to collect, got {len(pending)}"
+
+    # Five separate collections → five distinct payment rows.
+    for entry in pending[:5]:
+        rcol = p.post("/fees/collect", json={
+            "student_id": sid, "ledger_ids": [entry["id"]], "method": "cash",
+        })
+        assert rcol.status_code in (200, 201), f"collect: {rcol.status_code} {rcol.text[:200]}"
+
+    first = p.get("/fees/logs?limit=2&offset=0")
+    assert first.status_code == 200, first.text
+    body = first.json()
+    assert isinstance(body, dict) and "items" in body and "total" in body, \
+        f"logs must return an items/total envelope, got {type(body)}: {str(body)[:150]}"
+    total = body["total"]
+    assert total >= 5, f"expected >=5 payments for this tenant, got {total}"
+
+    # Walk every page and collect the ids.
+    seen: list[str] = []
+    offset = 0
+    while offset < total:
+        page = p.get(f"/fees/logs?limit=2&offset={offset}").json()
+        assert page["total"] == total, f"total shifted mid-walk: {page['total']} != {total}"
+        seen.extend(row["id"] for row in page["items"])
+        offset += 2
+
+    assert len(seen) == total, f"paging returned {len(seen)} rows for a total of {total}"
+    assert len(set(seen)) == total, "a payment appeared on more than one page (unstable ORDER BY)"

@@ -4,6 +4,7 @@ import type {
   FeePayment,
   FeeSchedule,
   OutstandingReport,
+  PaymentLogPage,
   PaymentOrder,
   StudentLedger,
   TenantRevenue,
@@ -64,8 +65,8 @@ export function sendReminders(studentIds: string[]): Promise<{ queued: number }>
 }
 
 // ── Payment Logs ────────────────────────────────────────────────────────────
-export function getPaymentLogs(limit = 100): Promise<FeePayment[]> {
-  return request<FeePayment[]>(`/fees/logs?limit=${limit}`)
+export function getPaymentLogs(limit = 50, offset = 0): Promise<PaymentLogPage> {
+  return request<PaymentLogPage>(`/fees/logs?limit=${limit}&offset=${offset}`)
 }
 
 // ── Receipt HTML view ─────────────────────────────────────────────────────────

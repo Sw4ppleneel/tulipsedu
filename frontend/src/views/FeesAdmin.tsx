@@ -591,10 +591,18 @@ function CollectTab() {
 function LogsTab() {
   const [logs, setLogs] = useState<import('../types/finance').FeePayment[]>([])
   const [loading, setLoading] = useState(true)
+  const [offset, setOffset] = useState(0)
+  const [total, setTotal] = useState(0)
+  const PAGE = 50
 
-  useEffect(() => {
-    getPaymentLogs(200).then((r) => setLogs(r as any)).finally(() => setLoading(false))
-  }, [])
+  function load(nextOffset: number) {
+    setLoading(true)
+    getPaymentLogs(PAGE, nextOffset)
+      .then((r) => { setLogs(r.items); setTotal(r.total); setOffset(nextOffset) })
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => { load(0) }, [])
 
   const STATUS_COLORS: Record<string, string> = { paid: '#0D332A', pending: '#92400e', failed: '#991b1b', processing: '#0D332A' }
   const STATUS_BG: Record<string, string>     = { paid: '#d1fae5', pending: '#fef3c7', failed: '#fee2e2', processing: '#E7EFEA' }
@@ -635,6 +643,22 @@ function LogsTab() {
           ))}
         </div>
         </ScrollX>
+      )}
+
+      {total > 0 && (
+        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem', alignItems: 'center', justifyContent: 'flex-end' }}>
+          <span style={{ marginRight: 'auto', fontSize: '0.78rem', color: '#6b7280' }}>
+            {offset + 1}–{Math.min(offset + PAGE, total)} of {total}
+          </span>
+          <button onClick={() => load(Math.max(0, offset - PAGE))} disabled={loading || offset === 0}
+            style={{ padding: '0.35rem 0.8rem', background: '#f3f4f6', color: '#374151', border: '1px solid #d1d5db', borderRadius: 4, cursor: offset === 0 ? 'default' : 'pointer', fontSize: '0.78rem' }}>
+            ← Newer
+          </button>
+          <button onClick={() => load(offset + PAGE)} disabled={loading || offset + PAGE >= total}
+            style={{ padding: '0.35rem 0.8rem', background: '#f3f4f6', color: '#374151', border: '1px solid #d1d5db', borderRadius: 4, cursor: offset + PAGE >= total ? 'default' : 'pointer', fontSize: '0.78rem' }}>
+            Older →
+          </button>
+        </div>
       )}
     </div>
   )

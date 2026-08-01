@@ -725,6 +725,25 @@ async def get_outstanding_dues(
     )
 
 
+async def count_payment_logs(conn: asyncpg.Connection, tenant_id: uuid.UUID) -> int:
+    """Total payment rows for the tenant, ignoring LIMIT/OFFSET.
+
+    Kept separate from get_payment_logs so the CSV export can keep using the
+    plain row list. Mirrors the JOIN in get_payment_logs: a payment whose
+    student row is gone would be absent from the page, so counting the bare
+    fee_payments table would over-report and leave the last page short.
+    """
+    return await conn.fetchval(
+        """
+        SELECT COUNT(*)::int
+        FROM fee_payments fp
+        JOIN students s ON s.id = fp.student_id
+        WHERE fp.tenant_id = $1
+        """,
+        tenant_id,
+    )
+
+
 async def get_payment_logs(
     conn: asyncpg.Connection,
     tenant_id: uuid.UUID,
@@ -737,7 +756,7 @@ async def get_payment_logs(
         FROM fee_payments fp
         JOIN students s ON s.id = fp.student_id
         WHERE fp.tenant_id = $1
-        ORDER BY fp.created_at DESC
+        ORDER BY fp.created_at DESC, fp.id DESC
         LIMIT $2 OFFSET $3
         """,
         tenant_id, limit, offset,

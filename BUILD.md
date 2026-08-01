@@ -1,5 +1,37 @@
 # BUILD.md
 
+## 🚧 PENDING DEPLOY 2026-08-01 — Fee payment logs: paginated so every slip is reachable (all tenants)
+
+Owner: "its getting cropped to a certain number, we need all slips to be
+accessible. Add pagination." The Payment Logs tab fetched a flat
+`getPaymentLogs(200)` and rendered whatever came back — anything older
+than the newest 200 collections was simply unreachable in the UI, and
+the receipt-PDF link lives on those rows, so those receipts could not be
+opened at all. The API already accepted `limit`/`offset`; nothing ever
+sent an offset.
+
+Backend: added `count_payment_logs` (`services/finance.py`) and changed
+`GET /fees/logs` to return an `{items, total, limit, offset}` envelope,
+matching `OutstandingReport`'s existing items+count shape in the same
+module rather than ActivityLog's countless bare-list variant. Default
+page dropped 100 → 50. `logs/export.csv` still calls `get_payment_logs`
+directly and is unchanged.
+
+Also added `fp.id DESC` as an ORDER BY tiebreaker. `created_at DESC`
+alone is not a total order, and bulk collection writes many payments on
+the same timestamp — under LIMIT/OFFSET that lets a row repeat on one
+page and vanish from another. This was latent before (single page hid
+it) and would have surfaced as soon as paging shipped.
+
+Frontend: `LogsTab` (`FeesAdmin.tsx`) now pages 50 at a time with
+← Newer / Older → and an "x–y of N" counter. Shared component, so all
+tenants get it at once.
+
+Regression test `test_payment_logs_paginate_over_every_slip` walks every
+page at `limit=2` and asserts the union equals `total` with no duplicate
+or skipped row — pins both the envelope and the stable ordering. Gate:
+12 passed, 1 xfailed.
+
 ## 🚧 PENDING DEPLOY 2026-08-01 — PMIC public website: Principal's phone still showed the old number
 
 Owner: "its correct in the login but wrong on the frontend website."

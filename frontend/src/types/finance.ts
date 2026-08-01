@@ -101,6 +101,13 @@ export interface FeePayment {
   created_at: string
 }
 
+export interface PaymentLogPage {
+  items: FeePayment[]
+  total: number
+  limit: number
+  offset: number
+}
+
 export interface TenantRevenue {
   tenant_id: string
   school_name: string
