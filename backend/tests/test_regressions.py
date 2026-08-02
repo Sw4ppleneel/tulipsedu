@@ -240,3 +240,54 @@ def test_real_phone_still_backs_a_portal_password(phone):
     from services.parent import _default_password_for
     assert _default_password_for(phone) == phone[-4:], \
         f"{phone} is a real number and must still derive its last-4 default"
+
+
+# ── Admission fees were levied on every student, every generation ─────────────
+def test_grouped_fee_head_is_never_bulk_generated(clients, tenant, db):
+    """A head in a fee_group must NEVER be levied by generate-ledger.
+
+    DPS's Admission Fee had an all-classes schedule, so every ledger generation
+    billed all 406 students for a charge that applies once at admission
+    (Rs.7,30,800 across four such heads, removed 2026-08-02). Grouping is what
+    stops that: both schedule queries in generate_ledger exclude grouped heads,
+    so the schedule can stay as the amount source without ever applying to a
+    class.
+    """
+    p = clients["principal"]
+
+    rh = p.post("/fees/heads", json={"name": f"Adm {uuid.uuid4().hex[:4]}", "fee_type": "one_time"})
+    assert rh.status_code in (200, 201), rh.text
+    head_id = rh.json()["id"]
+    rs = p.post("/fees/schedules", json={
+        "fee_head_id": head_id, "academic_year_id": tenant["ay"],
+        "class_id": tenant["cls"], "amount": 1000,
+    })
+    assert rs.status_code in (200, 201), rs.text
+
+    adm = f"GRP{uuid.uuid4().hex[:5]}"
+    rc = p.post("/students", json={
+        "academic_year_id": tenant["ay"], "class_id": tenant["cls"], "section_id": tenant["sec"],
+        "admission_no": adm, "roll_number": str(700 + (uuid.uuid4().int % 90)),
+        "first_name": "Group", "last_name": "Test", "date_of_birth": "2015-01-01",
+        "gender": "Male", "parent_phone": "9876543210", "is_hosteler": False,
+    })
+    assert rc.status_code in (200, 201), rc.text
+
+    # Tag it into a group, then force a generation.
+    db_exec = db("UPDATE fee_heads SET fee_group='admission' WHERE id=$1 RETURNING id",
+                 uuid.UUID(head_id))
+    assert db_exec, "could not tag fee head into a group"
+
+    before = db("SELECT COUNT(*) AS n FROM fee_ledger WHERE fee_head_id=$1",
+                uuid.UUID(head_id))[0]["n"]
+    rg = p.post("/fees/generate-ledger", json={
+        "academic_year_id": tenant["ay"],
+        "month_year_pairs": [{"month": 4, "year": 2026}],
+        "include_annual": True,
+    })
+    assert rg.status_code in (200, 201), f"generate: {rg.status_code} {rg.text[:200]}"
+    after = db("SELECT COUNT(*) AS n FROM fee_ledger WHERE fee_head_id=$1",
+               uuid.UUID(head_id))[0]["n"]
+
+    assert after == before, \
+        f"grouped head was bulk-generated: ledger rows went {before} -> {after}"

@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from 'preact/hooks'
 import {
-  collectOffline, downloadDefaultersCsv, downloadReceiptPdf, getDefaulters, getOutstanding, getPaymentLogs, getStudentLedger,
+  collectOffline, downloadDefaultersCsv, downloadReceiptPdf, getDefaulters, getFeeGroups, getOutstanding, getPaymentLogs, getStudentLedger,
+  setFeeGroupActive,
   listFeeHeads, listSchedules, openReceiptHtml, sendReminders, waiveFees,
 } from '../api/finance'
 import type { Defaulter } from '../api/finance'
 import { listAcademicYears, listClasses, listStudents } from '../api/students'
 import { useIsMobile } from '../hooks/useIsMobile'
 import type { AcademicYear, Class, Student } from '../types/student'
-import type { FeeHead, FeeSchedule, OutstandingStudent } from '../types/finance'
+import type { FeeGroup, FeeHead, FeeSchedule, OutstandingStudent } from '../types/finance'
 
 type Tab = 'structure' | 'outstanding' | 'defaulters' | 'logs' | 'collect'
 
@@ -32,7 +33,6 @@ function periodLabel(month: number | null, year: number) {
   return `${MONTH_NAMES[month - 1]} ${year}`
 }
 
-// ── Fee Structure Tab (Excel-only setup + read-only view) ─────────────────────
 // ── Fee groups ────────────────────────────────────────────────────────────────
 // Heads applied once, at admission, rather than to every student every cycle.
 // Bulk generation always skips them; this switch only decides whether a NEW
@@ -104,6 +104,7 @@ function FeeGroupsPanel() {
   )
 }
 
+// ── Fee Structure Tab (Excel-only setup + read-only view) ─────────────────────
 function StructureTab({ years }: { years: AcademicYear[] }) {
   const isMobile = useIsMobile()
   const [heads, setHeads] = useState<FeeHead[]>([])
