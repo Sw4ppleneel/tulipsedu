@@ -5,11 +5,22 @@ dont have admission readmission eevry class". DPS charges admission once, at
 first admission -- it is not a per-class/per-year charge, but an all-classes
 fee_schedule was levying it on all 406 students.
 
-Scope is deliberately narrow: ONLY the head named exactly "Admission Fee".
-The owner was shown the other three admission-time heads (Admission Form
-Rs.200, Development Fee (Admission) Rs.300, Registration Fee Rs.5000 -- the
-last of which has an armed all-classes schedule and zero rows) and chose to
-leave them in place. Do not widen this script.
+Scope (owner-confirmed, widened 2026-08-02 after the first run):
+
+  REMOVE   Admission Fee                 Rs.1000
+  REMOVE   Admission Form                Rs.200
+  REMOVE   Development Fee (Admission)   Rs.300
+  REMOVE   Building Fee                  Rs.300   (owner: "the admission building fee")
+
+  KEEP     Development Fee (Annual)      -- owner: "let the normal devlopment
+           annual fee stay". Also carries 2 PAID rows, so it must not be touched.
+  KEEP     Registration Fee              -- never named by the owner. Zero ledger
+           rows but an ARMED all-classes Rs.5000 schedule: the next ledger
+           generation levies Rs.20,30,000 across 406 students. Flagged separately;
+           do not silently fold it in here.
+
+Idempotent: re-running skips heads already cleared (Admission Fee was removed in
+the first run of this script).
 
 Two things happen, in one transaction:
   1. DELETE the head's fee_schedules rows  -> stops future regeneration.
@@ -34,12 +45,25 @@ import os
 import asyncpg
 
 TENANT_SLUG = "daffodilspublicschool"
-HEAD_NAME = "Admission Fee"
+HEAD_NAMES = [
+    "Admission Fee",
+    "Admission Form",
+    "Development Fee (Admission)",
+    "Building Fee",
+]
+# Guard against a fat-fingered edit ever pulling these into the list above.
+NEVER_REMOVE = {"Development Fee (Annual)", "Registration Fee"}
 
 
 async def main():
     database_url = os.environ["DATABASE_URL"]
     conn = await asyncpg.connect(database_url)
+
+    overlap = NEVER_REMOVE & set(HEAD_NAMES)
+    if overlap:
+        print(f"ABORT: {overlap} is on the protected list — refusing")
+        await conn.close()
+        return
 
     tenant_id = await conn.fetchval("SELECT id FROM tenants WHERE slug = $1", TENANT_SLUG)
     if not tenant_id:
@@ -47,16 +71,21 @@ async def main():
         await conn.close()
         return
 
+    for head_name in HEAD_NAMES:
+        await _remove_head(conn, tenant_id, head_name)
+
+    await conn.close()
+
+
+async def _remove_head(conn: asyncpg.Connection, tenant_id, head_name: str) -> None:
     head = await conn.fetchrow(
         "SELECT id, name, fee_type, is_active FROM fee_heads WHERE tenant_id = $1 AND name = $2",
-        tenant_id, HEAD_NAME,
+        tenant_id, head_name,
     )
     if not head:
-        print(f"ERROR: fee head '{HEAD_NAME}' not found for {TENANT_SLUG}")
-        await conn.close()
+        print(f"SKIP  '{head_name}' not found for {TENANT_SLUG}")
         return
     head_id = head["id"]
-    print(f"head: {head['name']} ({head['fee_type']}, active={head['is_active']})")
 
     # Guard: never delete a row that has been paid or is referenced by a receipt.
     paid = await conn.fetchval(
@@ -76,9 +105,8 @@ async def main():
         tenant_id, head_id,
     )
     if paid or referenced:
-        print(f"ABORT: {paid} paid row(s), {referenced} receipt reference(s) — "
+        print(f"ABORT '{head_name}': {paid} paid row(s), {referenced} receipt reference(s) — "
               f"refusing to delete collected money. Investigate before rerunning.")
-        await conn.close()
         return
 
     schedules = await conn.fetchval(
@@ -90,7 +118,11 @@ async def main():
         "WHERE tenant_id = $1 AND fee_head_id = $2",
         tenant_id, head_id,
     )
-    print(f"to remove: {schedules} schedule(s), {rows} ledger row(s) worth {value}")
+    if not schedules and not rows:
+        print(f"SKIP  '{head_name}' already clear (0 schedules, 0 ledger rows)")
+        return
+    print(f"'{head_name}' ({head['fee_type']}): removing {schedules} schedule(s), "
+          f"{rows} ledger row(s) worth {value}")
 
     async with conn.transaction():
         await conn.execute(
@@ -110,9 +142,8 @@ async def main():
     still_active = await conn.fetchval(
         "SELECT is_active FROM fee_heads WHERE id = $1", head_id,
     )
-    await conn.close()
-    print(f"OK  {deleted}; {left} ledger row(s) remain; head still active={still_active} "
-          f"(kept so it can be levied per-student)")
+    print(f"OK    '{head_name}' {deleted}; {left} ledger row(s) remain; "
+          f"head still active={still_active} (kept for the admission-fee group)")
 
 
 if __name__ == "__main__":

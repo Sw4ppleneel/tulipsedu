@@ -762,3 +762,95 @@ async def get_payment_logs(
         tenant_id, limit, offset,
     )
     return [dict(r) for r in rows]
+
+
+async def levy_one_time_fee(
+    conn: asyncpg.Connection,
+    tenant_id: uuid.UUID,
+    student_id: uuid.UUID,
+    fee_head_id: uuid.UUID,
+    amount: Decimal,
+    academic_year_id: Optional[uuid.UUID] = None,
+    levied_by: Optional[uuid.UUID] = None,
+) -> dict:
+    """Charge ONE one-time fee to ONE student, outside the schedule system.
+
+    Schedules levy a head on every student in a class, which is wrong for
+    admission-type charges: DPS admits a student once, not once per class, so
+    their Admission Fee schedule was billing all 406 students every generation
+    (removed 2026-08-02). This is the replacement path — the fee head stays
+    active with no schedule, and staff apply it per student as they admit them.
+
+    Restricted to `one_time` heads on purpose. Monthly and annual heads are
+    schedule-driven and generated in bulk; levying one ad-hoc would produce a
+    row the next generation run has no idea about.
+    """
+    if amount is None or Decimal(amount) <= 0:
+        raise FinanceError("Amount must be greater than zero")
+
+    head = await conn.fetchrow(
+        "SELECT id, name, fee_type, is_active FROM fee_heads WHERE id = $1 AND tenant_id = $2",
+        fee_head_id, tenant_id,
+    )
+    if not head:
+        raise FinanceError("Fee head not found")
+    if not head["is_active"]:
+        raise FinanceError(f"'{head['name']}' is inactive — reactivate it before levying")
+    if head["fee_type"] != "one_time":
+        raise FinanceError(
+            f"'{head['name']}' is a {head['fee_type']} fee — only one-time fees can be "
+            "levied individually; the rest are generated from the fee schedule"
+        )
+
+    student = await conn.fetchrow(
+        "SELECT id, first_name, last_name FROM students "
+        "WHERE id = $1 AND tenant_id = $2 AND is_active = TRUE",
+        student_id, tenant_id,
+    )
+    if not student:
+        raise FinanceError("Student not found")
+
+    if academic_year_id is None:
+        academic_year_id = await conn.fetchval(
+            "SELECT id FROM academic_years WHERE tenant_id = $1 AND is_current = TRUE",
+            tenant_id,
+        )
+        if not academic_year_id:
+            raise FinanceError("No current academic year is set")
+
+    # A one-time fee is exactly that — don't let a second click bill it twice.
+    # Only unpaid rows block: a genuine re-levy after payment (a re-admission)
+    # is legitimate, double-clicking "Add" is not.
+    existing = await conn.fetchval(
+        """
+        SELECT COUNT(*) FROM fee_ledger
+        WHERE tenant_id = $1 AND student_id = $2 AND fee_head_id = $3
+          AND academic_year_id = $4 AND status <> 'paid' AND payment_id IS NULL
+        """,
+        tenant_id, student_id, fee_head_id, academic_year_id,
+    )
+    if existing:
+        raise FinanceError(
+            f"{student['first_name']} {student['last_name']} already has an unpaid "
+            f"'{head['name']}' this year"
+        )
+
+    row = await conn.fetchrow(
+        """
+        INSERT INTO fee_ledger
+            (tenant_id, student_id, fee_head_id, academic_year_id,
+             period_month, period_year, amount_due)
+        VALUES ($1, $2, $3, $4, NULL, EXTRACT(YEAR FROM CURRENT_DATE)::int, $5)
+        RETURNING *
+        """,
+        tenant_id, student_id, fee_head_id, academic_year_id, Decimal(amount),
+    )
+    await emit(conn, "FEE_LEVIED", tenant_id, {
+        "student_id": str(student_id),
+        "fee_head_id": str(fee_head_id),
+        "fee_head_name": head["name"],
+        "amount": str(amount),
+        "ledger_id": str(row["id"]),
+        "levied_by": str(levied_by) if levied_by else None,
+    })
+    return dict(row)
