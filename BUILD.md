@@ -1,5 +1,69 @@
 # BUILD.md
 
+## ✅ DEPLOYED 2026-08-02 — DPS admission fees removed from all students; fee groups added (migration 045)
+
+Owner: *"For daffodils, remove admission fee for all students they dont have
+admission readmission eevry class, give a separate option to add admission
+fees"*, then widened: *"we need to remove admission form as well, admission
+devlopment fee, let the normal devlopment annual fee stay, and the admission
+building fee… add this under another group that the principal and
+accountantant can deactivate or activate for new admissions. Default
+deactivated. And yes only prinicipal and accountant we are not letting
+teachers see the amounts."*
+
+**The bug.** Four admission-time heads had all-classes `fee_schedules`, so
+every ledger generation billed all 406 DPS students for charges that apply
+once, at first admission:
+
+| Head | Per student | Rows | Value |
+|---|---|---|---|
+| Admission Fee | ₹1,000 | 406 | ₹4,06,000 |
+| Admission Form | ₹200 | 406 | ₹81,200 |
+| Development Fee (Admission) | ₹300 | 406 | ₹1,21,800 |
+| Building Fee | ₹300 | 406 | ₹1,21,800 |
+| **Removed** | | **1,624** | **₹7,30,800** |
+
+Zero were paid, so nothing financial was destroyed. `Development Fee
+(Annual)` was explicitly kept (it also carries 2 paid rows). DPS outstanding
+went from ₹47,74,750 → ₹40,43,950. Fresh `backup_db.sh` snapshot before each
+of the two destructive runs, plus the automatic pre-migration backup.
+
+**The fix.** Migration 045 adds `fee_heads.fee_group` (nullable; partial
+index leading with `tenant_id`). Both schedule queries in `generate_ledger`
+now exclude `fh.fee_group IS NOT NULL`, so a grouped head can never be
+bulk-levied on a class again — its schedule survives purely as the *amount*
+source. Group on/off lives in `tenants.feature_flags`
+(`admission_fees_active`): an absent flag reads as OFF, so "default
+deactivated" needed no backfill and no per-tenant row. Toggling merges into
+the JSONB rather than replacing it, so `parent_password` / `admission_docs` /
+`section_label` survive.
+
+Enrolment levies the group only when switched on, via `levy_fee_group` →
+`levy_one_time_fee`, which refuses a duplicate unpaid charge so a retried
+enrolment can't double-bill.
+
+`GET`/`PATCH /fees/groups` are gated to **principal + accountant only** —
+not VP, not any teaching role, since these screens show amounts. The earlier
+plan had class-teacher access; the owner reversed it before any teacher-facing
+code was written, so nothing had to be unwound. New events: `FEE_LEVIED`,
+`FEE_GROUP_TOGGLED`.
+
+**Registration Fee deliberately untouched** — owner: *"dont add registertion
+fee ANYWHERE"*. Not grouped, not deleted. ⚠️ Its all-classes ₹5,000 schedule
+is still armed with zero ledger rows: the next `generate-ledger` run levies
+₹20,30,000 across all 406 DPS students. Flagged to the owner twice; left as
+instructed. See Known Issues.
+
+**Ordering mattered:** migration + `generate_ledger` change were deployed
+*before* the tagging script restored the schedules, so there was no window in
+which a generation could re-bill everyone.
+
+Verified on prod: `schema_migrations` shows 045, `fee_group` column exists,
+four heads tagged with 0 ledger rows, `Development Fee (Annual)` and
+`Registration Fee` both ungrouped and intact, deployed `finance.py` carries
+both exclusion clauses, flags still `{"parent_password": true}` (group OFF).
+Gate 19 passed, 1 xfailed; smoke 10/10.
+
 ## 🔒 ✅ DEPLOYED 2026-08-02 — SECURITY: placeholder phones were handing out guessable parent-portal passwords (PMIC, 119 students)
 
 Found while discussing a parent-facing data-collection form; owner spotted
@@ -2155,6 +2219,11 @@ Migration 031. Full write-up in ARCHITECTURE.md.
 - Feature flags (`tenants.features` JSONB) mandated by CLAUDE.md but NOT built — see W4.
   (ROADMAP previously mislabelled migration 023 as this; 023 is the transport fee filter.)
 - Domain events are recorded but not consumed (no worker) — the central Phase-2 gap (W1–W2).
+- ⚠️ **DPS "Registration Fee" has an armed ₹5,000 all-classes schedule and zero ledger rows.**
+  The next `generate-ledger` run levies **₹20,30,000** across all 406 students. Owner was shown
+  this twice while removing the other four admission heads and instructed "dont add registertion
+  fee ANYWHERE", so it was left grouped-out and untouched. Not a bug — a live consequence to be
+  aware of before anyone regenerates DPS's ledger. Deleting just that schedule disarms it.
 - ⚠️ **119 PMIC students have no working parent-portal login** until their real phone numbers
   are entered (placeholder `9000000000`/`9999999999`). Blocked deliberately by the 2026-08-02
   security fix above; owner is collecting the numbers. Teachers can fix their own section via

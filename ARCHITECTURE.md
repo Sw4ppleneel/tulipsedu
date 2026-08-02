@@ -582,6 +582,7 @@ Grade scale (CBSE): A1≥91, A2≥81, B1≥71, B2≥61, C1≥51, C2≥41, D≥33
 > `HOMEWORK_UPDATED/DELETED`, `STUDENT_DEACTIVATED`, `STUDENTS_IMPORTED`,
 > `STAFF_DEACTIVATED`, `STAFF_ASSIGNMENT_REMOVED`, `STAFF_IMPORTED`,
 > `FEE_HEAD_CREATED/TOGGLED`, `FEE_SCHEDULE_SET`, `FEE_STRUCTURE_IMPORTED`,
+> `FEE_LEVIED` (one one-time head charged to one student), `FEE_GROUP_TOGGLED`,
 > `EXAM_COMPONENTS_CONFIGURED`, `PAYSLIP_UPDATED`. A few producers genuinely
 > have no actor available (webhook payment confirmation, the public
 > admissions enquiry/upload-token flow) — left as-is, documented per-event
@@ -769,6 +770,8 @@ ledger rows recomputed from schedule base amounts. Audit-only.
 ### GET /api/v1/fees/discounts?student_id= — Implemented (principal/VP/accountant)
 ### PUT /api/v1/fees/discounts — Implemented (principal/VP only, not accountant; replaces student's discount set + recomputes unpaid ledger rows, including any active seasonal reduction for the row's month)
 ### PUT /api/v1/fees/schedules — Implemented (principal/VP/accountant; upsert. `reduced_month`/`reduced_percentage` optional — schedule charges that % of `amount` in that one calendar month every year, e.g. DPS's Bus Fee = 50% in May. Applied automatically by ledger generation; stacks with a student's own discount, seasonal reduction first then the personal discount on top)
+### GET /api/v1/fees/groups — Implemented (principal + accountant ONLY — not VP, not any teaching role, since it shows fee amounts. Returns each fee group, its on/off state, member heads and per-admission total)
+### PATCH /api/v1/fees/groups/{group} — Implemented (principal + accountant; `{is_active}`. Merges into `tenants.feature_flags` rather than replacing it, so parent_password/admission_docs/section_label survive. Emits FEE_GROUP_TOGGLED)
 ### GET /api/v1/fees/logs?limit=&offset= — Implemented (fee-view roles; paginated payment/receipt history, newest first. Returns an `{items, total, limit, offset}` envelope — `total` is the unpaginated count so the UI can show "x–y of N" and disable Older on the true last page rather than inferring the end from a short page. `limit` defaults to 50, max 500. Ordered `created_at DESC, id DESC`; the id tiebreaker keeps paging deterministic when a bulk collection writes many rows on the same timestamp)
 ### GET /api/v1/fees/logs/export.csv — Implemented (export-role gated; all rows, unpaginated)
 ### GET /api/v1/superadmin/dashboard — Implemented
