@@ -33,6 +33,77 @@ function periodLabel(month: number | null, year: number) {
 }
 
 // ── Fee Structure Tab (Excel-only setup + read-only view) ─────────────────────
+// ── Fee groups ────────────────────────────────────────────────────────────────
+// Heads applied once, at admission, rather than to every student every cycle.
+// Bulk generation always skips them; this switch only decides whether a NEW
+// admission gets charged. Off by default — turning it on never touches anyone
+// already enrolled.
+function FeeGroupsPanel() {
+  const [groups, setGroups] = useState<FeeGroup[]>([])
+  const [busy, setBusy] = useState('')
+  const [err, setErr] = useState('')
+
+  useEffect(() => { getFeeGroups().then(setGroups).catch(() => {}) }, [])
+
+  async function toggle(g: FeeGroup) {
+    setBusy(g.group); setErr('')
+    try {
+      await setFeeGroupActive(g.group, !g.is_active)
+      setGroups(await getFeeGroups())
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not update')
+    } finally { setBusy('') }
+  }
+
+  if (groups.length === 0) return null
+
+  return (
+    <div style={{ marginBottom: '1.25rem' }}>
+      {err && <p style={{ color: '#c00', fontSize: '0.8rem', marginBottom: '0.5rem' }}>{err}</p>}
+      {groups.map((g) => (
+        <div key={g.group} style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8, padding: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <h4 style={{ margin: 0, fontSize: '0.9rem', textTransform: 'capitalize' }}>{g.group} Fees</h4>
+            <span style={{
+              padding: '2px 8px', borderRadius: 9999, fontSize: '0.7rem', fontWeight: 600,
+              background: g.is_active ? '#d1fae5' : '#f3f4f6',
+              color: g.is_active ? '#0D332A' : '#6b7280',
+            }}>{g.is_active ? 'Active' : 'Deactivated'}</span>
+            <button
+              onClick={() => toggle(g)} disabled={busy === g.group}
+              style={{
+                marginLeft: 'auto', padding: '0.35rem 0.8rem', borderRadius: 4, fontSize: '0.78rem',
+                cursor: busy === g.group ? 'default' : 'pointer',
+                border: `1px solid ${g.is_active ? '#d1d5db' : '#14463A'}`,
+                background: g.is_active ? '#f3f4f6' : '#14463A',
+                color: g.is_active ? '#374151' : '#fff',
+              }}>
+              {busy === g.group ? '…' : g.is_active ? 'Deactivate' : 'Activate'}
+            </button>
+          </div>
+          <p style={{ margin: '0.6rem 0 0.75rem', fontSize: '0.78rem', color: '#6b7280' }}>
+            Charged <b>once, to newly admitted students only</b> — never to the whole class, and
+            never by fee generation. {g.is_active
+              ? 'New admissions will be charged these.'
+              : 'New admissions will not be charged these.'} Students already enrolled are unaffected either way.
+          </p>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            {g.heads.map((h) => (
+              <span key={h.id} style={{
+                padding: '0.3rem 0.6rem', border: '1px solid #e5e7eb', borderRadius: 6,
+                background: '#fff', fontSize: '0.76rem', color: '#374151',
+              }}>{h.name} · <b>{fmt(h.amount)}</b></span>
+            ))}
+            <span style={{ padding: '0.3rem 0.6rem', fontSize: '0.76rem', color: '#6b7280' }}>
+              Total per admission: <b>{fmt(g.total)}</b>
+            </span>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function StructureTab({ years }: { years: AcademicYear[] }) {
   const isMobile = useIsMobile()
   const [heads, setHeads] = useState<FeeHead[]>([])
@@ -83,6 +154,8 @@ function StructureTab({ years }: { years: AcademicYear[] }) {
   return (
     <div>
       {error && <p style={{ color: '#c00', fontSize: '0.8rem', marginBottom: '0.75rem' }}>{error}</p>}
+
+      <FeeGroupsPanel />
 
       {/* Upload panel — the only way to set up fees */}
       <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8, padding: '1rem', marginBottom: '1.25rem' }}>

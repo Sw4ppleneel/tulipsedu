@@ -249,3 +249,7 @@ class SuperadminPaymentRow(BaseModel):
     receipt_number: Optional[str]
     paid_at: Optional[datetime]
     created_at: datetime
+
+
+class FeeGroupToggle(BaseModel):
+    is_active: bool

@@ -12,11 +12,17 @@ from pydantic import BaseModel, field_validator
 from config import settings
 from core.events import emit
 from core.phone import normalize_indian_mobile
-from core.rbac import require_roles
 from core.r2 import R2ClientError, r2_client, r2_enabled
+from core.rbac import require_roles
 from core.security import create_upload_token, decode_token
-from services.finance import generate_ledger, _derive_month_year_pairs
 from models.finance import GenerateLedgerRequest
+from services.finance import (
+    ADMISSION_GROUP,
+    _derive_month_year_pairs,
+    _group_flag,
+    generate_ledger,
+    levy_fee_group,
+)
 
 router = APIRouter(prefix="/admissions", tags=["admissions"])
 
@@ -395,6 +401,18 @@ async def enrol_student(admission_id: UUID, body: EnrolRequest, request: Request
                     include_annual=True,
                 ),
             )
+
+            # Admission-time charges. generate_ledger above deliberately skips
+            # grouped heads, so these apply once here, to this student, instead
+            # of to every student in the class on every generation — which is
+            # what the schedule-driven version was doing (DPS, removed
+            # 2026-08-02). Off unless the school switched the group on.
+            flags = getattr(request.state, "feature_flags", {}) or {}
+            if flags.get(_group_flag(ADMISSION_GROUP)):
+                await levy_fee_group(
+                    conn, tid, student["id"], ADMISSION_GROUP,
+                    academic_year_id=body.academic_year_id, levied_by=user_id,
+                )
 
             # Mark admission as enrolled
             await conn.execute(

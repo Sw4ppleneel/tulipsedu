@@ -3,6 +3,8 @@ import type {
   FeeHead,
   FeePayment,
   FeeSchedule,
+  FeeGroup,
+  FeeGroupState,
   OutstandingReport,
   PaymentLogPage,
   PaymentOrder,
@@ -242,4 +244,17 @@ export function getFeeRecovery(params?: { academic_year_id?: string }): Promise<
   const p = new URLSearchParams()
   if (params?.academic_year_id) p.set('academic_year_id', params.academic_year_id)
   return request<RecoveryResponse>(`/fees/recovery?${p}`)
+}
+
+// ── Fee groups ──────────────────────────────────────────────────────────────
+// Heads switched on/off together and never levied by bulk generation.
+// Backend gates these to principal/accountant (screens show amounts).
+export function getFeeGroups(): Promise<FeeGroup[]> {
+  return request<FeeGroup[]>('/fees/groups')
+}
+export function setFeeGroupActive(group: string, isActive: boolean): Promise<FeeGroupState> {
+  return request<FeeGroupState>(`/fees/groups/${encodeURIComponent(group)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ is_active: isActive }),
+  })
 }

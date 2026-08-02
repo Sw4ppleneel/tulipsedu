@@ -440,6 +440,7 @@ async def generate_ledger(
         FROM fee_schedules fs
         JOIN fee_heads fh ON fh.id = fs.fee_head_id
         WHERE fs.tenant_id = $1 AND fs.academic_year_id = $2 AND fh.is_active = TRUE
+          AND fh.fee_group IS NULL
         """,
         tenant_id, data.academic_year_id,
     )
@@ -513,6 +514,7 @@ async def generate_ledger_for_new_student(
         FROM fee_schedules fs
         JOIN fee_heads fh ON fh.id = fs.fee_head_id
         WHERE fs.tenant_id = $1 AND fs.academic_year_id = $2 AND fh.is_active = TRUE
+          AND fh.fee_group IS NULL
           AND (fs.class_id IS NULL OR fs.class_id = $3)
         """,
         tenant_id, academic_year_id, class_id,
@@ -854,3 +856,139 @@ async def levy_one_time_fee(
         "levied_by": str(levied_by) if levied_by else None,
     })
     return dict(row)
+
+
+# ── Fee Groups ────────────────────────────────────────────────────────────────
+#
+# A fee group is a set of heads that are switched on/off together and are NEVER
+# levied by bulk ledger generation (both schedule queries in generate_ledger
+# exclude `fh.fee_group IS NOT NULL`). They exist for charges that apply to a
+# student once, on an event, rather than to a whole class every cycle.
+#
+# DPS drove this: admission is charged at first admission, not once per class,
+# but all-classes schedules were levying Rs.7,30,800 across 406 students every
+# generation. The heads keep their schedules purely as the AMOUNT source; what
+# stops them applying to everyone is the group tag, and what decides whether a
+# new admission gets them is the tenant flag below.
+
+ADMISSION_GROUP = "admission"
+
+
+def _group_flag(group: str) -> str:
+    """Feature-flag key holding a group's on/off state.
+
+    State lives in tenants.feature_flags rather than a column so that an absent
+    flag reads as OFF — "default deactivated" needs no backfill and no row per
+    tenant, and a tenant that never opts in is unaffected.
+    """
+    return f"{group}_fees_active"
+
+
+async def list_fee_groups(
+    conn: asyncpg.Connection, tenant_id: uuid.UUID, feature_flags: Optional[dict] = None
+) -> list[dict]:
+    """Every fee group for the tenant, its on/off state, and its member heads."""
+    rows = await conn.fetch(
+        """
+        SELECT fh.fee_group, fh.id, fh.name, fh.fee_type, fh.is_active,
+               (SELECT fs.amount FROM fee_schedules fs
+                 WHERE fs.fee_head_id = fh.id AND fs.tenant_id = fh.tenant_id
+                 ORDER BY fs.class_id NULLS FIRST LIMIT 1) AS amount
+        FROM fee_heads fh
+        WHERE fh.tenant_id = $1 AND fh.fee_group IS NOT NULL
+        ORDER BY fh.fee_group, fh.sort_order, fh.name
+        """,
+        tenant_id,
+    )
+    flags = feature_flags or {}
+    grouped: dict[str, dict] = {}
+    for r in rows:
+        g = grouped.setdefault(r["fee_group"], {
+            "group": r["fee_group"],
+            "is_active": bool(flags.get(_group_flag(r["fee_group"]), False)),
+            "heads": [],
+            "total": Decimal("0"),
+        })
+        amount = r["amount"] or Decimal("0")
+        g["heads"].append({
+            "id": str(r["id"]), "name": r["name"], "fee_type": r["fee_type"],
+            "is_active": r["is_active"], "amount": str(amount),
+        })
+        g["total"] += amount
+    for g in grouped.values():
+        g["total"] = str(g["total"])
+    return list(grouped.values())
+
+
+async def set_fee_group_active(
+    conn: asyncpg.Connection, tenant_id: uuid.UUID, group: str, active: bool,
+    set_by: Optional[uuid.UUID] = None,
+) -> dict:
+    """Switch a fee group on or off for this tenant.
+
+    Merges into feature_flags rather than replacing it — the JSONB holds
+    unrelated flags (parent_password, admission_docs, section_label) and
+    clobbering them would silently disable live features.
+    """
+    members = await conn.fetchval(
+        "SELECT COUNT(*) FROM fee_heads WHERE tenant_id = $1 AND fee_group = $2",
+        tenant_id, group,
+    )
+    if not members:
+        raise FinanceError(f"No fee heads belong to the '{group}' group")
+
+    await conn.execute(
+        """
+        UPDATE tenants
+        SET feature_flags = COALESCE(feature_flags, '{}'::jsonb)
+                            || jsonb_build_object($2::text, $3::boolean)
+        WHERE id = $1
+        """,
+        tenant_id, _group_flag(group), active,
+    )
+    await emit(conn, "FEE_GROUP_TOGGLED", tenant_id, {
+        "group": group, "is_active": active, "member_heads": members,
+        "set_by": str(set_by) if set_by else None,
+    })
+    return {"group": group, "is_active": active, "member_heads": members}
+
+
+async def levy_fee_group(
+    conn: asyncpg.Connection,
+    tenant_id: uuid.UUID,
+    student_id: uuid.UUID,
+    group: str,
+    academic_year_id: Optional[uuid.UUID] = None,
+    levied_by: Optional[uuid.UUID] = None,
+) -> list[dict]:
+    """Apply every head in a group to ONE student, at its scheduled amount.
+
+    Called when a student is admitted while the group is switched on. Heads
+    with no schedule (hence no amount) are skipped rather than billed at zero.
+    Individual levies that fail their own guards — e.g. the student already has
+    that unpaid charge — are skipped too, so a retried enrolment can't double-bill.
+    """
+    heads = await conn.fetch(
+        """
+        SELECT fh.id,
+               (SELECT fs.amount FROM fee_schedules fs
+                 WHERE fs.fee_head_id = fh.id AND fs.tenant_id = fh.tenant_id
+                 ORDER BY fs.class_id NULLS FIRST LIMIT 1) AS amount
+        FROM fee_heads fh
+        WHERE fh.tenant_id = $1 AND fh.fee_group = $2 AND fh.is_active = TRUE
+        ORDER BY fh.sort_order, fh.name
+        """,
+        tenant_id, group,
+    )
+    levied = []
+    for h in heads:
+        if not h["amount"] or Decimal(h["amount"]) <= 0:
+            continue
+        try:
+            levied.append(await levy_one_time_fee(
+                conn, tenant_id, student_id, h["id"], h["amount"],
+                academic_year_id=academic_year_id, levied_by=levied_by,
+            ))
+        except FinanceError:
+            continue
+    return levied

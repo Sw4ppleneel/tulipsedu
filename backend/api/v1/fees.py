@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Upl
 from core.csv_export import csv_response, require_export_role
 from core.rbac import require_roles
 from models.finance import (
+    FeeGroupToggle,
     FeeHeadCreate,
     FeeHeadResponse,
     FeeScheduleCreate,
@@ -30,9 +31,11 @@ from services.finance import (
     get_payment_logs,
     get_student_ledger,
     import_and_generate,
+    list_fee_groups,
     list_fee_heads,
     list_fee_schedules,
     list_student_discounts,
+    set_fee_group_active,
     set_student_discounts,
     toggle_fee_head,
     upsert_fee_schedule,
@@ -444,3 +447,31 @@ async def export_logs_csv(request: Request):
         r.get("status", ""), str(r.get("paid_at", "")), str(r.get("created_at", "")),
     ] for r in logs]
     return csv_response(headers, rows, "payment_logs.csv")
+
+
+# ── Fee groups ────────────────────────────────────────────────────────────────
+# Heads that are switched on/off together and are never levied by bulk ledger
+# generation — see services.finance "Fee Groups". Gated to principal/accountant
+# (not VP, not any teaching role): these screens show fee amounts.
+
+@router.get("/groups", dependencies=[_collect])
+async def fee_groups(request: Request):
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        return await list_fee_groups(
+            conn, request.state.tenant_id,
+            getattr(request.state, "feature_flags", {}) or {},
+        )
+
+
+@router.patch("/groups/{group}", dependencies=[_collect])
+async def toggle_fee_group(group: str, body: FeeGroupToggle, request: Request):
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        try:
+            return await set_fee_group_active(
+                conn, request.state.tenant_id, group, body.is_active,
+                set_by=UUID(request.state.user_id),
+            )
+        except FinanceError as e:
+            raise HTTPException(status_code=400, detail=str(e))

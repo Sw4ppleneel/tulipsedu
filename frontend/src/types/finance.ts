@@ -116,3 +116,24 @@ export interface TenantRevenue {
   total_outstanding: string
   payment_count: number
 }
+
+export interface FeeGroupHead {
+  id: string
+  name: string
+  fee_type: string
+  is_active: boolean
+  amount: string
+}
+
+export interface FeeGroup {
+  group: string
+  is_active: boolean
+  heads: FeeGroupHead[]
+  total: string
+}
+
+export interface FeeGroupState {
+  group: string
+  is_active: boolean
+  member_heads: number
+}
