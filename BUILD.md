@@ -1,5 +1,46 @@
 # BUILD.md
 
+## ✅ DEPLOYED 2026-08-03 — PMIC Class 11 Arts (2026-28): roster reconciled to 117
+
+Owner supplied `session 2026-28 Arts.xlsx` (117 rows) with "update students".
+Resolved to Class 11 Arts — `A-2026-` admission numbers confirm that prefix is
+the 2026-28 session (Class 12 Arts is `A-2025-`, the 2025-27 batch, which is
+where the 118 placeholder phones live; unrelated).
+
+107 of the 117 rows already existed and matched the DB **exactly on name** —
+the file is a superset of the earlier import with 10 rows appended.
+
+**Created rolls 108–117** (`A-2026-108` … `A-2026-117`) via
+`services.student.create_student`, not raw INSERTs, so each got its
+STUDENT_CREATED event and a generated fee ledger identical to a normally-added
+student. That mattered: every existing Class 11 Arts student carries 26 ledger
+rows worth ₹22,500, so hand-rolled inserts would have left the new ten owing
+nothing. Verified 26 rows each; section total ₹24,07,500 → **₹26,32,500**,
+roster 107 → **117**.
+
+**Fixed roll 86** (Asha Kumari) DOB `2000-01-01` → `2010-09-20`; the stored
+value was a placeholder. Guarded — the update refuses if the current value
+isn't the expected old one.
+
+**Not imported** (no columns; owner chose "import only required info" over a
+migration): father's name, mother's name, caste, Aadhaar no., guardian's
+Aadhaar no., passing board, passing %. Only 4 of the file's 11 columns map to
+`students`. **Aadhaar deliberately omitted** — storing national ID numbers
+carries consent/retention obligations this schema doesn't take on; revisit only
+as an explicit decision, not as an import side effect.
+
+**Roll 25 left on its `0000000000` placeholder.** The file gives `834075546` —
+nine digits, not a valid Indian mobile — so importing it would have swapped one
+unusable number for another. Still cannot access the parent portal.
+
+Script is identity-keyed on `admission_no` and idempotent. Backup
+`tulipsedu-2026-08-03-0841.sql.gz` taken before the write.
+
+**Data oddities flagged to the owner, imported verbatim:** roll 115 Soniya
+Kumari DOB 1997-11-05 (≈28 years old in Class 11 — looks like a typo for 2007/
+2009); roll 110 "PRADEEEP" (three E's); roll 109 Arman Ansari shares a name with
+roll 105 but has a different phone and DOB, so presumed a different person.
+
 ## ✅ DEPLOYED 2026-08-02 — DPS admission fees removed from all students; fee groups added (migration 045)
 
 Owner: *"For daffodils, remove admission fee for all students they dont have
